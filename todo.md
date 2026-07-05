@@ -1,0 +1,2 @@
+- [ ] Make sure we have a rule around no arbitrary colors, we should use css vars
+- [ ] In general, we need a theme for the app, including dark and light mode. Make sure that is incorperated into the app
