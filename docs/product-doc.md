@@ -39,12 +39,12 @@ The homepage features recent posts alongside a dedicated announcements section f
 
 ## 2. Users & Roles
 
-| Role | Description | Capabilities |
-|---|---|---|
-| **Visitor** | Anyone, no account | Browse, read posts, view announcements, search, filter by category/tag, view comments and like counts |
-| **Reader** (authenticated) | Signed in via Google or Discord | Everything a Visitor can do, plus: comment, reply in threads, edit/delete own comments, like/unlike posts and comments |
-| **Author** | Contributor account designated by admin | Everything a Reader can do, plus: create, edit, preview, draft, schedule publish, and schedule archive **their own** posts |
-| **Admin** (Paul) | Site owner | Everything an Author can do on **all** posts, plus: announcements, comment moderation, user management (roles, bans), category management, analytics dashboard |
+| Role                       | Description                             | Capabilities                                                                                                                                                   |
+| -------------------------- | --------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Visitor**                | Anyone, no account                      | Browse, read posts, view announcements, search, filter by category/tag, view comments and like counts                                                          |
+| **Reader** (authenticated) | Signed in via Google or Discord         | Everything a Visitor can do, plus: comment, reply in threads, edit/delete own comments, like/unlike posts and comments                                         |
+| **Author**                 | Contributor account designated by admin | Everything a Reader can do, plus: create, edit, preview, draft, schedule publish, and schedule archive **their own** posts                                     |
+| **Admin** (Paul)           | Site owner                              | Everything an Author can do on **all** posts, plus: announcements, comment moderation, user management (roles, bans), category management, analytics dashboard |
 
 ---
 

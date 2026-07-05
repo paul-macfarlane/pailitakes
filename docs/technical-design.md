@@ -9,22 +9,22 @@
 
 ## 1. Stack Summary
 
-| Concern | Choice | Notes |
-|---|---|---|
-| Framework | **Next.js (App Router)** | SSR/ISR for public pages, server actions for mutations |
-| Hosting | **Vercel** | Image handling, AI Gateway |
-| Scheduler | **cron-job.org** | External cron hitting a secret-protected endpoint every 5 min (free at this frequency; Vercel Cron on Hobby is once/day) |
-| Database | **Neon Postgres** (prod/staging), **Docker Postgres** (local) | Serverless driver in deployed envs |
-| ORM | **Drizzle** | Schema-as-code, migrations via drizzle-kit |
-| Auth | **Better Auth** | Google + Discord OAuth, Drizzle adapter, role field |
-| Styling | **Tailwind CSS + shadcn/ui** | shadcn chart components wrap Recharts |
-| Client data | **TanStack Query** (comments + admin dashboard only) | Likes use server actions + `useOptimistic`; beacon is plain `sendBeacon` |
-| Markdown | **unified** (remark/rehype) | Server-side render, sanitized, YouTube embed transform |
-| Thumbnails | **External public URLs** | No storage in v1; `next/image` with `unoptimized`; Vercel Blob later if uploads wanted |
-| Moderation | **Claude Haiku via Vercel AI Gateway** | AI SDK, model `anthropic/claude-haiku-4.5`; OIDC auth on Vercel (no key mgmt); optional fallback model; $5/mo included credits cover this workload |
-| Search | **Postgres FTS** | Generated `tsvector` + GIN index |
-| Analytics | **Self-hosted in Postgres** | Beacon endpoint + `page_views` table |
-| Charts | **Recharts** (via shadcn/ui charts) | Admin analytics dashboard |
+| Concern     | Choice                                                        | Notes                                                                                                                                              |
+| ----------- | ------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Framework   | **Next.js (App Router)**                                      | SSR/ISR for public pages, server actions for mutations                                                                                             |
+| Hosting     | **Vercel**                                                    | Image handling, AI Gateway                                                                                                                         |
+| Scheduler   | **cron-job.org**                                              | External cron hitting a secret-protected endpoint every 5 min (free at this frequency; Vercel Cron on Hobby is once/day)                           |
+| Database    | **Neon Postgres** (prod/staging), **Docker Postgres** (local) | Serverless driver in deployed envs                                                                                                                 |
+| ORM         | **Drizzle**                                                   | Schema-as-code, migrations via drizzle-kit                                                                                                         |
+| Auth        | **Better Auth**                                               | Google + Discord OAuth, Drizzle adapter, role field                                                                                                |
+| Styling     | **Tailwind CSS + shadcn/ui**                                  | shadcn chart components wrap Recharts                                                                                                              |
+| Client data | **TanStack Query** (comments + admin dashboard only)          | Likes use server actions + `useOptimistic`; beacon is plain `sendBeacon`                                                                           |
+| Markdown    | **unified** (remark/rehype)                                   | Server-side render, sanitized, YouTube embed transform                                                                                             |
+| Thumbnails  | **External public URLs**                                      | No storage in v1; `next/image` with `unoptimized`; Vercel Blob later if uploads wanted                                                             |
+| Moderation  | **Claude Haiku via Vercel AI Gateway**                        | AI SDK, model `anthropic/claude-haiku-4.5`; OIDC auth on Vercel (no key mgmt); optional fallback model; $5/mo included credits cover this workload |
+| Search      | **Postgres FTS**                                              | Generated `tsvector` + GIN index                                                                                                                   |
+| Analytics   | **Self-hosted in Postgres**                                   | Beacon endpoint + `page_views` table                                                                                                               |
+| Charts      | **Recharts** (via shadcn/ui charts)                           | Admin analytics dashboard                                                                                                                          |
 
 ---
 
@@ -57,14 +57,14 @@
 
 ### Rendering strategy per route
 
-| Route | Strategy |
-|---|---|
-| `/` (home) | ISR, `revalidate: 60`, cache tags `post-list`, `announcements` |
-| `/posts/[slug]` | ISR per-slug, cache tag `post:{slug}`; comments + likes hydrate client-side |
-| `/categories/[slug]`, `/tags/[slug]` | ISR, `revalidate: 60`, tag `post-list` |
-| `/search` | Dynamic (query-dependent), never cached |
-| `/admin/**` | Fully dynamic, `noindex`, role-gated in middleware + per-action checks |
-| `/sitemap.xml` | Route handler, tag `post-list` |
+| Route                                | Strategy                                                                    |
+| ------------------------------------ | --------------------------------------------------------------------------- |
+| `/` (home)                           | ISR, `revalidate: 60`, cache tags `post-list`, `announcements`              |
+| `/posts/[slug]`                      | ISR per-slug, cache tag `post:{slug}`; comments + likes hydrate client-side |
+| `/categories/[slug]`, `/tags/[slug]` | ISR, `revalidate: 60`, tag `post-list`                                      |
+| `/search`                            | Dynamic (query-dependent), never cached                                     |
+| `/admin/**`                          | Fully dynamic, `noindex`, role-gated in middleware + per-action checks      |
+| `/sitemap.xml`                       | Route handler, tag `post-list`                                              |
 
 **Key pattern:** post pages are cached static shells; user-specific or fast-changing data (comment tree, like state, view beacon) lives in small client components. Public pages stay fast and cheap, and a new comment never triggers a page rebuild.
 
@@ -222,10 +222,11 @@ POST comment (server action, authed)
  5. mod_verdict jsonb stored on every comment for audit
 ```
 
-**Moderation log (admin):** all `rejected` and `held` comments are browsable with the model's verdict and reasoning. Its purpose is *monitoring*, not an approval workflow — rejections are final by default. `held` items (LLM failures only) await an approve/delete decision; a restore action also exists on `rejected` for clear false positives.
+**Moderation log (admin):** all `rejected` and `held` comments are browsable with the model's verdict and reasoning. Its purpose is _monitoring_, not an approval workflow — rejections are final by default. `held` items (LLM failures only) await an approve/delete decision; a restore action also exists on `rejected` for clear false positives.
 
 **Moderation policy (finalized):**
-- **Flag:** NSFW/sexual content; any profanity (family-friendly standard — judge the *words*, not the intensity of the take); slurs; targeted personal attacks on other commenters; spam/scam/malicious links.
+
+- **Flag:** NSFW/sexual content; any profanity (family-friendly standard — judge the _words_, not the intensity of the take); slurs; targeted personal attacks on other commenters; spam/scam/malicious links.
 - **Allow:** heated sports takes, trash talk, and harsh criticism of players, teams, coaches, and takes — provided the language stays clean; insults that are clearly banter rather than targeted attacks; links generally (any domain), unless spammy or malicious.
 - The prompt must state explicitly that intensity/negativity alone is never a reason to flag — only the categories above — or an eager classifier will flag half the comment section during rivalry week. Keep a few-shot example set in the repo pairing allowed heated comments against flagged equivalents (same take ± profanity is a great contrast pair).
 
@@ -262,7 +263,7 @@ ORDER BY rank DESC, publish_at DESC
 ### 5.7 Admin & authoring
 
 - **Access:** middleware redirects non-author/admin from `/admin/**`; every server action re-checks role (middleware is UX, action checks are the security boundary). Authors scoped to `author_id = self`; admin unscoped.
-- **Editor:** Markdown textarea + toggleable preview pane running the *same* rendering pipeline as production (server action returns rendered HTML) — guarantees preview fidelity (FR-7.2). Autosave drafts on interval.
+- **Editor:** Markdown textarea + toggleable preview pane running the _same_ rendering pipeline as production (server action returns rendered HTML) — guarantees preview fidelity (FR-7.2). Autosave drafts on interval.
 - **Thumbnails:** a URL field. Rendered with `next/image` + `unoptimized` + explicit dimensions (avoids maintaining a `remotePatterns` allowlist / open-proxy risk while keeping lazy loading and layout stability). Known tradeoffs: link rot and hotlink-blocking hosts. Revisit with Vercel Blob if uploads are ever wanted.
 - **Moderation log, announcements, categories, users (roles/bans):** simple CRUD screens.
 - **Preview:** `/admin/preview/[id]` renders any draft/scheduled post with the public layout, auth-gated.
@@ -316,11 +317,11 @@ src/
 
 ## 7. Environments & Configuration
 
-| Env | Branch | Database | URL | OAuth |
-|---|---|---|---|---|
-| **Local** | any | Postgres in Docker (match Neon's major version) | `localhost:3000` | Dedicated OAuth client, `localhost` redirect |
-| **Staging** | `staging` (long-lived) | Neon `staging` branch (persistent) | Fixed domain (e.g. `staging.paulitakes.com`) assigned to the branch in Vercel | Dedicated OAuth client, staging redirect |
-| **Prod** | `main` | Neon `main` | `www.paulitakes.com` (apex redirects to www) | Dedicated OAuth client, prod redirect |
+| Env         | Branch                 | Database                                        | URL                                                                           | OAuth                                        |
+| ----------- | ---------------------- | ----------------------------------------------- | ----------------------------------------------------------------------------- | -------------------------------------------- |
+| **Local**   | any                    | Postgres in Docker (match Neon's major version) | `localhost:3000`                                                              | Dedicated OAuth client, `localhost` redirect |
+| **Staging** | `staging` (long-lived) | Neon `staging` branch (persistent)              | Fixed domain (e.g. `staging.paulitakes.com`) assigned to the branch in Vercel | Dedicated OAuth client, staging redirect     |
+| **Prod**    | `main`                 | Neon `main`                                     | `www.paulitakes.com` (apex redirects to www)                                  | Dedicated OAuth client, prod redirect        |
 
 - The stable staging URL exists specifically so Google/Discord redirect URIs can be registered ahead of time — ephemeral preview URLs can't be. Separate OAuth clients per environment keep a leaked staging secret away from prod.
 - No per-PR database branches; PRs merge to `staging` for integration testing, then `staging` → `main`.
@@ -333,7 +334,7 @@ src/
 ## 8. Security & Privacy Notes
 
 - All mutations are server actions with per-action session + role + ownership checks; middleware is convenience only.
-- `rehype-sanitize` on all rendered markdown (posts *and* announcements); comments are plain text with escaped output and auto-linked URLs (`rel="nofollow ugc"`).
+- `rehype-sanitize` on all rendered markdown (posts _and_ announcements); comments are plain text with escaped output and auto-linked URLs (`rel="nofollow ugc"`).
 - Thumbnail URLs validated as `https://` image URLs; rendered `unoptimized` to avoid the open image-proxy problem with wildcard `remotePatterns`.
 - Cron endpoint requires an `Authorization: Bearer ${CRON_SECRET}` header, configured as a custom header on the cron-job.org job (it supports custom headers). Reject anything without it; the route does nothing destructive regardless (it only revalidates caches), so worst case for a leaked URL is extra cache churn.
 - Analytics stores only salted daily hashes — no IPs, no cookies, no cross-day correlation.

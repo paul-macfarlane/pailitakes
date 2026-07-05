@@ -2,7 +2,10 @@ import "server-only";
 
 import { Pool as NeonPool } from "@neondatabase/serverless";
 import { drizzle as drizzleNeon } from "drizzle-orm/neon-serverless";
-import { drizzle as drizzleNode, type NodePgDatabase } from "drizzle-orm/node-postgres";
+import {
+  drizzle as drizzleNode,
+  type NodePgDatabase,
+} from "drizzle-orm/node-postgres";
 import { Pool as PgPool } from "pg";
 
 import { env } from "@/lib/env";

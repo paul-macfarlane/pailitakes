@@ -32,10 +32,11 @@ export async function createTestSession(
   const token = crypto.randomBytes(32).toString("hex");
   const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
 
-  await pool.query(
-    `insert into "user" (id, name, email) values ($1, $2, $3)`,
-    [userId, userName, `${userId}@e2e.test`],
-  );
+  await pool.query(`insert into "user" (id, name, email) values ($1, $2, $3)`, [
+    userId,
+    userName,
+    `${userId}@e2e.test`,
+  ]);
   await pool.query(
     `insert into session (id, token, user_id, expires_at) values ($1, $2, $3, $4)`,
     [`${userId}-session`, token, userId, expiresAt],
