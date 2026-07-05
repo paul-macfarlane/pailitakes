@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
 
 import { createTestSession, type TestSession } from "./helpers/session";
 
@@ -32,16 +32,25 @@ test.describe("signed-in user", () => {
     await expect(page.getByRole("link", { name: "Sign in" })).toBeVisible();
   });
 
-  test("can update display name on the account page", async ({ page }) => {
+  // The account-menu avatar only renders client-side (useSession), so its
+  // presence guarantees hydration — clicking Save before hydration would
+  // fire a native form submit instead of the react-hook-form handler.
+  async function gotoAccountHydrated(page: Page) {
     await page.goto("/account");
-    const input = page.getByLabel("Display name");
-    await input.fill("Renamed Tester");
+    await expect(
+      page.getByRole("button", { name: "Account menu" }),
+    ).toBeVisible();
+  }
+
+  test("can update display name on the account page", async ({ page }) => {
+    await gotoAccountHydrated(page);
+    await page.getByLabel("Display name").fill("Renamed Tester");
     await page.getByRole("button", { name: "Save" }).click();
     await expect(page.getByRole("status")).toHaveText("Saved.");
   });
 
   test("rejects a whitespace-only display name", async ({ page }) => {
-    await page.goto("/account");
+    await gotoAccountHydrated(page);
     await page.getByLabel("Display name").fill("   ");
     await page.getByRole("button", { name: "Save" }).click();
     await expect(page.getByText(/Display name must be/)).toBeVisible();
