@@ -5,7 +5,7 @@ Scaffold the app and get environments + auth settled early so OAuth redirect URI
 - [x] **FND-1** — Scaffold Next.js App Router + TypeScript + Tailwind; base project structure per technical-design.md §6. _(deps: none)_
 - [x] **FND-2** — Add shadcn/ui and configure theme/tokens. _(deps: FND-1)_
 - [x] **FND-3** — Drizzle + local Docker Postgres (compose file matching Neon major version); drizzle-kit config + migration workflow. _(deps: FND-1)_
-- [ ] **FND-4** — Better Auth: Google + Discord OAuth, Drizzle adapter; extend `user` with `role` (reader/author/admin, default reader) and `banned_at`. _(deps: FND-3)_
+- [x] **FND-4** — Better Auth: Google + Discord OAuth, Drizzle adapter; extend `user` with `role` (reader/author/admin, default reader) and `banned_at`. _(deps: FND-3)_
 - [x] **FND-5** — Typed env validation (zod) + `.env.example` covering all vars in technical-design.md §7. _(deps: FND-1)_
 - [ ] **FND-6** — Vercel project; staging + prod environments; Neon `staging`/`main` branches; per-env OAuth clients with registered redirect URIs. _(deps: FND-4)_
 - [ ] **FND-7** — One-time seed script to promote the first admin (no in-app self-promote path). _(deps: FND-4)_
