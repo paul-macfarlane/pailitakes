@@ -1,0 +1,9 @@
+# Epic: SEO & Launch (SEO)
+
+Metadata, sitemap, mobile polish, launch. Ref: FR-9.5; technical-design.md §5.8.
+
+- [ ] **SEO-1** — Per-post Metadata API: title, derived description, canonical URL, Open Graph / Twitter card (`og:image` = thumbnail). _(deps: POST-5)_
+- [ ] **SEO-2** — `sitemap.xml` route handler over visible posts, revalidated by tag `post-list`. _(deps: POST-2)_
+- [ ] **SEO-3** — `robots.txt` disallowing `/admin`. _(deps: none)_
+- [ ] **SEO-4** — Mobile-first QA pass across all public pages, comment threads, embeds, and interactions. _(deps: all public epics)_
+- [ ] **SEO-5** — Launch checklist: env/secrets set per environment, migrations applied, cron job configured, OAuth clients verified. _(deps: SEO-4)_
