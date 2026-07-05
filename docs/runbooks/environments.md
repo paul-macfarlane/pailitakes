@@ -35,7 +35,7 @@ Production (main) and Preview scoped to the `staging` branch:
 |---|---|---|
 | `DATABASE_URL` | Neon main URL | Neon staging URL |
 | `BETTER_AUTH_SECRET` | `openssl rand -base64 32` (unique) | unique value |
-| `BETTER_AUTH_URL` | `https://paulitakes.com` | `https://staging.paulitakes.com` |
+| `BETTER_AUTH_URL` | `https://www.paulitakes.com` | `https://staging.paulitakes.com` |
 | `GOOGLE_CLIENT_ID/SECRET` | prod client | staging client |
 | `DISCORD_CLIENT_ID/SECRET` | prod client | staging client |
 | `CRON_SECRET` | `openssl rand -hex 16` | same approach |
@@ -44,7 +44,10 @@ Production (main) and Preview scoped to the `staging` branch:
 `AI_GATEWAY_API_KEY` is local-only — deployed envs use Vercel OIDC.
 
 ## 5. Domains
-- Prod: `paulitakes.com` → Vercel project (DNS at your registrar).
+- Prod: `www.paulitakes.com` is the canonical domain; apex `paulitakes.com`
+  redirects to www (both assigned to the Vercel project, redirect configured
+  in Vercel → Domains). OAuth redirect URIs and `BETTER_AUTH_URL` use the
+  www form.
 - Staging: assign `staging.paulitakes.com` to the `staging` git branch in
   Vercel → Project → Domains (stable URL so OAuth redirects can be
   registered ahead of time).

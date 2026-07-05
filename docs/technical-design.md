@@ -320,7 +320,7 @@ src/
 |---|---|---|---|---|
 | **Local** | any | Postgres in Docker (match Neon's major version) | `localhost:3000` | Dedicated OAuth client, `localhost` redirect |
 | **Staging** | `staging` (long-lived) | Neon `staging` branch (persistent) | Fixed domain (e.g. `staging.paulitakes.com`) assigned to the branch in Vercel | Dedicated OAuth client, staging redirect |
-| **Prod** | `main` | Neon `main` | `paulitakes.com` | Dedicated OAuth client, prod redirect |
+| **Prod** | `main` | Neon `main` | `www.paulitakes.com` (apex redirects to www) | Dedicated OAuth client, prod redirect |
 
 - The stable staging URL exists specifically so Google/Discord redirect URIs can be registered ahead of time — ephemeral preview URLs can't be. Separate OAuth clients per environment keep a leaked staging secret away from prod.
 - No per-PR database branches; PRs merge to `staging` for integration testing, then `staging` → `main`.
