@@ -1,0 +1,24 @@
+# Local development database. Postgres major version matches Neon's
+# default for new projects (18) — see technical-design.md §7.
+services:
+  db:
+    image: postgres:18
+    container_name: paulitakes-db
+    environment:
+      POSTGRES_USER: paulitakes
+      POSTGRES_PASSWORD: paulitakes
+      POSTGRES_DB: paulitakes
+    ports:
+      # 5434 on the host: 5432/5433 are taken by other local Postgres instances
+      - "5434:5432"
+    volumes:
+      # postgres:18+ images keep data in a subdirectory of /var/lib/postgresql
+      - pgdata:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U paulitakes -d paulitakes"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  pgdata:
