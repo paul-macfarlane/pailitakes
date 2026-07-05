@@ -1,0 +1,44 @@
+# Applies drizzle migrations to the environment matching the pushed branch
+# (design §7: PRs merge to staging → Neon staging; staging merges to main →
+# Neon prod; staging always migrates before prod reaches the same commit).
+#
+# Required repo secrets (provisioned in FND-6):
+#   STAGING_DATABASE_URL — Neon `staging` branch connection string
+#   PROD_DATABASE_URL    — Neon `main` branch connection string
+#
+# Until a secret exists the job logs a notice and exits green, so CI stays
+# usable before the environments are provisioned.
+name: Migrate
+
+on:
+  push:
+    branches: [staging, main]
+
+concurrency:
+  group: migrate-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  migrate:
+    runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: ${{ github.ref_name == 'main' && secrets.PROD_DATABASE_URL || secrets.STAGING_DATABASE_URL }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Apply migrations
+        run: |
+          if [ -z "$DATABASE_URL" ]; then
+            echo "::notice::No database secret configured for ${{ github.ref_name }} yet (FND-6) — skipping migrations."
+            exit 0
+          fi
+          pnpm db:migrate
