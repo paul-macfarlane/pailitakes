@@ -31,6 +31,7 @@ Standards for all code in this repo. When a rule and `docs/technical-design.md` 
 ## Quality
 - **TypeScript strict.** No `any` without a written reason; no `@ts-ignore` without a comment explaining why.
 - **Mobile-first.** Design and verify layouts at phone width first, then scale up (FR-9.4).
+- **Theme tokens only.** No arbitrary color values in components — use the CSS-variable theme tokens (`bg-background`, `text-muted-foreground`, `text-destructive`, …) so light and dark mode both work; the app has a light/dark/system toggle and every surface must respect it. Sole exception: third-party brand-mandated colors (e.g. the Google/Discord sign-in buttons), with the brand guideline cited in a comment.
 - **Accessibility:** semantic HTML, labelled controls, keyboard-operable interactions, sufficient contrast.
 - **Errors are handled,** not swallowed. User-facing failures show a clear message; server failures are logged with context.
 - **Match surrounding code** in naming, structure, and idiom. Consistency over personal preference.
