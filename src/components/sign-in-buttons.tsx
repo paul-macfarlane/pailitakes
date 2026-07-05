@@ -7,32 +7,59 @@ import { authClient } from "@/lib/auth-client";
 
 type Provider = "google" | "discord";
 
+// Official four-color Google "G" — colors and geometry must not be altered
+// and monochrome versions are disallowed (Google sign-in branding
+// guidelines, developers.google.com/identity/branding-guidelines).
+function GoogleIcon() {
+  return (
+    <svg viewBox="0 0 48 48" className="size-5" aria-hidden="true">
+      <path
+        fill="#EA4335"
+        d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"
+      />
+      <path
+        fill="#4285F4"
+        d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"
+      />
+      <path
+        fill="#FBBC05"
+        d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"
+      />
+      <path
+        fill="#34A853"
+        d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"
+      />
+    </svg>
+  );
+}
+
+// Official Discord "Clyde" mark, unaltered, white on Blurple per Discord's
+// brand guidelines (discord.com/branding — Blurple login button set).
+function DiscordIcon() {
+  return (
+    <svg viewBox="0 0 127.14 96.36" className="h-4 w-5" aria-hidden="true">
+      <path
+        fill="#FFFFFF"
+        d="M107.7,8.07A105.15,105.15,0,0,0,81.47,0a72.06,72.06,0,0,0-3.36,6.83A97.68,97.68,0,0,0,49,6.83,72.37,72.37,0,0,0,45.64,0,105.89,105.89,0,0,0,19.39,8.09C2.79,32.65-1.71,56.6.54,80.21h0A105.73,105.73,0,0,0,32.71,96.36,77.7,77.7,0,0,0,39.6,85.25a68.42,68.42,0,0,1-10.85-5.18c.91-.66,1.8-1.34,2.66-2a75.57,75.57,0,0,0,64.32,0c.87.71,1.76,1.39,2.66,2a68.68,68.68,0,0,1-10.87,5.19,77,77,0,0,0,6.89,11.1A105.25,105.25,0,0,0,126.6,80.22h0C129.24,52.84,122.09,29.11,107.7,8.07ZM42.45,65.69C36.18,65.69,31,60,31,53s5-12.74,11.43-12.74S54,46,53.89,53,48.84,65.69,42.45,65.69Zm42.24,0C78.41,65.69,73.25,60,73.25,53s5-12.74,11.44-12.74S96.23,46,96.12,53,91.08,65.69,84.69,65.69Z"
+      />
+    </svg>
+  );
+}
+
 const providerLabels: Record<Provider, string> = {
   google: "Continue with Google",
   discord: "Continue with Discord",
 };
 
-function GoogleIcon() {
-  return (
-    <svg viewBox="0 0 24 24" className="size-4" aria-hidden="true">
-      <path
-        fill="currentColor"
-        d="M21.35 11.1h-9.17v2.73h6.51c-.33 3.81-3.5 5.44-6.5 5.44C8.36 19.27 5 16.25 5 12c0-4.1 3.2-7.27 7.2-7.27 3.09 0 4.9 1.97 4.9 1.97L19 4.72S16.56 2 12.1 2C6.42 2 2.03 6.8 2.03 12c0 5.05 4.13 10 10.22 10 5.35 0 9.25-3.67 9.25-9.09 0-1.15-.15-1.81-.15-1.81Z"
-      />
-    </svg>
-  );
-}
-
-function DiscordIcon() {
-  return (
-    <svg viewBox="0 0 24 24" className="size-4" aria-hidden="true">
-      <path
-        fill="currentColor"
-        d="M20.32 4.37a19.8 19.8 0 0 0-4.89-1.52.07.07 0 0 0-.08.04c-.2.38-.44.87-.6 1.25a18.3 18.3 0 0 0-5.5 0 12.6 12.6 0 0 0-.6-1.25.08.08 0 0 0-.09-.04 19.74 19.74 0 0 0-4.88 1.52.07.07 0 0 0-.04.03A20.26 20.26 0 0 0 .1 18.06a.08.08 0 0 0 .03.05 19.9 19.9 0 0 0 6 3.03.08.08 0 0 0 .08-.02c.46-.63.87-1.3 1.22-2a.08.08 0 0 0-.04-.1 13.1 13.1 0 0 1-1.87-.9.08.08 0 0 1 0-.12c.12-.1.25-.2.37-.29a.07.07 0 0 1 .08-.01 14.2 14.2 0 0 0 12.06 0 .07.07 0 0 1 .08 0c.12.1.24.2.37.3a.08.08 0 0 1 0 .12 12.3 12.3 0 0 1-1.87.9.08.08 0 0 0-.05.1c.36.7.78 1.36 1.23 2a.08.08 0 0 0 .08.02 19.84 19.84 0 0 0 6.03-3.04.08.08 0 0 0 .03-.05c.5-5.18-.84-9.68-3.55-13.66a.06.06 0 0 0-.03-.03ZM8.02 15.33c-1.18 0-2.16-1.08-2.16-2.42 0-1.33.96-2.42 2.16-2.42 1.21 0 2.18 1.1 2.16 2.42 0 1.34-.96 2.42-2.16 2.42Zm7.97 0c-1.18 0-2.15-1.08-2.15-2.42 0-1.33.95-2.42 2.15-2.42 1.22 0 2.18 1.1 2.16 2.42 0 1.34-.94 2.42-2.16 2.42Z"
-      />
-    </svg>
-  );
-}
+// Brand-mandated button styling (reason for bypassing the shadcn variants):
+// Google light theme = #FFFFFF fill / #747775 stroke / #1F1F1F text, dark
+// theme = #131314 / #8E918F / #E3E3E3; Discord = Blurple #5865F2 with white
+// text (#4752C4 pressed/hover from Discord's button set).
+const providerClasses: Record<Provider, string> = {
+  google:
+    "border border-[#747775] bg-white text-[#1F1F1F] hover:bg-white/90 dark:border-[#8E918F] dark:bg-[#131314] dark:text-[#E3E3E3] dark:hover:bg-[#131314]/90",
+  discord: "border-0 bg-[#5865F2] text-white hover:bg-[#4752C4]",
+};
 
 export function SignInButtons({ providers }: { providers: Provider[] }) {
   const [pending, setPending] = useState<Provider | null>(null);
@@ -69,8 +96,7 @@ export function SignInButtons({ providers }: { providers: Provider[] }) {
       {providers.map((provider) => (
         <Button
           key={provider}
-          variant="outline"
-          className="w-full"
+          className={`h-10 w-full gap-2.5 px-3 font-medium ${providerClasses[provider]}`}
           disabled={pending !== null}
           onClick={() => handleSignIn(provider)}
         >
