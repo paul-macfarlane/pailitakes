@@ -12,7 +12,15 @@ ask() {
 }
 
 if echo "$cmd" | grep -qE '(^|[;&|[:space:]])git[[:space:]]+push\b'; then
-  ask "git push targets a remote — confirm"
+  # Feature-branch pushes are routine; only staging/main need confirmation.
+  if echo "$cmd" | grep -qwE '(staging|main)'; then
+    ask "git push involving staging/main — confirm"
+  fi
+  # Bare `git push` (no refspec) targets the current branch's upstream.
+  current=$(git -C "${CLAUDE_PROJECT_DIR:-.}" branch --show-current 2>/dev/null)
+  if [ "$current" = "staging" ] || [ "$current" = "main" ]; then
+    ask "git push while on $current — confirm"
+  fi
 fi
 
 if echo "$cmd" | grep -qE '\bvercel\b.*--prod|\bvercel[[:space:]]+(promote|rollback)\b'; then

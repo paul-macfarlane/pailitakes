@@ -16,6 +16,7 @@ Next.js App Router · TypeScript · Vercel · Neon Postgres (Docker locally) · 
 `src/app/(public)` public pages · `src/app/admin` role-gated authoring · `src/app/api` route handlers · `src/db/schema.ts` Drizzle schema · `src/lib` shared logic (queries, markdown, moderation, ratelimit, auth) · `src/actions` server actions. Full sketch in technical-design.md §6.
 
 ## Working here
+- **Git flow:** feature branches branch off **`staging`** and PRs target `staging`; `staging` → `main` promotes to prod (design §7). Pushing feature branches needs no confirmation; anything touching `staging`/`main` prompts (FND-9 hook).
 - **Backlog-driven.** Use `/task` to run a task through the implementation pipeline (plan → implement → review → test → document → done). `/backlog` shows status.
 - **Model routing.** `/task` keeps judgment work (planning, integration, review) on the session model and delegates self-contained mechanical coding to the `implementer` subagent (Sonnet) — details in the command.
 - **Decisions get recorded.** Any non-obvious architectural choice → `/adr`. If a choice contradicts `docs/technical-design.md`, update the design doc too.

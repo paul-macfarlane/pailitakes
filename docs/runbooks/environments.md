@@ -1,14 +1,18 @@
 # Environment setup runbook (FND-6)
 
-Target state: technical-design.md §7. Status as of 2026-07-05:
+Target state: technical-design.md §7. **Status: complete (2026-07-05)** — all
+steps below are provisioned (Vercel project + GitHub connection, Neon
+branches, GitHub migration secrets, per-env OAuth clients, Vercel env vars,
+`staging` branch). Kept as the reference for how the environments are wired
+and for re-provisioning.
 
-**Done (automated):**
-- Vercel project `paulitakes` created and linked (`.vercel/project.json`, gitignored).
-- GitHub repo `paul-macfarlane/pailitakes` connected to the Vercel project (auto-deploys on push; previews per PR).
-- CI (`.github/workflows/ci.yml`) and branch-scoped migrations (`.github/workflows/migrate.yml`) in place — migrate jobs no-op with a notice until the secrets below exist.
-- Local env: Docker Postgres 18 (`pnpm db:up`, host port 5434), `.env` from `.env.example`.
-
-**Remaining (requires accounts/consoles — human):**
+- Vercel project `paulitakes` linked (`.vercel/project.json`, gitignored);
+  GitHub repo `paul-macfarlane/pailitakes` connected (auto-deploys, PR previews).
+- CI (`.github/workflows/ci.yml`) + branch-scoped migrations
+  (`.github/workflows/migrate.yml`).
+- Local env: Docker Postgres 18 (`pnpm db:up`, host port 5434), `.env` from
+  `.env.example`.
+- Git flow: feature branches off `staging`, PRs → `staging`, `staging` → `main`.
 
 ## 1. Neon
 1. Create a Neon project (Postgres **18** to match `docker-compose.yml`).
