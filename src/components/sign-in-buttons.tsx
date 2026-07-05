@@ -7,6 +7,8 @@ import { authClient } from "@/lib/auth-client";
 
 type Provider = "google" | "discord";
 
+const PROVIDERS: Provider[] = ["google", "discord"];
+
 // Official four-color Google "G" — colors and geometry must not be altered
 // and monochrome versions are disallowed (Google sign-in branding
 // guidelines, developers.google.com/identity/branding-guidelines).
@@ -61,7 +63,7 @@ const providerClasses: Record<Provider, string> = {
   discord: "border-0 bg-[#5865F2] text-white hover:bg-[#4752C4]",
 };
 
-export function SignInButtons({ providers }: { providers: Provider[] }) {
+export function SignInButtons() {
   const [pending, setPending] = useState<Provider | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -93,7 +95,7 @@ export function SignInButtons({ providers }: { providers: Provider[] }) {
 
   return (
     <div className="flex flex-col gap-3">
-      {providers.map((provider) => (
+      {PROVIDERS.map((provider) => (
         <Button
           key={provider}
           className={`h-10 w-full gap-2.5 px-3 font-medium ${providerClasses[provider]}`}

@@ -5,11 +5,8 @@ import { z } from "zod";
 // Validated once at first import (engineering.md: validate env at startup).
 // Server-only: never import from client components.
 //
-// OAuth credentials are optional so the app boots before the per-env OAuth
-// clients exist (FND-6); auth.ts only enables a provider when both its id
-// and secret are set. CRON_SECRET / ANALYTICS_SALT_SEED / AI gateway vars
-// become required when their features land (cron revalidation, analytics,
-// moderation).
+// CRON_SECRET / ANALYTICS_SALT_SEED / AI gateway vars become required when
+// their features land (cron revalidation, analytics, moderation).
 const envSchema = z.object({
   NODE_ENV: z
     .enum(["development", "test", "production"])
@@ -20,10 +17,10 @@ const envSchema = z.object({
   BETTER_AUTH_SECRET: z.string().min(32),
   BETTER_AUTH_URL: z.url(),
 
-  GOOGLE_CLIENT_ID: z.string().optional(),
-  GOOGLE_CLIENT_SECRET: z.string().optional(),
-  DISCORD_CLIENT_ID: z.string().optional(),
-  DISCORD_CLIENT_SECRET: z.string().optional(),
+  GOOGLE_CLIENT_ID: z.string().min(1),
+  GOOGLE_CLIENT_SECRET: z.string().min(1),
+  DISCORD_CLIENT_ID: z.string().min(1),
+  DISCORD_CLIENT_SECRET: z.string().min(1),
 
   // Local only — deployed envs authenticate to the AI Gateway via Vercel OIDC.
   AI_GATEWAY_API_KEY: z.string().optional(),

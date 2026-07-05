@@ -13,35 +13,22 @@ import {
 } from "@/lib/display-name";
 import { env } from "@/lib/env";
 
-// A provider is only enabled when its per-env OAuth client exists (design
-// §7: dedicated clients per environment; env.ts leaves them optional so the
-// app boots before FND-6 provisions them).
-const socialProviders: Record<
-  string,
-  { clientId: string; clientSecret: string }
-> = {};
-if (env.GOOGLE_CLIENT_ID && env.GOOGLE_CLIENT_SECRET) {
-  socialProviders.google = {
-    clientId: env.GOOGLE_CLIENT_ID,
-    clientSecret: env.GOOGLE_CLIENT_SECRET,
-  };
-}
-if (env.DISCORD_CLIENT_ID && env.DISCORD_CLIENT_SECRET) {
-  socialProviders.discord = {
-    clientId: env.DISCORD_CLIENT_ID,
-    clientSecret: env.DISCORD_CLIENT_SECRET,
-  };
-}
-
-export const enabledProviders = Object.keys(socialProviders) as Array<
-  "google" | "discord"
->;
-
 export const auth = betterAuth({
   baseURL: env.BETTER_AUTH_URL,
   secret: env.BETTER_AUTH_SECRET,
   database: drizzleAdapter(db, { provider: "pg", schema }),
-  socialProviders,
+  // Per-env OAuth clients (design §7); creds are required by env.ts, so
+  // both providers are always enabled.
+  socialProviders: {
+    google: {
+      clientId: env.GOOGLE_CLIENT_ID,
+      clientSecret: env.GOOGLE_CLIENT_SECRET,
+    },
+    discord: {
+      clientId: env.DISCORD_CLIENT_ID,
+      clientSecret: env.DISCORD_CLIENT_SECRET,
+    },
+  },
   databaseHooks: {
     user: {
       // Server-side name constraints — the account form's maxLength is UX,
