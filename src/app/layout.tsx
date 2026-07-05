@@ -2,6 +2,9 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 
+// Fail fast on invalid configuration (validated once, server-only).
+import "@/lib/env";
+
 const geistSans = Geist({
   variable: "--font-geist-sans",
   subsets: ["latin"],

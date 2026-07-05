@@ -5,12 +5,11 @@ import { drizzle as drizzleNeon } from "drizzle-orm/neon-serverless";
 import { drizzle as drizzleNode, type NodePgDatabase } from "drizzle-orm/node-postgres";
 import { Pool as PgPool } from "pg";
 
+import { env } from "@/lib/env";
+
 import * as schema from "./schema";
 
-const databaseUrl = process.env.DATABASE_URL;
-if (!databaseUrl) {
-  throw new Error("DATABASE_URL is not set");
-}
+const databaseUrl = env.DATABASE_URL;
 
 export type Db = NodePgDatabase<typeof schema>;
 
