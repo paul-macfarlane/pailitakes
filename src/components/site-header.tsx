@@ -1,6 +1,7 @@
 import Link from "next/link";
 
 import { HeaderAuth } from "@/components/header-auth";
+import { ThemeToggle } from "@/components/theme-toggle";
 
 // Static shell — no request data. Session state renders inside the
 // HeaderAuth client island so public pages remain ISR-cacheable.
@@ -11,7 +12,10 @@ export function SiteHeader() {
         <Link href="/" className="text-lg font-bold tracking-tight">
           Paulitakes
         </Link>
-        <HeaderAuth />
+        <div className="flex items-center gap-1">
+          <ThemeToggle />
+          <HeaderAuth />
+        </div>
       </div>
     </header>
   );

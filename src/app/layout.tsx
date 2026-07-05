@@ -5,6 +5,8 @@ import "./globals.css";
 // Fail fast on invalid configuration (validated once, server-only).
 import "@/lib/env";
 
+import { ThemeProvider } from "@/components/theme-provider";
+
 // Loads the font files; globals.css references the resulting family names
 // literally in @theme inline (which can't resolve runtime CSS variables).
 // Swapping fonts means updating globals.css too.
@@ -32,11 +34,16 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
+    // suppressHydrationWarning: next-themes stamps the theme class on <html>
+    // before hydration.
     <html
       lang="en"
+      suppressHydrationWarning
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col">{children}</body>
+      <body className="min-h-full flex flex-col">
+        <ThemeProvider>{children}</ThemeProvider>
+      </body>
     </html>
   );
 }

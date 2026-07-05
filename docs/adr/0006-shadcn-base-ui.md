@@ -14,6 +14,7 @@ Keep the CLI default: Base UI primitives, `base-nova` style, neutral base color 
 - A Base UI "button" rendering a non-button element gets `role="button"`, so links styled as buttons use `buttonVariants` on a real `<Link>` instead of wrapping.
 - `DropdownMenuLabel` wraps Base UI's `GroupLabel` and **throws unless inside `DropdownMenuGroup`** ("MenuGroupContext is missing").
 - Menu items fire `onClick`, not Radix's `onSelect` — `onSelect` type-checks (it's a DOM prop) but never fires.
+- Avoid `DropdownMenuRadioGroup`/`RadioItem` for now: selecting a radio item leaves the menu unable to reopen (reproduced with @base-ui/react 1.6, theme toggle). Use plain `DropdownMenuItem`s with a check indicator; revisit on Base UI upgrades.
 
 ## Consequences
 - Stock shadcn docs/snippets that use `asChild` need mechanical translation to `render`; the FND-11 components are the in-repo reference.
