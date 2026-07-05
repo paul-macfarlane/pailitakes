@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
@@ -63,17 +64,21 @@ export function UserMenu({
           </Avatar>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
-          <DropdownMenuLabel className="max-w-48 truncate">
-            {name}
-          </DropdownMenuLabel>
-          <DropdownMenuSeparator />
-          <DropdownMenuItem render={<Link href="/account" />}>
-            Account
-          </DropdownMenuItem>
-          <DropdownMenuSeparator />
-          <DropdownMenuItem onSelect={handleSignOut}>
-            Sign out
-          </DropdownMenuItem>
+          {/* Base UI: GroupLabel must live inside a Group (ADR-0006). */}
+          <DropdownMenuGroup>
+            <DropdownMenuLabel className="max-w-48 truncate">
+              {name}
+            </DropdownMenuLabel>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem render={<Link href="/account" />}>
+              Account
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            {/* Base UI items fire onClick, not Radix's onSelect (ADR-0006). */}
+            <DropdownMenuItem onClick={handleSignOut}>
+              Sign out
+            </DropdownMenuItem>
+          </DropdownMenuGroup>
         </DropdownMenuContent>
       </DropdownMenu>
     </div>
