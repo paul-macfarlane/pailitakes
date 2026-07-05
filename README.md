@@ -18,22 +18,22 @@ pnpm db:migrate
 pnpm dev
 ```
 
-Sign-in needs local Google/Discord OAuth clients — see
-[`docs/runbooks/environments.md`](docs/runbooks/environments.md). The app
-runs without them (sign-in shows a not-configured notice).
+Local Google/Discord OAuth clients are required (env validation enforces
+them) — see [`docs/runbooks/environments.md`](docs/runbooks/environments.md).
 
 ## Scripts
 
-| Command | What it does |
-|---|---|
-| `pnpm dev` / `build` / `start` | Next.js dev / production build / serve |
-| `pnpm lint` / `typecheck` | ESLint / `tsc --noEmit` |
-| `pnpm test` / `test:watch` | Vitest unit tests |
-| `pnpm test:e2e` | Playwright e2e (starts the dev server itself) |
-| `pnpm db:up` / `db:down` | Start / stop local Postgres |
-| `pnpm db:generate` / `db:migrate` | Create / apply drizzle migrations |
-| `pnpm db:studio` | Drizzle Studio |
-| `pnpm db:promote-admin <email>` | One-time first-admin bootstrap |
+| Command                           | What it does                                  |
+| --------------------------------- | --------------------------------------------- |
+| `pnpm dev` / `build` / `start`    | Next.js dev / production build / serve        |
+| `pnpm lint` / `typecheck`         | ESLint / `tsc --noEmit`                       |
+| `pnpm format` / `format:check`    | Prettier write / check                        |
+| `pnpm test` / `test:watch`        | Vitest unit tests                             |
+| `pnpm test:e2e`                   | Playwright e2e (starts the dev server itself) |
+| `pnpm db:up` / `db:down`          | Start / stop local Postgres                   |
+| `pnpm db:generate` / `db:migrate` | Create / apply drizzle migrations             |
+| `pnpm db:studio`                  | Drizzle Studio                                |
+| `pnpm db:promote-admin <email>`   | One-time first-admin bootstrap                |
 
 ## Environments
 

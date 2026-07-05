@@ -15,35 +15,40 @@ and for re-provisioning.
 - Git flow: feature branches off `staging`, PRs → `staging`, `staging` → `main`.
 
 ## 1. Neon
+
 1. Create a Neon project (Postgres **18** to match `docker-compose.yml`).
 2. `main` branch = prod. Create a persistent `staging` branch.
 3. Copy the two pooled connection strings.
 
 ## 2. GitHub secrets (for migrate.yml)
+
 - `STAGING_DATABASE_URL` = Neon `staging` branch URL
 - `PROD_DATABASE_URL` = Neon `main` branch URL
 
 ## 3. Git staging branch
+
 After the foundation PR merges: create long-lived `staging` from `main`
 (`git checkout -b staging main && git push -u origin staging`). PRs merge to
 `staging`; `staging` merges to `main` (design §7 — no per-PR databases).
 
 ## 4. Vercel environment variables
+
 Production (main) and Preview scoped to the `staging` branch:
 
-| Var | Prod | Staging |
-|---|---|---|
-| `DATABASE_URL` | Neon main URL | Neon staging URL |
-| `BETTER_AUTH_SECRET` | `openssl rand -base64 32` (unique) | unique value |
-| `BETTER_AUTH_URL` | `https://www.paulitakes.com` | `https://staging.paulitakes.com` |
-| `GOOGLE_CLIENT_ID/SECRET` | prod client | staging client |
-| `DISCORD_CLIENT_ID/SECRET` | prod client | staging client |
-| `CRON_SECRET` | `openssl rand -hex 16` | same approach |
-| `ANALYTICS_SALT_SEED` | `openssl rand -hex 16` | same approach |
+| Var                        | Prod                               | Staging                          |
+| -------------------------- | ---------------------------------- | -------------------------------- |
+| `DATABASE_URL`             | Neon main URL                      | Neon staging URL                 |
+| `BETTER_AUTH_SECRET`       | `openssl rand -base64 32` (unique) | unique value                     |
+| `BETTER_AUTH_URL`          | `https://www.paulitakes.com`       | `https://staging.paulitakes.com` |
+| `GOOGLE_CLIENT_ID/SECRET`  | prod client                        | staging client                   |
+| `DISCORD_CLIENT_ID/SECRET` | prod client                        | staging client                   |
+| `CRON_SECRET`              | `openssl rand -hex 16`             | same approach                    |
+| `ANALYTICS_SALT_SEED`      | `openssl rand -hex 16`             | same approach                    |
 
 `AI_GATEWAY_API_KEY` is local-only — deployed envs use Vercel OIDC.
 
 ## 5. Domains
+
 - Prod: `www.paulitakes.com` is the canonical domain; apex `paulitakes.com`
   redirects to www (both assigned to the Vercel project, redirect configured
   in Vercel → Domains). OAuth redirect URIs and `BETTER_AUTH_URL` use the
@@ -53,6 +58,7 @@ Production (main) and Preview scoped to the `staging` branch:
   registered ahead of time).
 
 ## 6. OAuth clients (one per environment; never shared)
+
 Redirect URI is `{BETTER_AUTH_URL}/api/auth/callback/{provider}`.
 
 - **Google** (console.cloud.google.com → APIs & Services → Credentials):
@@ -62,6 +68,7 @@ Redirect URI is `{BETTER_AUTH_URL}/api/auth/callback/{provider}`.
 - Put local creds in `.env`; staging/prod creds in Vercel env vars (step 4).
 
 ## 7. Verify
+
 - Push to `staging` → migrate.yml applies migrations, Vercel deploys, sign-in
   works with both providers on `staging.paulitakes.com`.
 - Repeat for `main`/prod, then run `pnpm db:promote-admin <email>` against

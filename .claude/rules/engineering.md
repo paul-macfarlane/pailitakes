@@ -3,6 +3,7 @@
 Standards for all code in this repo. When a rule and `docs/technical-design.md` conflict, the design doc wins for architecture; these rules govern craft. Violating a rule is fine only with a stated reason.
 
 ## Architecture & structure
+
 - **Separate data from UI.** Server Components fetch data and pass plain props to presentational components. No data fetching inside presentational components.
 - **Client components only when interactivity is needed** (`useState`, effects, event handlers, browser APIs). Default to Server Components. Keep client islands small (comments, likes, view beacon, editor preview).
 - **Shared business logic lives in `src/lib`**, not inlined in routes/actions/components. One source of truth per concern (e.g. `visiblePostsWhere()`, excerpt derivation, markdown pipeline).
@@ -10,25 +11,30 @@ Standards for all code in this repo. When a rule and `docs/technical-design.md` 
 - **Clear client/server boundary.** Secrets, DB access, and moderation calls are server-only. Never import server-only modules into client components.
 
 ## Data & database
+
 - **All mutations are server actions** with per-action checks: session present → role allowed → ownership (authors scoped to their own rows; admin unscoped). Middleware is UX convenience, never the security boundary.
 - **Use transactions for multi-step writes** that must be atomic (e.g. insert post + tags, moderation verdict + comment insert).
 - **Performant queries:** select only needed columns, use the defined indexes, avoid N+1 (assemble trees/relations in one query where the design says so). Public reads go through the `visiblePostsWhere()` predicate.
 - **Validate all external input** (form data, route params, API bodies) with a schema (zod) before use. Validate env vars once at startup.
 
 ## Caching (see technical-design.md §3)
+
 - Public pages are ISR with cache tags (`post:{slug}`, `post-list`, `announcements`). Mutations call `revalidateTag(...)` — never enumerate paths.
 - `/search`, `/admin/**`, and comment/like reads are deliberately uncached (`no-store`). Don't add caching to them.
 
 ## Security & privacy
+
 - `rehype-sanitize` on all rendered markdown (posts and announcements). Comments are plain text, escaped, URLs auto-linked with `rel="nofollow ugc"`.
 - Thumbnail URLs validated as `https://` images, rendered `next/image` `unoptimized` (no wildcard `remotePatterns`).
 - No PII in analytics — salted daily hash only. No secrets in client bundles or logs.
 
 ## Frameworks & dependencies
+
 - Follow current framework best practices (App Router conventions, Server Actions, Better Auth patterns, Drizzle idioms, shadcn composition).
 - **Prefer the latest stable versions.** Upgrade libraries when there's no breaking change; call out and schedule breaking upgrades rather than silently pinning old.
 
 ## Quality
+
 - **TypeScript strict.** No `any` without a written reason; no `@ts-ignore` without a comment explaining why.
 - **Mobile-first.** Design and verify layouts at phone width first, then scale up (FR-9.4).
 - **Theme tokens only.** No arbitrary color values in components — use the CSS-variable theme tokens (`bg-background`, `text-muted-foreground`, `text-destructive`, …) so light and dark mode both work; the app has a light/dark/system toggle and every surface must respect it. Sole exception: third-party brand-mandated colors (e.g. the Google/Discord sign-in buttons), with the brand guideline cited in a comment.

@@ -3,7 +3,7 @@
 Content lifecycle: editor, drafts, preview, thumbnails, scheduling, and the cron revalidation endpoint. Ref: FR-7.x, FR-1.5/1.6; technical-design.md §4 (visibility-as-query), §5.7.
 
 - [ ] **ADM-1** — Admin route group `/admin/**`: middleware role gate + `noindex`. _(deps: FND-4)_
-- [ ] **ADM-2** — Post editor: Markdown input + toggleable preview using the *same* pipeline as production (server action returns rendered HTML); autosave drafts on interval. _(deps: POST-3, ADM-1)_
+- [ ] **ADM-2** — Post editor: Markdown input + toggleable preview using the _same_ pipeline as production (server action returns rendered HTML); autosave drafts on interval. _(deps: POST-3, ADM-1)_
 - [ ] **ADM-3** — Post CRUD server actions with session+role+ownership checks; `revalidateTag` on mutate. _(deps: POST-2, ADM-1)_
 - [ ] **ADM-4** — Draft status + status transitions (draft/scheduled/published/archived); archive is recoverable. _(deps: ADM-3)_
 - [ ] **ADM-5** — Schedule publish/archive: `publish_at`/`archive_at` fields; visibility becomes automatic via the query predicate. _(deps: ADM-4)_

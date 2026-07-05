@@ -22,11 +22,9 @@ import {
 } from "@/lib/display-name";
 
 const displayNameSchema = z.object({
-  name: z
-    .string()
-    .refine(isValidDisplayName, {
-      message: `Display name must be 1-${MAX_DISPLAY_NAME_LENGTH} characters.`,
-    }),
+  name: z.string().refine(isValidDisplayName, {
+    message: `Display name must be 1-${MAX_DISPLAY_NAME_LENGTH} characters.`,
+  }),
 });
 
 type DisplayNameValues = z.infer<typeof displayNameSchema>;

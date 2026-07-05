@@ -19,10 +19,7 @@ export function HeaderAuth() {
 
   if (session) {
     return (
-      <UserMenu
-        name={session.user.name}
-        image={session.user.image ?? null}
-      />
+      <UserMenu name={session.user.name} image={session.user.image ?? null} />
     );
   }
 

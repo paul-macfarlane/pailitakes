@@ -26,9 +26,7 @@ export default async function AccountPage() {
       <Card>
         <CardHeader>
           <CardTitle>Account</CardTitle>
-          <CardDescription>
-            Signed in as {session.user.email}.
-          </CardDescription>
+          <CardDescription>Signed in as {session.user.email}.</CardDescription>
         </CardHeader>
         <CardContent>
           <DisplayNameForm initialName={session.user.name} />
