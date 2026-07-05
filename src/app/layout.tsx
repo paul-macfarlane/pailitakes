@@ -5,6 +5,9 @@ import "./globals.css";
 // Fail fast on invalid configuration (validated once, server-only).
 import "@/lib/env";
 
+// Loads the font files; globals.css references the resulting family names
+// literally in @theme inline (which can't resolve runtime CSS variables).
+// Swapping fonts means updating globals.css too.
 const geistSans = Geist({
   variable: "--font-geist-sans",
   subsets: ["latin"],

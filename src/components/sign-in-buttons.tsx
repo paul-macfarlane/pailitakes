@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { authClient } from "@/lib/auth-client";
@@ -37,6 +37,19 @@ function DiscordIcon() {
 export function SignInButtons({ providers }: { providers: Provider[] }) {
   const [pending, setPending] = useState<Provider | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  // Coming Back from the OAuth consent screen restores this page from the
+  // bfcache with state intact — clear `pending` so the buttons aren't stuck
+  // disabled on "Redirecting…".
+  useEffect(() => {
+    function handlePageShow(event: PageTransitionEvent) {
+      if (event.persisted) {
+        setPending(null);
+      }
+    }
+    window.addEventListener("pageshow", handlePageShow);
+    return () => window.removeEventListener("pageshow", handlePageShow);
+  }, []);
 
   async function handleSignIn(provider: Provider) {
     setPending(provider);

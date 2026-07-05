@@ -43,6 +43,10 @@ jobs:
 
       - run: pnpm test
 
+      # Catches production-compile-only failures (prerender errors, invalid
+      # route exports) that lint/typecheck/dev-mode e2e can't see.
+      - run: pnpm build
+
       # Validates the committed migrations apply cleanly to a fresh database.
       - run: pnpm db:migrate
 

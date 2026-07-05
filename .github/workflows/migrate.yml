@@ -6,8 +6,9 @@
 #   STAGING_DATABASE_URL — Neon `staging` branch connection string
 #   PROD_DATABASE_URL    — Neon `main` branch connection string
 #
-# Until a secret exists the job logs a notice and exits green, so CI stays
-# usable before the environments are provisioned.
+# Each branch maps to exactly one secret — no fallback, so main can never
+# migrate the staging database. Until the branch's secret exists the job
+# logs a notice and exits green before installing anything.
 name: Migrate
 
 on:
@@ -22,23 +23,40 @@ jobs:
   migrate:
     runs-on: ubuntu-latest
     env:
-      DATABASE_URL: ${{ github.ref_name == 'main' && secrets.PROD_DATABASE_URL || secrets.STAGING_DATABASE_URL }}
+      STAGING_DATABASE_URL: ${{ secrets.STAGING_DATABASE_URL }}
+      PROD_DATABASE_URL: ${{ secrets.PROD_DATABASE_URL }}
     steps:
-      - uses: actions/checkout@v4
+      - name: Resolve target database
+        id: guard
+        run: |
+          if [ "$GITHUB_REF_NAME" = "main" ]; then
+            url="$PROD_DATABASE_URL"
+          else
+            url="$STAGING_DATABASE_URL"
+          fi
+          if [ -z "$url" ]; then
+            echo "::notice::No database secret configured for $GITHUB_REF_NAME yet (FND-6) — skipping migrations."
+            echo "run=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "DATABASE_URL=$url" >> "$GITHUB_ENV"
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          fi
 
-      - uses: pnpm/action-setup@v4
+      - if: steps.guard.outputs.run == 'true'
+        uses: actions/checkout@v4
 
-      - uses: actions/setup-node@v4
+      - if: steps.guard.outputs.run == 'true'
+        uses: pnpm/action-setup@v4
+
+      - if: steps.guard.outputs.run == 'true'
+        uses: actions/setup-node@v4
         with:
           node-version: 24
           cache: pnpm
 
-      - run: pnpm install --frozen-lockfile
+      - if: steps.guard.outputs.run == 'true'
+        run: pnpm install --frozen-lockfile
 
       - name: Apply migrations
-        run: |
-          if [ -z "$DATABASE_URL" ]; then
-            echo "::notice::No database secret configured for ${{ github.ref_name }} yet (FND-6) — skipping migrations."
-            exit 0
-          fi
-          pnpm db:migrate
+        if: steps.guard.outputs.run == 'true'
+        run: pnpm db:migrate

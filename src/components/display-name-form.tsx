@@ -7,8 +7,10 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { authClient } from "@/lib/auth-client";
-
-const MAX_NAME_LENGTH = 50;
+import {
+  MAX_DISPLAY_NAME_LENGTH,
+  normalizeDisplayName,
+} from "@/lib/display-name";
 
 export function DisplayNameForm({ initialName }: { initialName: string }) {
   const router = useRouter();
@@ -19,13 +21,13 @@ export function DisplayNameForm({ initialName }: { initialName: string }) {
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const trimmed = name.trim();
-    if (!trimmed) {
+    const normalized = normalizeDisplayName(name);
+    if (!normalized) {
       setStatus({ kind: "error", message: "Display name can't be empty." });
       return;
     }
     setStatus({ kind: "saving" });
-    const { error } = await authClient.updateUser({ name: trimmed });
+    const { error } = await authClient.updateUser({ name: normalized });
     if (error) {
       setStatus({
         kind: "error",
@@ -45,7 +47,7 @@ export function DisplayNameForm({ initialName }: { initialName: string }) {
           id="display-name"
           name="display-name"
           value={name}
-          maxLength={MAX_NAME_LENGTH}
+          maxLength={MAX_DISPLAY_NAME_LENGTH}
           onChange={(event) => {
             setName(event.target.value);
             if (status.kind !== "idle") setStatus({ kind: "idle" });
