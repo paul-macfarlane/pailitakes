@@ -39,4 +39,11 @@ test.describe("signed-in user", () => {
     await page.getByRole("button", { name: "Save" }).click();
     await expect(page.getByRole("status")).toHaveText("Saved.");
   });
+
+  test("rejects a whitespace-only display name", async ({ page }) => {
+    await page.goto("/account");
+    await page.getByLabel("Display name").fill("   ");
+    await page.getByRole("button", { name: "Save" }).click();
+    await expect(page.getByText(/Display name must be/)).toBeVisible();
+  });
 });
