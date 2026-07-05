@@ -9,7 +9,6 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { enabledProviders } from "@/lib/auth";
 import { getSession } from "@/lib/session";
 
 export const metadata: Metadata = {
@@ -33,14 +32,7 @@ export default async function SignInPage() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          {enabledProviders.length > 0 ? (
-            <SignInButtons providers={enabledProviders} />
-          ) : (
-            <p className="text-sm text-muted-foreground">
-              Sign-in isn&apos;t configured in this environment yet (missing
-              OAuth credentials).
-            </p>
-          )}
+          <SignInButtons />
         </CardContent>
       </Card>
     </main>

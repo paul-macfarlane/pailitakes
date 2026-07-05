@@ -4,6 +4,10 @@ const validEnv = {
   DATABASE_URL: "postgres://user:pass@localhost:5434/paulitakes",
   BETTER_AUTH_SECRET: "x".repeat(32),
   BETTER_AUTH_URL: "http://localhost:3000",
+  GOOGLE_CLIENT_ID: "google-id",
+  GOOGLE_CLIENT_SECRET: "google-secret",
+  DISCORD_CLIENT_ID: "discord-id",
+  DISCORD_CLIENT_SECRET: "discord-secret",
 };
 
 async function importEnv(vars: Record<string, string>) {
@@ -38,6 +42,13 @@ describe("env validation", () => {
     vi.spyOn(console, "error").mockImplementation(() => {});
     await expect(
       importEnv({ ...validEnv, BETTER_AUTH_SECRET: "too-short" }),
+    ).rejects.toThrow(/invalid environment/i);
+  });
+
+  it("rejects missing OAuth credentials", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    await expect(
+      importEnv({ ...validEnv, GOOGLE_CLIENT_ID: "" }),
     ).rejects.toThrow(/invalid environment/i);
   });
 
