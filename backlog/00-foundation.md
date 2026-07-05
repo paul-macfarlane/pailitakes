@@ -2,7 +2,7 @@
 
 Scaffold the app and get environments + auth settled early so OAuth redirect URIs are stable. Ref: technical-design.md §7, §9.1.
 
-- [ ] **FND-1** — Scaffold Next.js App Router + TypeScript + Tailwind; base project structure per technical-design.md §6. _(deps: none)_
+- [x] **FND-1** — Scaffold Next.js App Router + TypeScript + Tailwind; base project structure per technical-design.md §6. _(deps: none)_
 - [ ] **FND-2** — Add shadcn/ui and configure theme/tokens. _(deps: FND-1)_
 - [ ] **FND-3** — Drizzle + local Docker Postgres (compose file matching Neon major version); drizzle-kit config + migration workflow. _(deps: FND-1)_
 - [ ] **FND-4** — Better Auth: Google + Discord OAuth, Drizzle adapter; extend `user` with `role` (reader/author/admin, default reader) and `banned_at`. _(deps: FND-3)_
