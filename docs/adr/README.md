@@ -11,3 +11,5 @@ Create one with `/adr <title>` whenever a choice is non-obvious, hard to reverse
 | [0002](0002-baseline-stack.md) | Baseline stack and architecture | Accepted |
 | [0003](0003-testing-strategy.md) | Testing strategy | Accepted |
 | [0004](0004-comments-locked-flag-on-posts.md) | `comments_locked` flag on posts | Accepted |
+| [0005](0005-neon-websocket-driver.md) | Neon serverless websocket driver (not neon-http) | Accepted |
+| [0006](0006-shadcn-base-ui.md) | shadcn/ui on Base UI primitives (base-nova style) | Accepted |
