@@ -101,7 +101,7 @@ The homepage features recent posts alongside a dedicated announcements section f
 
 - **FR-7.1** — Dashboard lists posts with filtering (status, category, author) and sorting (updated, published date). Authors see their own posts; admin sees all.
 - **FR-7.2** — Post editor: Markdown input with live or toggleable preview rendering exactly as the public site will.
-- **FR-7.3** — Thumbnail upload with image storage handled by the app (common formats, reasonable size limits).
+- **FR-7.3** — Thumbnail set via an external public image URL (validated `https://` image). No in-app upload/storage in v1; revisit (e.g. Vercel Blob) if uploads are wanted. See technical-design.md §5.7.
 - **FR-7.4** — Draft: posts can be saved in Draft indefinitely, invisible to the public.
 - **FR-7.5** — Schedule publish: set a future date/time; the post automatically becomes Published at that time.
 - **FR-7.6** — Schedule archive: set a future date/time on a published post; the post automatically becomes Archived at that time.

@@ -13,8 +13,8 @@ You implement one well-scoped coding sub-task exactly as specified. You run with
 
 ## While implementing
 - Stay strictly within the spec's scope. Do not refactor unrelated code, add features, or change public interfaces beyond what's asked.
-- Honor the engineering rules: separate data-fetching from UI, server-only code stays server-only, validate inputs (zod), use transactions for atomic multi-step writes, select only needed columns, `revalidateTag` on mutations.
 - Write the minimum code that fully satisfies the spec and its acceptance criteria.
+- Before returning, typecheck and run the tests covering what you touched; fix what you broke.
 
 ## Stop and report instead of guessing
 If the spec is ambiguous, requires an architectural or product decision, contradicts the technical design, or turns out to be larger/more coupled than "self-contained," **do not improvise** — stop and return a short note describing the blocker and the decision needed. A wrong guess is worse than a handoff.

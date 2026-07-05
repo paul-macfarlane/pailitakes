@@ -11,3 +11,4 @@ Content lifecycle: editor, drafts, preview, thumbnails, scheduling, and the cron
 - [ ] **ADM-7** — Preview route `/admin/preview/[id]` — renders any draft/scheduled post in the public layout, auth-gated. _(deps: ADM-2, POST-5)_
 - [ ] **ADM-8** — Dashboard post list with filter (status/category/author) + sort; authors see own, admin sees all. _(deps: ADM-3)_
 - [ ] **ADM-9** — Cron endpoint `/api/cron/revalidate` (cron-job.org target): `CRON_SECRET` bearer auth, idempotent, DB-tracked last-run; revalidates tags for posts whose `publish_at`/`archive_at` crossed. _(deps: ADM-5)_
+- [ ] **ADM-10** — Admin user management: list users, assign roles (reader/author/admin), ban/unban (FR-4.8, FR-10.2; technical-design.md §5.7 users screen). _(deps: ADM-1)_

@@ -17,7 +17,7 @@ Next.js App Router · TypeScript · Vercel · Neon Postgres (Docker locally) · 
 
 ## Working here
 - **Backlog-driven.** Use `/task` to run a task through the implementation pipeline (plan → implement → review → test → document → done). `/backlog` shows status.
-- **Model routing.** `/task` keeps planning + integration + code review on the strong session model and delegates cheaper, self-contained work to model-pinned subagents: `implementer` (Sonnet) for mechanical coding, `scribe` (Haiku) for *bulky* mechanical writing only (small edits stay inline). Subagents have isolated context — delegations must carry a full spec.
+- **Model routing.** `/task` keeps judgment work (planning, integration, review) on the session model and delegates self-contained mechanical coding to the `implementer` subagent (Sonnet) — details in the command.
 - **Decisions get recorded.** Any non-obvious architectural choice → `/adr`. If a choice contradicts `docs/technical-design.md`, update the design doc too.
 - The design doc is *locked at v0.3* — deviate only with a recorded reason.
 

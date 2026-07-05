@@ -14,6 +14,8 @@ Status markers:
 
 Keep the ID stable once created — commands, ADRs, and commits reference it. Add new tasks by appending the next number in that epic; don't renumber.
 
+Write tasks as **goals**: the outcome plus the FR-x.y / technical-design § that defines it. Don't restate design-doc mechanics in the task line — the design doc is the source of truth for *how*, and inline copies drift.
+
 ## Epics
 | File | Prefix | Epic |
 |---|---|---|

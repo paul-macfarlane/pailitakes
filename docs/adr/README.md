@@ -10,3 +10,4 @@ Create one with `/adr <title>` whenever a choice is non-obvious, hard to reverse
 | [0001](0001-record-architecture-decisions.md) | Record architecture decisions | Accepted |
 | [0002](0002-baseline-stack.md) | Baseline stack and architecture | Accepted |
 | [0003](0003-testing-strategy.md) | Testing strategy | Accepted |
+| [0004](0004-comments-locked-flag-on-posts.md) | `comments_locked` flag on posts | Accepted |
