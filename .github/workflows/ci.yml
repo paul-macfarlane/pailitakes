@@ -1,0 +1,57 @@
+name: CI
+
+on:
+  pull_request:
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        # Same major as Neon (design §7) and docker-compose.yml.
+        image: postgres:18
+        env:
+          POSTGRES_USER: paulitakes
+          POSTGRES_PASSWORD: paulitakes
+          POSTGRES_DB: paulitakes
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U paulitakes -d paulitakes"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgres://paulitakes:paulitakes@localhost:5432/paulitakes
+      BETTER_AUTH_SECRET: ci-only-secret-not-used-in-any-deployed-env
+      BETTER_AUTH_URL: http://localhost:3000
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - run: pnpm lint
+
+      - run: pnpm typecheck
+
+      - run: pnpm test
+
+      # Validates the committed migrations apply cleanly to a fresh database.
+      - run: pnpm db:migrate
+
+      - name: Cache Playwright browsers
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+
+      - run: pnpm exec playwright install --with-deps chromium
+
+      - run: pnpm test:e2e
