@@ -19,3 +19,12 @@ The technical design doc is locked but says nothing about testing. The engineeri
 - The autonomous pipeline gains a real, enforceable safety net rather than a build check.
 - Small ongoing cost: lib/action changes carry test updates; CI is slower by the test run.
 - Playwright needs a browser in CI and a seeded test DB — folded into the FND-8 CI setup. Revisit adding coverage thresholds once the suite matures.
+
+## Addendum — DB-backed integration tests (2026-07-05, POST-2)
+
+Query-layer logic (visibility predicate, query helpers) is tested against **real Postgres** — the local Docker DB or CI's service container — not mocks; the SQL semantics (tsvector, time boundaries, aggregation) are the thing under test. Supporting decisions:
+
+- A Vitest `globalSetup` applies Drizzle migrations before the suite (idempotent; module-relative paths). In CI any failure is fatal; locally every failure only warns, so DB-free unit tests always run without Postgres.
+- Tests resolve the connection string via `src/test/db-url.ts`, which reads `.env` without mutating `process.env`, and **refuses non-local hosts unconditionally** — tests migrate and write to the database they're pointed at, and an ambient `DATABASE_URL` left pointing at Neon must never be touched (CI's `DATABASE_URL` is its localhost service container, so no exemption is needed).
+- Suites sharing the dev DB isolate by unique per-run identifiers and reserved time windows, clean up after themselves, and only age/reference-gated sweeps touch rows from other runs.
+- DB-backed test files mock `@/db` (via `vi.hoisted` + `vi.mock`) with a pool built from the test URL, keeping `src/lib/env.ts` (which validates unrelated env vars) out of the import graph.

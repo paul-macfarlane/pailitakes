@@ -1,8 +1,17 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
+@plugin "@tailwindcss/typography";
 
 @custom-variant dark (&:is(.dark *));
+
+/* YouTube embeds (markdown bodies + video_url component). lite-yt-embed.css
+   handles the facade's internals; this sizes/spaces the element itself. */
+lite-youtube.youtube-embed {
+  margin-block: calc(var(--spacing) * 6);
+  max-width: 100%;
+  border-radius: var(--radius);
+}
 
 @theme inline {
   --color-background: var(--background);

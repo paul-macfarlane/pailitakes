@@ -48,14 +48,16 @@ jobs:
 
       - run: pnpm typecheck
 
+      # Validates the committed migrations apply cleanly to a fresh database —
+      # must run before `pnpm test`, whose globalSetup would otherwise migrate
+      # the service DB first and turn this check into a no-op.
+      - run: pnpm db:migrate
+
       - run: pnpm test
 
       # Catches production-compile-only failures (prerender errors, invalid
       # route exports) that lint/typecheck/dev-mode e2e can't see.
       - run: pnpm build
-
-      # Validates the committed migrations apply cleanly to a fresh database.
-      - run: pnpm db:migrate
 
       - name: Cache Playwright browsers
         uses: actions/cache@v4
