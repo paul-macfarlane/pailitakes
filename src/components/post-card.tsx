@@ -1,6 +1,6 @@
-import Image from "next/image";
 import Link from "next/link";
 
+import { ExternalImage } from "@/components/external-image";
 import type { HomeFeedCard } from "@/lib/home-feed";
 
 // UTC-pinned: this component renders on the server (first page) AND on the
@@ -25,15 +25,7 @@ export function PostCard({ post }: { post: HomeFeedCard }) {
         aria-hidden="true"
         className="relative block h-20 w-28 shrink-0 overflow-hidden rounded-md border sm:h-24 sm:w-36"
       >
-        {/* External author-supplied URL — validated https at write time and
-            served unoptimized (no wildcard remotePatterns; design §8). */}
-        <Image
-          src={post.thumbnailUrl}
-          alt=""
-          fill
-          unoptimized
-          className="object-cover"
-        />
+        <ExternalImage src={post.thumbnailUrl} />
       </Link>
       <div className="min-w-0">
         <p className="text-xs font-medium text-muted-foreground">
