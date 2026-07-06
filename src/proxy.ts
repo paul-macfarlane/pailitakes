@@ -17,7 +17,7 @@ function hasSessionCookie(request: NextRequest): boolean {
   return SESSION_COOKIES.some((name) => request.cookies.has(name));
 }
 
-export function middleware(request: NextRequest) {
+export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   if (pathname === "/sign-in" && hasSessionCookie(request)) {
