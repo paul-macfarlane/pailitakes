@@ -91,6 +91,7 @@ export type PostDetail = {
   title: string;
   bodyMd: string;
   thumbnailUrl: string;
+  bannerUrl: string | null;
   videoUrl: string | null;
   publishAt: Date;
   updatedAt: Date;
@@ -111,6 +112,7 @@ export async function getVisiblePostBySlug(
       title: posts.title,
       bodyMd: posts.bodyMd,
       thumbnailUrl: posts.thumbnailUrl,
+      bannerUrl: posts.bannerUrl,
       videoUrl: posts.videoUrl,
       publishAt: posts.publishAt,
       updatedAt: posts.updatedAt,

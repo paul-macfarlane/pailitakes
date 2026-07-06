@@ -129,6 +129,8 @@ export const posts = pgTable(
     slug: text("slug").notNull().unique(),
     bodyMd: text("body_md").notNull(),
     thumbnailUrl: text("thumbnail_url").notNull(),
+    // Post-page hero (POST-9); null falls back to thumbnailUrl.
+    bannerUrl: text("banner_url"),
     videoUrl: text("video_url"),
     categoryId: integer("category_id")
       .notNull()

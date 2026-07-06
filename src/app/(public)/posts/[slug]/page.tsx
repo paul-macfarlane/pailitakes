@@ -4,9 +4,11 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { cacheLife, cacheTag } from "next/cache";
 
+import { ExternalImage } from "@/components/external-image";
 import { LiteYouTubeActivation } from "@/components/lite-youtube-activation";
 import { YouTubeEmbed } from "@/components/youtube-embed";
 import { deriveExcerpt } from "@/lib/excerpt";
+import { postHeroSrc } from "@/lib/image-src";
 import { extractYouTubeId, renderMarkdown } from "@/lib/markdown";
 import { getVisiblePostBySlug } from "@/lib/posts";
 
@@ -87,12 +89,20 @@ export default async function PostPage({
     );
   }
   const bodyHasEmbeds = post.bodyHtml.includes("<lite-youtube");
+  const heroSrc = postHeroSrc(post);
 
   return (
     <main className="mx-auto w-full max-w-2xl flex-1 px-4 py-8">
       {/* YouTubeEmbed brings its own activation; body embeds need one here. */}
       {!videoId && bodyHasEmbeds && <LiteYouTubeActivation />}
       <article>
+        {/* Hero above the title (POST-9): banner → thumbnail → none, derived
+            in src/lib/image-src.ts. Decorative — the title follows. */}
+        {heroSrc && (
+          <div className="relative mb-6 aspect-[2/1] w-full overflow-hidden rounded-lg border">
+            <ExternalImage src={heroSrc} priority />
+          </div>
+        )}
         <header className="mb-6">
           <p className="mb-2 text-sm font-medium text-muted-foreground">
             {post.category.name}

@@ -155,13 +155,14 @@ beforeAll(async () => {
 
   const [detailTagged] = await testDb
     .insert(posts)
-    .values(
-      basePost({
+    .values({
+      ...basePost({
         slug: slugs.detailTagged,
         status: "published",
         publishAt: minutes(-5),
       }),
-    )
+      bannerUrl: "https://example.com/banner.jpg",
+    })
     .returning({ id: posts.id });
 
   // Insert in reverse alphabetical order so the tags assertion actually
@@ -296,6 +297,14 @@ describe("visiblePostsWhere / getVisiblePostBySlug", () => {
 
     const untagged = await getVisiblePostBySlug(slugs.detailUntagged, T);
     expect(untagged?.tags).toEqual([]);
+  });
+
+  it("returns bannerUrl when set and null when absent (POST-9)", async () => {
+    const withBanner = await getVisiblePostBySlug(slugs.detailTagged, T);
+    expect(withBanner?.bannerUrl).toBe("https://example.com/banner.jpg");
+
+    const withoutBanner = await getVisiblePostBySlug(slugs.detailUntagged, T);
+    expect(withoutBanner?.bannerUrl).toBeNull();
   });
 
   it("includes category and author details", async () => {

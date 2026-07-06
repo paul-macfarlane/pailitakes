@@ -102,6 +102,9 @@ posts
   slug          text unique
   body_md       text
   thumbnail_url text                    -- external public image URL (v1)
+  banner_url    text null               -- post-page hero image; null falls
+                                        -- back to thumbnail_url (added
+                                        -- 2026-07-06, owner request; POST-9)
   video_url     text null               -- associated YouTube URL
   category_id   int FK -> categories.id
   status        enum('draft','scheduled','published','archived')
