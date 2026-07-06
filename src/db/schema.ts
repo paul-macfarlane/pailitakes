@@ -2,7 +2,28 @@
 // adapter; `user` is extended with `role` and `banned_at` (design §4).
 // Application tables land with their epics (posts/POST, comments/CMT, ...).
 
-import { boolean, pgEnum, pgTable, text, timestamp } from "drizzle-orm/pg-core";
+import { sql, type SQL } from "drizzle-orm";
+import {
+  boolean,
+  customType,
+  index,
+  integer,
+  pgEnum,
+  pgTable,
+  primaryKey,
+  serial,
+  text,
+  timestamp,
+  uuid,
+} from "drizzle-orm/pg-core";
+
+// drizzle-orm ^0.45 has no built-in tsvector column type; define one custom
+// type used by the generated `search` column on `posts` (design §4).
+const tsvector = customType<{ data: string }>({
+  dataType() {
+    return "tsvector";
+  },
+});
 
 export const userRole = pgEnum("user_role", ["reader", "author", "admin"]);
 
@@ -77,3 +98,94 @@ export const verification = pgTable("verification", {
     .notNull()
     .defaultNow(),
 });
+
+// Posts domain (design §4, POST-1).
+
+export const postStatus = pgEnum("post_status", [
+  "draft",
+  "scheduled",
+  "published",
+  "archived",
+]);
+
+export const categories = pgTable("categories", {
+  id: serial("id").primaryKey(),
+  slug: text("slug").notNull().unique(),
+  name: text("name").notNull(),
+  active: boolean("active").notNull().default(true),
+  sortOrder: integer("sort_order").notNull().default(0),
+});
+
+export const posts = pgTable(
+  "posts",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    // No onDelete: deleting a user with authored posts should fail loudly;
+    // there is no user-deletion flow in v1.
+    authorId: text("author_id")
+      .notNull()
+      .references(() => user.id),
+    title: text("title").notNull(),
+    slug: text("slug").notNull().unique(),
+    bodyMd: text("body_md").notNull(),
+    thumbnailUrl: text("thumbnail_url").notNull(),
+    videoUrl: text("video_url"),
+    categoryId: integer("category_id")
+      .notNull()
+      .references(() => categories.id),
+    status: postStatus("status").notNull().default("draft"),
+    commentsLocked: boolean("comments_locked").notNull().default(false),
+    publishAt: timestamp("publish_at", { withTimezone: true }),
+    archiveAt: timestamp("archive_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    // Better Auth maintains updatedAt on its own tables; for posts, Drizzle
+    // sets it on every db.update() via $onUpdate.
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow()
+      .$onUpdate(() => new Date()),
+    search: tsvector("search")
+      .notNull()
+      .generatedAlwaysAs(
+        (): SQL =>
+          sql`setweight(to_tsvector('english', ${posts.title}), 'A') || setweight(to_tsvector('english', ${posts.bodyMd}), 'B')`,
+      ),
+  },
+  (table) => [
+    index("posts_search_idx").using("gin", table.search),
+    // Serves visiblePostsWhere(): status equality list + publish_at range.
+    // Does NOT cover the revalidation cron's publish_at/archive_at crossing
+    // scans — those stay seq scans until the table outgrows blog scale.
+    index("posts_status_publish_at_idx").on(table.status, table.publishAt),
+    // FK companion indexes: category pages filter by category_id; authors
+    // are scoped to their own rows in /admin (author_id).
+    index("posts_category_id_idx").on(table.categoryId),
+    index("posts_author_id_idx").on(table.authorId),
+  ],
+);
+
+export const tags = pgTable("tags", {
+  id: serial("id").primaryKey(),
+  slug: text("slug").notNull().unique(),
+  name: text("name").notNull(),
+});
+
+export const postTags = pgTable(
+  "post_tags",
+  {
+    postId: uuid("post_id")
+      .notNull()
+      .references(() => posts.id, { onDelete: "cascade" }),
+    tagId: integer("tag_id")
+      .notNull()
+      .references(() => tags.id, { onDelete: "cascade" }),
+  },
+  (table) => [
+    primaryKey({ columns: [table.postId, table.tagId] }),
+    // The composite PK leads with post_id; tag-side lookups (tag pages,
+    // tag-delete cascade) need their own index.
+    index("post_tags_tag_id_idx").on(table.tagId),
+  ],
+);

@@ -15,3 +15,4 @@ Create one with `/adr <title>` whenever a choice is non-obvious, hard to reverse
 | [0005](0005-neon-websocket-driver.md)         | Neon serverless websocket driver (not neon-http)  | Accepted |
 | [0006](0006-shadcn-base-ui.md)                | shadcn/ui on Base UI primitives (base-nova style) | Accepted |
 | [0007](0007-react-hook-form.md)               | react-hook-form for form state                    | Accepted |
+| [0008](0008-cache-components.md)              | Next 16 Cache Components for ISR + cache tags     | Accepted |
