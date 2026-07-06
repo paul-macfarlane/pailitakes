@@ -3,6 +3,7 @@
 import { useRef, useState } from "react";
 
 import { PostCard } from "@/components/post-card";
+import { Button } from "@/components/ui/button";
 import type { HomeFeedCard } from "@/lib/home-feed";
 
 // Load-more island for the home feed (POST-7): appends pages from
@@ -58,14 +59,15 @@ export function LoadMorePosts({
         </p>
       )}
       {hasMore && (
-        <button
+        <Button
           type="button"
+          variant="outline"
           onClick={loadMore}
           disabled={loading}
-          className="mx-auto rounded-md border px-4 py-2 text-sm font-medium hover:bg-accent disabled:opacity-50"
+          className="mx-auto"
         >
           {loading ? "Loading…" : "Load more"}
-        </button>
+        </Button>
       )}
     </>
   );

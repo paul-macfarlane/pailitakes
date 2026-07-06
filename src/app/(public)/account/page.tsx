@@ -10,6 +10,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
 import { getSession } from "@/lib/session";
 
 export const metadata: Metadata = {
@@ -23,11 +24,20 @@ export default function AccountPage() {
     <main className="mx-auto flex w-full max-w-sm flex-1 flex-col justify-center px-4 py-16">
       <Suspense
         fallback={
+          // Mirrors AccountCard's layout: title, description, labelled input
+          // + submit (see DisplayNameForm) so the swap doesn't shift layout.
           <Card aria-busy="true">
             <CardHeader>
               <CardTitle>Account</CardTitle>
-              <CardDescription>Loading…</CardDescription>
+              <CardDescription>
+                <Skeleton className="h-4 w-48" />
+              </CardDescription>
             </CardHeader>
+            <CardContent className="space-y-3">
+              <Skeleton className="h-4 w-28" />
+              <Skeleton className="h-9 w-full" />
+              <Skeleton className="h-9 w-24" />
+            </CardContent>
           </Card>
         }
       >
