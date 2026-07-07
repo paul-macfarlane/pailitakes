@@ -9,7 +9,7 @@ import { ThemeToggle } from "@/components/theme-toggle";
 // /categories and /search land with epic 03 (SRCH-2, SRCH-5).
 export function SiteHeader() {
   return (
-    <header className="border-b">
+    <header className="sticky top-0 z-50 border-b bg-background/95 backdrop-blur-sm">
       <div className="mx-auto flex h-14 w-full max-w-4xl items-center justify-between gap-4 px-4">
         <div className="flex min-w-0 items-center gap-5">
           <Link href="/" className="text-lg font-bold tracking-tight">
