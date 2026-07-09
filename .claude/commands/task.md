@@ -11,7 +11,7 @@ A "task" may be one backlog item, several related items, or a whole epic — sco
 
 - **Target:** `next` = first `[ ]` in build order across `backlog/` whose `deps:` are all `[x]`. A task ID (e.g. `POST-3`) = that item. An epic prefix (e.g. `POST`) = that epic's open tasks in order. Nothing runnable → say so and stop.
 - **Gates** (human checkpoints, skipped by `--auto`):
-  - `plan` — default ON; `--no-plan` turns it off.
+  - `plan-review` — human review of the plan before implementing. **Default OFF**: the plan is written and handed straight to implementation without stopping. `--plan` turns review ON (present the plan and wait for approval); `--no-plan` is the default. A plan is **always** produced regardless of this gate (Pipeline step 1) — the gate only controls whether a human approves it first, never whether a plan exists.
   - `test` — default `auto`; `--test=manual` stops for the human to test; `--test=skip` only when there is no runtime surface.
 - State the resolved target and gates in one line, and mark the task `[~]` in its backlog file.
 
@@ -19,9 +19,11 @@ A "task" may be one backlog item, several related items, or a whole epic — sco
 
 Judgment work — planning, integration, code review — stays with you. Delegate self-contained mechanical chunks (established pattern, no open design decisions) to the `implementer` subagent. It sees only your prompt, so each delegation must be a complete spec: task ID, files, acceptance criteria, applicable technical-design §sections and FR-x.y, and the pattern to follow. You own the correctness and integration of everything it returns.
 
+Every delegation is built from the Pipeline step-1 plan: hand the implementer the relevant slice of that plan as its spec. The plan is always written and always drives the coding — whether or not a human reviewed it first — so an agent never codes without a plan behind it, even when the plan-review gate is off.
+
 ## Pipeline
 
-1. **Plan** — files to touch, approach, applicable FR-x.y / design-doc sections, any decision needing an ADR. If the plan gate is on, present it and wait.
+1. **Plan** — **always** produce a written plan: files to touch, approach, applicable FR-x.y / design-doc sections, any decision needing an ADR. The plan is mandatory whether or not a human reviews it — it is what the implementing agent works from (see Model routing), so it must be concrete enough to hand off. If the plan-review gate is on (`--plan`), present the plan and wait for approval before implementing; by default, hand it straight to implementation without stopping.
 2. **Implement** — follow `.claude/rules/engineering.md` and the technical design; use the Vercel/Next/shadcn/Drizzle skills for framework specifics.
 3. **Review & test** — done when `/code-review` on the diff comes back clean (apply confirmed findings, re-review) and the affected flow demonstrably works (`/verify` or `/run`, plus unit tests for lib/action logic). In `--test=manual`, describe what to test and wait for the result.
 4. **Close out** — docs updated if behavior/architecture changed, non-obvious decisions recorded via `/adr`, task marked `[x]`.
