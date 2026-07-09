@@ -27,21 +27,29 @@ const tsvector = customType<{ data: string }>({
 
 export const userRole = pgEnum("user_role", ["reader", "author", "admin"]);
 
-export const user = pgTable("user", {
-  id: text("id").primaryKey(),
-  name: text("name").notNull(),
-  email: text("email").notNull().unique(),
-  emailVerified: boolean("email_verified").notNull().default(false),
-  image: text("image"),
-  role: userRole("role").notNull().default("reader"),
-  bannedAt: timestamp("banned_at", { withTimezone: true }),
-  createdAt: timestamp("created_at", { withTimezone: true })
-    .notNull()
-    .defaultNow(),
-  updatedAt: timestamp("updated_at", { withTimezone: true })
-    .notNull()
-    .defaultNow(),
-});
+export const user = pgTable(
+  "user",
+  {
+    id: text("id").primaryKey(),
+    name: text("name").notNull(),
+    email: text("email").notNull().unique(),
+    emailVerified: boolean("email_verified").notNull().default(false),
+    image: text("image"),
+    role: userRole("role").notNull().default("reader"),
+    bannedAt: timestamp("banned_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  // The admin user list (ADM-8/10) orders by created_at and filters by role.
+  (table) => [
+    index("user_created_at_idx").on(table.createdAt),
+    index("user_role_idx").on(table.role),
+  ],
+);
 
 export const session = pgTable("session", {
   id: text("id").primaryKey(),
@@ -191,3 +199,14 @@ export const postTags = pgTable(
     index("post_tags_tag_id_idx").on(table.tagId),
   ],
 );
+
+// Single-row state for the ADM-9 revalidation cron (design §4): the last time
+// it ran, so the window of crossed publish_at/archive_at is computed from the
+// DB rather than trusted from call timing (idempotent to missed/duplicated
+// triggers). `id` is a fixed boolean, so the table holds exactly one row.
+export const revalidationState = pgTable("revalidation_state", {
+  id: boolean("id").primaryKey().default(true),
+  lastRunAt: timestamp("last_run_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});

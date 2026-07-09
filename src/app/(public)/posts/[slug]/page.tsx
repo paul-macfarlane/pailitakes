@@ -1,15 +1,11 @@
-import "lite-youtube-embed/src/lite-yt-embed.css";
-
 import type { Metadata } from "next";
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import { cacheLife, cacheTag } from "next/cache";
 
-import { ExternalImage } from "@/components/external-image";
-import { LiteYouTubeActivation } from "@/components/lite-youtube-activation";
-import { YouTubeEmbed } from "@/components/youtube-embed";
+import { PostArticle } from "@/components/post-article";
 import { deriveExcerpt } from "@/lib/excerpt";
-import { postHeroSrc } from "@/lib/image-src";
-import { extractYouTubeId, renderMarkdown } from "@/lib/markdown";
+import { renderMarkdown } from "@/lib/markdown";
 import { getVisiblePostBySlug } from "@/lib/posts";
 
 // Cached per slug (design §3): tag `post:{slug}` for on-demand invalidation
@@ -50,13 +46,6 @@ export async function generateMetadata({
   };
 }
 
-// UTC-pinned so the cached server render and any client render of the same
-// date can never disagree across timezones.
-const dateFormat = new Intl.DateTimeFormat("en-US", {
-  dateStyle: "medium",
-  timeZone: "UTC",
-});
-
 // The whole page render is cached per slug ("use cache" on the component):
 // classic ISR semantics — the 404 status for a missing/unpublished slug is
 // computed before anything streams (a Suspense-wrapped article would commit
@@ -74,91 +63,18 @@ export default async function PostPage({
   const post = await getRenderedPost(slug);
   if (!post) notFound();
 
-  const videoId = post.videoUrl ? extractYouTubeId(post.videoUrl) : null;
-  // Fallback link only for http(s) URLs — video_url isn't write-validated
-  // yet (admin epic), so never emit an arbitrary scheme into an href.
-  const fallbackVideoHref =
-    !videoId && post.videoUrl && /^https?:\/\//.test(post.videoUrl)
-      ? post.videoUrl
-      : null;
-  if (post.videoUrl && !videoId) {
-    // Don't swallow the miss (engineering rules): the reader gets a plain
-    // link below and the log points at the unrecognized form.
-    console.warn(
-      `post ${slug}: video_url not recognized as a YouTube video, rendering plain link: ${post.videoUrl}`,
-    );
-  }
-  const bodyHasEmbeds = post.bodyHtml.includes("<lite-youtube");
-  const heroSrc = postHeroSrc(post);
-
   return (
     <main className="mx-auto w-full max-w-2xl flex-1 px-4 py-8">
-      {/* YouTubeEmbed brings its own activation; body embeds need one here. */}
-      {!videoId && bodyHasEmbeds && <LiteYouTubeActivation />}
-      <article>
-        {/* Hero above the title (POST-9): banner → thumbnail → none, derived
-            in src/lib/image-src.ts. Decorative — the title follows. */}
-        {heroSrc && (
-          <div className="relative mb-6 aspect-[2/1] w-full overflow-hidden rounded-lg border">
-            <ExternalImage src={heroSrc} priority />
-          </div>
-        )}
-        <header className="mb-6">
-          <p className="mb-2 text-sm font-medium text-muted-foreground">
-            {post.category.name}
-          </p>
-          <h1 className="text-3xl font-bold tracking-tight">{post.title}</h1>
-          <p className="mt-2 text-sm text-muted-foreground">
-            By {post.author.name}
-            {post.publishAt && (
-              <>
-                {" · "}
-                <time dateTime={post.publishAt.toISOString()}>
-                  {dateFormat.format(post.publishAt)}
-                </time>
-              </>
-            )}
-          </p>
-        </header>
-
-        {videoId ? (
-          <div className="mb-6">
-            <YouTubeEmbed videoId={videoId} title={post.title} />
-          </div>
-        ) : (
-          fallbackVideoHref && (
-            <p className="mb-6 text-sm">
-              <a
-                href={fallbackVideoHref}
-                rel="noopener noreferrer"
-                target="_blank"
-                className="text-muted-foreground underline hover:text-foreground"
-              >
-                Watch the video
-              </a>
-            </p>
-          )
-        )}
-
-        <div
-          className="prose dark:prose-invert max-w-none"
-          // Sanitized by rehype-sanitize in renderMarkdown (design §5.1).
-          dangerouslySetInnerHTML={{ __html: post.bodyHtml }}
-        />
-
-        {post.tags.length > 0 && (
-          <footer className="mt-8 flex flex-wrap gap-2">
-            {post.tags.map((tag) => (
-              <span
-                key={tag.slug}
-                className="rounded-full border px-3 py-1 text-xs text-muted-foreground"
-              >
-                {tag.name}
-              </span>
-            ))}
-          </footer>
-        )}
-      </article>
+      {/* Reader's way back to the post list (the home feed) — mirrors the
+          admin editor's "← Posts". Lives here, not in PostArticle, which the
+          admin preview also renders. */}
+      <Link
+        href="/"
+        className="mb-4 inline-block text-sm text-muted-foreground hover:text-foreground"
+      >
+        ← All posts
+      </Link>
+      <PostArticle post={post} />
     </main>
   );
 }

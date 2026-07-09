@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { authClient } from "@/lib/auth-client";
+import { safeNextPath } from "@/lib/redirect-target";
 
 type Provider = "google" | "discord";
 
@@ -83,9 +84,13 @@ export function SignInButtons() {
   async function handleSignIn(provider: Provider) {
     setPending(provider);
     setError(null);
+    // ?next= read at click time (not useSearchParams) so the prerendered
+    // sign-in shell stays fully static; set by the /admin proxy redirect.
     const { error: signInError } = await authClient.signIn.social({
       provider,
-      callbackURL: "/",
+      callbackURL: safeNextPath(
+        new URLSearchParams(window.location.search).get("next"),
+      ),
     });
     if (signInError) {
       setError("Sign-in failed. Please try again.");

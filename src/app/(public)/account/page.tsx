@@ -50,7 +50,10 @@ export default function AccountPage() {
 async function AccountCard() {
   const session = await getSession();
   if (!session) {
-    redirect("/sign-in");
+    // Reached only with a stale/revoked cookie (the proxy bounced cookieless
+    // requests). ?next= restores the destination and exempts this hop from
+    // the proxy's signed-in /sign-in → / redirect (stale-cookie trap).
+    redirect("/sign-in?next=/account");
   }
 
   return (

@@ -1,6 +1,7 @@
 import Link from "next/link";
 
 import { HeaderAuth } from "@/components/header-auth";
+import { HeaderShell } from "@/components/header-shell";
 import { ThemeToggle } from "@/components/theme-toggle";
 
 // Static shell — no request data. Session state renders inside the
@@ -9,9 +10,8 @@ import { ThemeToggle } from "@/components/theme-toggle";
 // /categories and /search land with epic 03 (SRCH-2, SRCH-5).
 export function SiteHeader() {
   return (
-    <header className="sticky top-0 z-50 border-b bg-background/95 backdrop-blur-sm">
-      <div className="mx-auto flex h-14 w-full max-w-4xl items-center justify-between gap-4 px-4">
-        <div className="flex min-w-0 items-center gap-5">
+    <HeaderShell maxWidthClass="max-w-4xl">
+      <div className="flex min-w-0 items-center gap-5">
           <Link href="/" className="text-lg font-bold tracking-tight">
             Paulitakes
           </Link>
@@ -38,11 +38,10 @@ export function SiteHeader() {
             </Link>
           </nav>
         </div>
-        <div className="flex shrink-0 items-center gap-1">
-          <ThemeToggle />
-          <HeaderAuth />
-        </div>
+      <div className="flex shrink-0 items-center gap-1">
+        <ThemeToggle />
+        <HeaderAuth />
       </div>
-    </header>
+    </HeaderShell>
   );
 }
