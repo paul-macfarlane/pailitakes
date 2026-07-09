@@ -63,7 +63,7 @@
 | `/posts/[slug]`                      | ISR per-slug, cache tag `post:{slug}`; comments + likes hydrate client-side |
 | `/categories/[slug]`, `/tags/[slug]` | ISR, `revalidate: 60`, tag `post-list`                                      |
 | `/search`                            | Dynamic (query-dependent), never cached                                     |
-| `/admin/**`                          | Fully dynamic, `noindex`, role-gated in middleware + per-action checks      |
+| `/admin/**`                          | Fully dynamic, `noindex`, `requireStaff()` in layout + every page (ADR-0009) |
 | `/sitemap.xml`                       | Route handler, tag `post-list`                                              |
 
 **Key pattern:** post pages are cached static shells; user-specific or fast-changing data (comment tree, like state, view beacon) lives in small client components. Public pages stay fast and cheap, and a new comment never triggers a page rebuild.
@@ -77,7 +77,7 @@ Four layers, each with a distinct job:
 1. **Full Route Cache + Vercel CDN.** ISR pages render once and serve as cached HTML from the edge. Invalidated by (a) time — `revalidate: 60` regenerates in the background at most once per minute, stale-while-revalidate, so no visitor ever waits — or (b) on-demand invalidation from server actions.
 2. **Tag-based on-demand invalidation.** Pages declare cache tags (`post:{slug}`, `post-list`, `announcements`). Publish/edit/archive/announcement actions call `revalidateTag(...)`, which correctly invalidates the post page, home, category/tag listings, and sitemap in one shot — no path enumeration to forget.
 3. **Time as the scheduled-publish safety net.** Visibility is a query predicate (§4), so a scheduled post becomes queryable at `publish_at` automatically; the next time-based regeneration (≤60s later) surfaces it. The 5-minute cron (cron-job.org) makes it exact by revalidating tags when any `publish_at`/`archive_at` crosses.
-4. **Deliberately uncached:** `/search`, `/admin/**`, and all comment/like reads (client-fetched, `no-store`). Interactive data freshness is TanStack Query's job, not Next's cache.
+4. **Deliberately uncached:** `/search`, `/admin/**`, and all comment/like reads (`no-store`). Interactive reads (comments, likes, comment moderation, the analytics dashboard) are client-fetched with TanStack Query. Filtered admin *lists* (e.g. the ADM-8 post list) are uncached via dynamic server rendering with URL-param filters instead — client fetching buys nothing for them (ADR-0010).
 
 ---
 
@@ -265,7 +265,7 @@ ORDER BY rank DESC, publish_at DESC
 
 ### 5.7 Admin & authoring
 
-- **Access:** middleware redirects non-author/admin from `/admin/**`; every server action re-checks role (middleware is UX, action checks are the security boundary). Authors scoped to `author_id = self`; admin unscoped.
+- **Access:** middleware redirects cookieless requests from `/admin/**` (UX only); `requireStaff()` gates the admin layout and every admin page (layouts and pages render in parallel, so a layout-only gate can't protect page content — ADR-0009); every server action re-checks role (action checks are the security boundary). Authors scoped to `author_id = self`; admin unscoped.
 - **Editor:** Markdown textarea + toggleable preview pane running the _same_ rendering pipeline as production (server action returns rendered HTML) — guarantees preview fidelity (FR-7.2). Autosave drafts on interval.
 - **Thumbnails:** a URL field. Rendered with `next/image` + `unoptimized` + explicit dimensions (avoids maintaining a `remotePatterns` allowlist / open-proxy risk while keeping lazy loading and layout stability). Known tradeoffs: link rot and hotlink-blocking hosts. Revisit with Vercel Blob if uploads are ever wanted.
 - **Moderation log, announcements, categories, users (roles/bans):** simple CRUD screens.

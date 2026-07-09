@@ -20,9 +20,11 @@ import { authClient } from "@/lib/auth-client";
 export function UserMenu({
   name,
   image,
+  isStaff = false,
 }: {
   name: string;
   image: string | null;
+  isStaff?: boolean;
 }) {
   const router = useRouter();
   const [signOutFailed, setSignOutFailed] = useState(false);
@@ -70,6 +72,11 @@ export function UserMenu({
               {name}
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
+            {isStaff ? (
+              <DropdownMenuItem render={<Link href="/admin" />}>
+                Admin dashboard
+              </DropdownMenuItem>
+            ) : null}
             <DropdownMenuItem render={<Link href="/account" />}>
               Account
             </DropdownMenuItem>

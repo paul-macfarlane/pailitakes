@@ -23,6 +23,10 @@ test.describe("signed-in user", () => {
     await expect(
       page.getByRole("menuitem", { name: "Sign out" }),
     ).toBeVisible();
+    // A reader is not staff, so the admin shortcut is absent.
+    await expect(
+      page.getByRole("menuitem", { name: "Admin dashboard" }),
+    ).toHaveCount(0);
   });
 
   test("can sign out from the menu", async ({ page }) => {
@@ -54,5 +58,33 @@ test.describe("signed-in user", () => {
     await page.getByLabel("Display name").fill("   ");
     await page.getByRole("button", { name: "Save" }).click();
     await expect(page.getByText(/Display name must be/)).toBeVisible();
+  });
+});
+
+// Staff reach the admin section from the normal app nav (feedback point 1):
+// the account menu carries an "Admin dashboard" shortcut for author/admin.
+test.describe("staff user", () => {
+  let session: TestSession;
+
+  test.beforeEach(async ({ context }) => {
+    session = await createTestSession({
+      role: "author",
+      userName: "E2E Staff",
+    });
+    await context.addCookies([session.cookie]);
+  });
+
+  test.afterEach(async () => {
+    await session.cleanup();
+  });
+
+  test("reaches the admin dashboard from the account menu", async ({
+    page,
+  }) => {
+    await page.goto("/");
+    await page.getByRole("button", { name: "Account menu" }).click();
+    await page.getByRole("menuitem", { name: "Admin dashboard" }).click();
+    await page.waitForURL((url) => new URL(url).pathname === "/admin");
+    await expect(page.getByRole("heading", { name: "Posts" })).toBeVisible();
   });
 });

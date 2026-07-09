@@ -5,6 +5,13 @@ import type { SQL } from "drizzle-orm";
 
 import { db } from "@/db";
 import { categories, posts, postTags, tags, user } from "@/db/schema";
+import { PUBLIC_STATUSES } from "@/lib/post-status";
+
+// Tag list for a single post as a JSON array, ordered by name, empty when the
+// post has none. Shared so the public post detail and the ADM-7 preview
+// aggregate tags identically (used with a leftJoin on postTags/tags + a
+// groupBy on the post). Exported for src/lib/admin-posts.ts's preview query.
+export const postTagsAgg = sql<{ slug: string; name: string }[]>`coalesce(json_agg(json_build_object('slug', ${tags.slug}, 'name', ${tags.name}) order by ${tags.name}) filter (where ${tags.id} is not null), '[]'::json)`;
 
 // A post is publicly visible iff (design §4):
 //   status IN ('published','scheduled') AND publish_at <= now
@@ -13,7 +20,7 @@ import { categories, posts, postTags, tags, user } from "@/db/schema";
 export function visiblePostsWhere(now: Date = new Date()): SQL {
   // and() is `undefined` only when called with zero conditions.
   return and(
-    inArray(posts.status, ["published", "scheduled"]),
+    inArray(posts.status, [...PUBLIC_STATUSES]),
     lte(posts.publishAt, now),
     or(isNull(posts.archiveAt), gt(posts.archiveAt, now)),
   )!;
@@ -119,9 +126,7 @@ export async function getVisiblePostBySlug(
       commentsLocked: posts.commentsLocked,
       category: { slug: categories.slug, name: categories.name },
       author: { name: user.name, image: user.image },
-      tags: sql<
-        { slug: string; name: string }[]
-      >`coalesce(json_agg(json_build_object('slug', ${tags.slug}, 'name', ${tags.name}) order by ${tags.name}) filter (where ${tags.id} is not null), '[]'::json)`,
+      tags: postTagsAgg,
     })
     .from(posts)
     .innerJoin(categories, eq(posts.categoryId, categories.id))
