@@ -27,9 +27,10 @@ import { CONFLICT_ERROR, GENERIC_ERROR } from "@/lib/posts/service/shared";
 import { IMMEDIATE } from "@/lib/shared/cache";
 import type { ActionResult } from "@/lib/shared/action-result";
 
-// A public post with staged edits (posts.draft) must have them promoted or
-// discarded before any lifecycle change — keeps the buffer from being
-// stranded on a post that leaves the published/scheduled set (ADR-0011).
+// A public post with staged edits (its post_drafts row) must have them
+// promoted or discarded before any lifecycle change — keeps the buffer from
+// being stranded on a post that leaves the published/scheduled set
+// (ADR-0011).
 const PENDING_CHANGES_ERROR = "Publish or discard your pending changes first.";
 
 // Move a post between statuses (draft/scheduled/published/archived). The

@@ -80,7 +80,8 @@ async function seedPublished(suffix: string) {
   return row!;
 }
 
-// Promoting/discarding a public post's staged edits (posts.draft, ADR-0011).
+// Promoting/discarding a public post's staged edits (its post_drafts row,
+// ADR-0011).
 // See crud.test.ts for updatePost's own staging behavior (writing into the
 // buffer) and lifecycle.test.ts for the pending-changes lifecycle guard.
 describe("publishPostChanges / discardPostChanges (ADR-0011)", () => {

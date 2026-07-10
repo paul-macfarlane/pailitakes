@@ -1,7 +1,7 @@
 import "server-only";
 
-// Business logic for publishing/discarding a public post's staged edits
-// (posts.draft, ADR-0011). DB access lives in src/lib/posts/data.ts;
+// Business logic for publishing/discarding a public post's staged edits (its
+// post_drafts row, ADR-0011). DB access lives in src/lib/posts/data.ts;
 // auth/ownership guarding happens in the thin action
 // (src/actions/posts/draft.ts) before these are called.
 
@@ -19,11 +19,11 @@ import { CONFLICT_ERROR, GENERIC_ERROR } from "@/lib/posts/service/shared";
 import { IMMEDIATE } from "@/lib/shared/cache";
 import type { ActionResult } from "@/lib/shared/action-result";
 
-// Promotes a public post's staged edits (posts.draft) to the live columns and
-// clears the buffer, in one transaction (ADR-0011). This is the only path by
-// which an edit to an already-public post reaches the public — so it
-// revalidates the public caches (unlike stageDraftEdit). Idempotent when
-// nothing is staged.
+// Promotes a public post's staged edits (its post_drafts row) to the live
+// columns and clears the buffer, in one transaction (ADR-0011). This is the
+// only path by which an edit to an already-public post reaches the public —
+// so it revalidates the public caches (unlike stageDraftEdit). Idempotent
+// when nothing is staged.
 export async function publishPostChangesService(
   id: string,
   session: StaffSession,
@@ -77,9 +77,9 @@ export async function publishPostChangesService(
   }
 }
 
-// Discards a public post's staged edits (clears posts.draft) without touching
-// the live content. No public revalidation — the live post never changed.
-// Idempotent when nothing is staged.
+// Discards a public post's staged edits (deletes its post_drafts row) without
+// touching the live content. No public revalidation — the live post never
+// changed. Idempotent when nothing is staged.
 export async function discardPostChangesService(
   id: string,
   session: StaffSession,
