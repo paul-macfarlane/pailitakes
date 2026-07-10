@@ -57,14 +57,14 @@
 
 ### Rendering strategy per route
 
-| Route                                | Strategy                                                                    |
-| ------------------------------------ | --------------------------------------------------------------------------- |
-| `/` (home)                           | ISR, `revalidate: 60`, cache tags `post-list`, `announcements`              |
-| `/posts/[slug]`                      | ISR per-slug, cache tag `post:{slug}`; comments + likes hydrate client-side |
-| `/categories/[slug]`, `/tags/[slug]` | ISR, `revalidate: 60`, tag `post-list`                                      |
-| `/search`                            | Dynamic (query-dependent), never cached                                     |
+| Route                                | Strategy                                                                     |
+| ------------------------------------ | ---------------------------------------------------------------------------- |
+| `/` (home)                           | ISR, `revalidate: 60`, cache tags `post-list`, `announcements`               |
+| `/posts/[slug]`                      | ISR per-slug, cache tag `post:{slug}`; comments + likes hydrate client-side  |
+| `/categories/[slug]`, `/tags/[slug]` | ISR, `revalidate: 60`, tag `post-list`                                       |
+| `/search`                            | Dynamic (query-dependent), never cached                                      |
 | `/admin/**`                          | Fully dynamic, `noindex`, `requireStaff()` in layout + every page (ADR-0009) |
-| `/sitemap.xml`                       | Route handler, tag `post-list`                                              |
+| `/sitemap.xml`                       | Route handler, tag `post-list`                                               |
 
 **Key pattern:** post pages are cached static shells; user-specific or fast-changing data (comment tree, like state, view beacon) lives in small client components. Public pages stay fast and cheap, and a new comment never triggers a page rebuild.
 
@@ -77,7 +77,7 @@ Four layers, each with a distinct job:
 1. **Full Route Cache + Vercel CDN.** ISR pages render once and serve as cached HTML from the edge. Invalidated by (a) time — `revalidate: 60` regenerates in the background at most once per minute, stale-while-revalidate, so no visitor ever waits — or (b) on-demand invalidation from server actions.
 2. **Tag-based on-demand invalidation.** Pages declare cache tags (`post:{slug}`, `post-list`, `announcements`). Publish/edit/archive/announcement actions call `revalidateTag(...)`, which correctly invalidates the post page, home, category/tag listings, and sitemap in one shot — no path enumeration to forget.
 3. **Time as the scheduled-publish safety net.** Visibility is a query predicate (§4), so a scheduled post becomes queryable at `publish_at` automatically; the next time-based regeneration (≤60s later) surfaces it. The 5-minute cron (cron-job.org) makes it exact by revalidating tags when any `publish_at`/`archive_at` crosses.
-4. **Deliberately uncached:** `/search`, `/admin/**`, and all comment/like reads (`no-store`). Interactive reads (comments, likes, comment moderation, the analytics dashboard) are client-fetched with TanStack Query. Filtered admin *lists* (e.g. the ADM-8 post list) are uncached via dynamic server rendering with URL-param filters instead — client fetching buys nothing for them (ADR-0010).
+4. **Deliberately uncached:** `/search`, `/admin/**`, and all comment/like reads (`no-store`). Interactive reads (comments, likes, comment moderation, the analytics dashboard) are client-fetched with TanStack Query. Filtered admin _lists_ (e.g. the ADM-8 post list) are uncached via dynamic server rendering with URL-param filters instead — client fetching buys nothing for them (ADR-0010).
 
 ---
 
@@ -111,6 +111,11 @@ posts
   comments_locked boolean not null default false  -- admin lock (FR-4.4); ADR-0004
   publish_at    timestamptz null
   archive_at    timestamptz null
+  draft         jsonb null              -- staged edits for a public post: a
+                                        -- complete pending content snapshot the
+                                        -- public never sees until "Publish
+                                        -- changes" promotes it (ADR-0011)
+  draft_updated_at timestamptz null     -- when the pending snapshot last changed
   created_at    timestamptz
   updated_at    timestamptz
   search        tsvector GENERATED ALWAYS AS (
@@ -182,9 +187,9 @@ AND publish_at <= now()
 AND (archive_at IS NULL OR archive_at > now())
 ```
 
-"Publish now" sets `status='published', publish_at=now()`. "Schedule" sets `status='scheduled'` with a future `publish_at` — the post becomes visible at that instant with **no job required**. Scheduled archive works identically via `archive_at`. A helper (`visiblePostsWhere()`) encapsulates the predicate for every public query and search. A nightly cleanup can normalize statuses purely for admin-list readability.
+"Publish now" sets `status='published', publish_at=now()`. "Schedule" sets `status='scheduled'` with a future `publish_at` — the post becomes visible at that instant with **no job required**. Scheduled archive works identically via `archive_at`. A helper (`visiblePostsWhere()`) encapsulates the predicate for every public query and search.
 
-The only cron (cron-job.org hitting `/api/cron/revalidate` every 5 min): find posts whose `publish_at`/`archive_at` crossed since the last run → `revalidateTag` for the affected post, `post-list`, and sitemap. The endpoint should be idempotent and track "last run" in the DB rather than trusting call timing, so a missed or duplicated trigger is harmless.
+The only cron (cron-job.org hitting `/api/cron/revalidate` every 5 min): find posts whose `publish_at`/`archive_at` crossed since the last run → `revalidateTag` for the affected post, `post-list`, and sitemap. The endpoint should be idempotent and track "last run" in the DB rather than trusting call timing, so a missed or duplicated trigger is harmless. The same run also **normalizes stored statuses** to match the visibility predicate (`normalizePostStatuses`): `scheduled → published` once `publish_at` passes, and `published/scheduled → archived` once `archive_at` passes — so the admin badge isn't stuck showing "Scheduled" for a post that is already public. Self-healing (targets every currently-stale row, not just the last window); archiving also clears any staged draft (ADR-0011) so a pending snapshot isn't stranded on a now-hidden post.
 
 ---
 
@@ -267,6 +272,7 @@ ORDER BY rank DESC, publish_at DESC
 
 - **Access:** middleware redirects cookieless requests from `/admin/**` (UX only); `requireStaff()` gates the admin layout and every admin page (layouts and pages render in parallel, so a layout-only gate can't protect page content — ADR-0009); every server action re-checks role (action checks are the security boundary). Authors scoped to `author_id = self`; admin unscoped.
 - **Editor:** Markdown textarea + toggleable preview pane running the _same_ rendering pipeline as production (server action returns rendered HTML) — guarantees preview fidelity (FR-7.2). Autosave drafts on interval.
+- **Staged edits on public posts (ADR-0011):** editing a post that is publicly visible right now (`isPubliclyVisible()`, not status alone) autosaves into `posts.draft` (a complete pending snapshot) instead of the live columns, so the public keeps seeing the current content until the author hits "Publish changes" (promotes + revalidates) or "Discard changes". Anything not yet public — drafts, archived, and a scheduled post still awaiting its `publish_at` — writes through immediately. Buffer writes and the promote CAS-guard on `draftUpdatedAt` (no silent lost updates); the lifecycle actions guard `draft is null` so a pending snapshot can't be stranded by a racing status/schedule change, and a post with pending changes can't change status or (re)schedule until it's published or discarded. Editor/preview read the snapshot when present.
 - **Thumbnails:** a URL field. Rendered with `next/image` + `unoptimized` + explicit dimensions (avoids maintaining a `remotePatterns` allowlist / open-proxy risk while keeping lazy loading and layout stability). Known tradeoffs: link rot and hotlink-blocking hosts. Revisit with Vercel Blob if uploads are ever wanted.
 - **Moderation log, announcements, categories, users (roles/bans):** simple CRUD screens.
 - **Preview:** `/admin/preview/[id]` renders any draft/scheduled post with the public layout, auth-gated.

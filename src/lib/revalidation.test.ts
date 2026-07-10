@@ -1,5 +1,13 @@
 import { eq, like } from "drizzle-orm";
-import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  afterAll,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from "vitest";
 
 import * as schema from "@/db/schema";
 
@@ -16,7 +24,7 @@ const { pool, testDb } = await vi.hoisted(async () => {
 
 vi.mock("@/db", () => ({ db: testDb }));
 
-const { getCrossedSlugs, advanceRevalidationMarker } =
+const { getCrossedSlugs, advanceRevalidationMarker, normalizePostStatuses } =
   await import("./revalidation");
 
 const { categories, posts, revalidationState, user } = schema;
@@ -208,5 +216,83 @@ describe("advanceRevalidationMarker", () => {
       .from(revalidationState);
     expect(rows).toHaveLength(1);
     expect(rows[0]!.lastRunAt.getTime()).toBe(NOW.getTime());
+  });
+});
+
+describe("normalizePostStatuses", () => {
+  async function statusOf(id: string) {
+    const [row] = await testDb
+      .select({ status: posts.status, draft: posts.draft })
+      .from(posts)
+      .where(eq(posts.id, id));
+    return row!;
+  }
+
+  it("flips a scheduled post to published once its publish_at has passed, and counts it", async () => {
+    const post = await seedPost({
+      suffix: "norm-pub",
+      status: "scheduled",
+      publishAt: BEFORE_WINDOW,
+    });
+    const count = await normalizePostStatuses(NOW);
+    expect(count).toBeGreaterThanOrEqual(1);
+    expect((await statusOf(post.id)).status).toBe("published");
+  });
+
+  it("leaves a scheduled post whose publish_at is still in the future", async () => {
+    const future = new Date("2026-07-01T00:00:00Z");
+    const post = await seedPost({
+      suffix: "norm-future",
+      status: "scheduled",
+      publishAt: future,
+    });
+    await normalizePostStatuses(NOW);
+    expect((await statusOf(post.id)).status).toBe("scheduled");
+  });
+
+  it("archives a published post past its archive_at and clears any staged draft", async () => {
+    const [post] = await testDb
+      .insert(posts)
+      .values({
+        authorId,
+        title: `${runId} norm-arch`,
+        slug: `${runId}-norm-arch`,
+        bodyMd: "b",
+        thumbnailUrl: "https://img.example.com/t.jpg",
+        categoryId,
+        status: "published",
+        publishAt: BEFORE_WINDOW,
+        archiveAt: IN_WINDOW,
+        draft: {
+          title: `${runId} staged`,
+          slug: `${runId}-norm-arch`,
+          bodyMd: "staged",
+          categoryId,
+          thumbnailUrl: "https://img.example.com/t.jpg",
+          bannerUrl: null,
+          videoUrl: null,
+          tags: [],
+        },
+      })
+      .returning({ id: posts.id });
+
+    await normalizePostStatuses(NOW);
+    const after = await statusOf(post!.id);
+    expect(after.status).toBe("archived");
+    // A pending snapshot must not be stranded on a now-hidden post (ADR-0011).
+    expect(after.draft).toBeNull();
+  });
+
+  it("is idempotent — a second run leaves already-normalized rows unchanged", async () => {
+    const post = await seedPost({
+      suffix: "norm-idem",
+      status: "scheduled",
+      publishAt: BEFORE_WINDOW,
+    });
+    await normalizePostStatuses(NOW);
+    // A second run leaves this already-normalized row unchanged (asserting on
+    // the row, not a global count, since the sweep is DB-wide).
+    await normalizePostStatuses(NOW);
+    expect((await statusOf(post.id)).status).toBe("published");
   });
 });

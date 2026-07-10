@@ -4,7 +4,16 @@
 // input on every call, never trust the client, and re-check session + role
 // + ownership per action — middleware/UI gating is convenience only.
 
-import { and, eq, inArray, isNull, notInArray, type SQL } from "drizzle-orm";
+import {
+  and,
+  eq,
+  inArray,
+  isNull,
+  ne,
+  notInArray,
+  sql,
+  type SQL,
+} from "drizzle-orm";
 import type { PgColumn } from "drizzle-orm/pg-core";
 import { revalidateTag } from "next/cache";
 import { z } from "zod";
@@ -15,16 +24,20 @@ import { isStaff } from "@/lib/authz";
 import { IMMEDIATE } from "@/lib/cache";
 import { isRenderableImageSrc } from "@/lib/image-src";
 import {
+  postDraftSchema,
   postInputSchema,
   postUpdateSchema,
   slugifyTitle,
   tagToSlug,
+  type PostDraft,
   type PostInput,
+  type PostUpdate,
 } from "@/lib/post-input";
 import {
   canScheduleArchive,
   canSchedulePublish,
   canTransition,
+  isPubliclyVisible,
   POST_STATUSES,
   type PostStatus,
 } from "@/lib/post-status";
@@ -34,6 +47,11 @@ export type ActionResult<T> =
   { ok: true; data: T } | { ok: false; error: string };
 
 const GENERIC_ERROR = "Something went wrong. Please try again.";
+
+// A public post with staged edits (posts.draft) must have them promoted or
+// discarded before any lifecycle change — keeps the buffer from being
+// stranded on a post that leaves the published/scheduled set (ADR-0011).
+const PENDING_CHANGES_ERROR = "Publish or discard your pending changes first.";
 
 // Thrown inside updatePost's transaction to roll back and surface the
 // public-thumbnail invariant when a concurrent publish wins the race.
@@ -227,6 +245,163 @@ export async function createPost(
   }
 }
 
+// The post's current tag NAMES — the seed for a draft snapshot's tags on the
+// first staged edit (before posts.draft exists to carry them).
+async function loadPostTagNames(postId: string): Promise<string[]> {
+  const rows = await db
+    .select({ name: tags.name })
+    .from(postTags)
+    .innerJoin(tags, eq(tags.id, postTags.tagId))
+    .where(eq(postTags.postId, postId));
+  return rows.map((row) => row.name);
+}
+
+// Tag sets compared the way setPostTags dedupes them — by derived slug, order-
+// and duplicate-insensitive — so "reverting" tags to the live set counts as no
+// change even if retyped in a different order.
+function sameTagSet(a: string[], b: string[]): boolean {
+  const norm = (t: string[]) =>
+    [...new Set(t.map(tagToSlug).filter(Boolean))].sort();
+  const x = norm(a);
+  const y = norm(b);
+  return x.length === y.length && x.every((v, i) => v === y[i]);
+}
+
+// Whether a staged snapshot is content-identical to the live post — used to
+// detect an edit that reverts back to live, so the buffer can be cleared rather
+// than left non-null (which would keep the post "pending" and lock its
+// lifecycle controls).
+function draftContentEquals(a: PostDraft, b: PostDraft): boolean {
+  return (
+    a.title === b.title &&
+    a.slug === b.slug &&
+    a.bodyMd === b.bodyMd &&
+    a.categoryId === b.categoryId &&
+    a.thumbnailUrl === b.thumbnailUrl &&
+    a.bannerUrl === b.bannerUrl &&
+    a.videoUrl === b.videoUrl &&
+    sameTagSet(a.tags, b.tags)
+  );
+}
+
+// Stages an edit to a currently-public post into posts.draft instead of the
+// live columns (ADR-0011). Merges the partial autosave diff onto the current
+// pending snapshot — or, on the first staged edit, onto the live content — so
+// the buffer always holds a COMPLETE, publishable snapshot that
+// publishPostChanges can promote wholesale. Never revalidates public caches:
+// the live post is unchanged until the author publishes.
+async function stageDraftEdit(
+  id: string,
+  data: PostUpdate,
+): Promise<ActionResult<{ id: string; slug: string }>> {
+  const [row] = await db
+    .select({
+      draft: posts.draft,
+      draftUpdatedAt: posts.draftUpdatedAt,
+      title: posts.title,
+      slug: posts.slug,
+      bodyMd: posts.bodyMd,
+      categoryId: posts.categoryId,
+      thumbnailUrl: posts.thumbnailUrl,
+      bannerUrl: posts.bannerUrl,
+      videoUrl: posts.videoUrl,
+    })
+    .from(posts)
+    .where(eq(posts.id, id))
+    .limit(1);
+  if (!row) return { ok: false, error: "Post not found." };
+
+  // Live content — the merge base on the first staged edit, and always the
+  // yardstick for the "reverted to live" no-op check below.
+  const live: PostDraft = {
+    title: row.title,
+    slug: row.slug,
+    bodyMd: row.bodyMd,
+    categoryId: row.categoryId,
+    thumbnailUrl: row.thumbnailUrl,
+    bannerUrl: row.bannerUrl,
+    videoUrl: row.videoUrl,
+    tags: await loadPostTagNames(id),
+  };
+  const base: PostDraft = row.draft ?? live;
+
+  // Absent diff keys mean "leave the staged value unchanged" (postUpdateSchema
+  // contract), so only overlay keys the author actually sent.
+  const merged: PostDraft = {
+    ...base,
+    ...(data.title !== undefined && { title: data.title }),
+    ...(data.slug !== undefined && { slug: data.slug }),
+    ...(data.bodyMd !== undefined && { bodyMd: data.bodyMd }),
+    ...(data.categoryId !== undefined && { categoryId: data.categoryId }),
+    ...(data.thumbnailUrl !== undefined && { thumbnailUrl: data.thumbnailUrl }),
+    ...(data.bannerUrl !== undefined && { bannerUrl: data.bannerUrl }),
+    ...(data.videoUrl !== undefined && { videoUrl: data.videoUrl }),
+    ...(data.tags !== undefined && { tags: data.tags }),
+  };
+
+  // The staged snapshot must stay publishable — a public post keeps a real
+  // thumbnail (same invariant the live-write path enforces for drafts going
+  // public). Surface the specific message before the generic schema parse.
+  if (!isRenderableImageSrc(merged.thumbnailUrl)) {
+    return {
+      ok: false,
+      error: "A published or scheduled post must keep its thumbnail.",
+    };
+  }
+  const validated = postDraftSchema.safeParse(merged);
+  if (!validated.success) {
+    return { ok: false, error: validated.error.issues[0]!.message };
+  }
+  const snapshot = validated.data;
+
+  // Immediate slug-collision feedback (parity with the live-write path): the
+  // staged slug lives in jsonb with no unique constraint, so a clash would
+  // otherwise stay hidden until publish. Only check a slug that actually
+  // differs from this post's live slug.
+  if (snapshot.slug !== row.slug) {
+    const [clash] = await db
+      .select({ id: posts.id })
+      .from(posts)
+      .where(and(eq(posts.slug, snapshot.slug), ne(posts.id, id)))
+      .limit(1);
+    if (clash) return { ok: false, error: "That slug is taken." };
+  }
+
+  // Both writes CAS on draftUpdatedAt so a concurrent stage/publish that
+  // changed the buffer between our read and this write matches no row — a
+  // conflict, not a silent clobber — and on status so a concurrent unpublish
+  // can't strand the snapshot on a now-draft post.
+  const guard = and(
+    eq(posts.id, id),
+    inArray(posts.status, ["published", "scheduled"]),
+    unchanged(posts.draftUpdatedAt, row.draftUpdatedAt),
+  );
+
+  // Reverting edits back to the live content leaves nothing to stage — clear
+  // the buffer so the post isn't stuck showing "pending changes" with its
+  // status/schedule controls locked.
+  if (draftContentEquals(snapshot, live)) {
+    const cleared = await db
+      .update(posts)
+      .set({ draft: null, draftUpdatedAt: null })
+      .where(guard)
+      .returning({ id: posts.id });
+    if (cleared.length === 0) return { ok: false, error: CONFLICT_ERROR };
+    return { ok: true, data: { id, slug: snapshot.slug } };
+  }
+
+  const updated = await db
+    .update(posts)
+    .set({ draft: snapshot, draftUpdatedAt: new Date() })
+    .where(guard)
+    .returning({ id: posts.id });
+  if (updated.length === 0) {
+    return { ok: false, error: CONFLICT_ERROR };
+  }
+
+  return { ok: true, data: { id, slug: snapshot.slug } };
+}
+
 export async function updatePost(
   id: string,
   input: unknown,
@@ -262,6 +437,8 @@ export async function updatePost(
           authorId: posts.authorId,
           slug: posts.slug,
           status: posts.status,
+          publishAt: posts.publishAt,
+          archiveAt: posts.archiveAt,
         })
         .from(posts)
         .where(eq(posts.id, id))
@@ -285,29 +462,30 @@ export async function updatePost(
       return { ok: false, error: "Unknown category." };
     }
 
-    // Preserve the "public posts have a thumbnail" invariant that the publish
-    // and schedule-publish gates establish: a post that is already public or
-    // will become public (published/scheduled) can't have its thumbnail
-    // cleared here, which would otherwise reach the live feed as a broken
-    // card without ever passing back through a publish-time check. This
-    // read-time check blocks the common case; the write below re-guards it
-    // under concurrency.
+    // A post that is publicly visible RIGHT NOW stages edits into posts.draft
+    // instead of writing live, so the public keeps seeing the current content
+    // until the author promotes the pending changes (ADR-0011). Routing on
+    // actual visibility, not just status, matters at the edges: a scheduled
+    // post whose publish_at is still in the future isn't public yet, so its
+    // edits write live and are simply what goes out at publish time (staging
+    // them would strand the edits, since nothing promotes the buffer when the
+    // scheduled time arrives). A scheduled post already past its publish_at is
+    // live and does stage. Draft/archived posts aren't public — write through.
+    if (isPubliclyVisible(existing)) {
+      return await stageDraftEdit(id, data);
+    }
+
+    // Below here the post is not publicly visible (draft, archived, or a
+    // scheduled post awaiting its publish_at). `status` isn't a field on
+    // postUpdateSchema, so this action never moves a post between statuses —
+    // transitions are ADM-4's job.
+    // clearingThumbnail still feeds the write-time CAS guard, which defends the
+    // read->write window against a concurrent publish that would otherwise slip
+    // a "" thumbnail onto a post that just went public.
     const clearingThumbnail =
       data.thumbnailUrl !== undefined &&
       !isRenderableImageSrc(data.thumbnailUrl);
-    if (
-      clearingThumbnail &&
-      (existing.status === "published" || existing.status === "scheduled")
-    ) {
-      return {
-        ok: false,
-        error: "A published or scheduled post must keep its thumbnail.",
-      };
-    }
 
-    // `status` isn't a field on postUpdateSchema, so this action can never
-    // move a post between draft/scheduled/published/archived — transitions
-    // are ADM-4's job.
     const nextSlug = data.slug ?? existing.slug;
 
     const columnUpdates: Partial<typeof posts.$inferInsert> = {};
@@ -399,6 +577,181 @@ export async function updatePost(
   }
 }
 
+// Loads the draft-buffer columns and runs the shared ownership check for the
+// publish/discard actions (the counterpart to loadOwnedLifecycle for the status
+// actions). One source of truth for the ownership predicate so it can't drift.
+async function loadOwnedDraft(
+  id: string,
+  session: NonNullable<Awaited<ReturnType<typeof staffSession>>>,
+): Promise<
+  | {
+      ok: true;
+      post: {
+        slug: string;
+        draft: PostDraft | null;
+        draftUpdatedAt: Date | null;
+      };
+    }
+  | { ok: false; error: string }
+> {
+  const [existing] = await db
+    .select({
+      authorId: posts.authorId,
+      slug: posts.slug,
+      draft: posts.draft,
+      draftUpdatedAt: posts.draftUpdatedAt,
+    })
+    .from(posts)
+    .where(eq(posts.id, id))
+    .limit(1);
+
+  if (!existing) return { ok: false, error: "Post not found." };
+  if (session.user.role !== "admin" && existing.authorId !== session.user.id) {
+    return { ok: false, error: "Not authorized." };
+  }
+  return {
+    ok: true,
+    post: {
+      slug: existing.slug,
+      draft: existing.draft,
+      draftUpdatedAt: existing.draftUpdatedAt,
+    },
+  };
+}
+
+// Promotes a public post's staged edits (posts.draft) to the live columns and
+// clears the buffer, in one transaction (ADR-0011). This is the only path by
+// which an edit to an already-public post reaches the public — so it
+// revalidates the public caches (unlike stageDraftEdit). Idempotent when
+// nothing is staged.
+export async function publishPostChanges(
+  id: string,
+): Promise<ActionResult<{ id: string; slug: string }>> {
+  const session = await staffSession();
+  if (!session) {
+    return { ok: false, error: "Not authorized." };
+  }
+
+  const idResult = z.uuid().safeParse(id);
+  if (!idResult.success) {
+    return { ok: false, error: idResult.error.issues[0]!.message };
+  }
+
+  try {
+    const loaded = await loadOwnedDraft(id, session);
+    if (!loaded.ok) return loaded;
+    const { slug: oldSlug, draft: staged, draftUpdatedAt } = loaded.post;
+
+    // Nothing staged — idempotent success (a double-click, or already promoted
+    // / discarded on another tab).
+    if (staged === null) {
+      return { ok: true, data: { id, slug: oldSlug } };
+    }
+
+    // Re-validate before promoting: the snapshot was validated on write, but
+    // never push content onto the live post that we can't fully re-validate.
+    const validated = postDraftSchema.safeParse(staged);
+    if (!validated.success) {
+      return { ok: false, error: validated.error.issues[0]!.message };
+    }
+    const draft = validated.data;
+
+    // The staged category could have been deleted since it was chosen.
+    if (!(await categoryExists(draft.categoryId))) {
+      return { ok: false, error: "Unknown category." };
+    }
+
+    try {
+      const promoted = await db.transaction(async (tx) => {
+        // CAS on draftUpdatedAt: a concurrent autosave that re-staged newer
+        // edits between our read and here matches no row, so we roll back and
+        // report a conflict instead of promoting a stale snapshot and nulling
+        // the newer one.
+        const rows = await tx
+          .update(posts)
+          .set({
+            title: draft.title,
+            slug: draft.slug,
+            bodyMd: draft.bodyMd,
+            categoryId: draft.categoryId,
+            thumbnailUrl: draft.thumbnailUrl,
+            bannerUrl: draft.bannerUrl,
+            videoUrl: draft.videoUrl,
+            draft: null,
+            draftUpdatedAt: null,
+          })
+          .where(
+            and(
+              eq(posts.id, id),
+              unchanged(posts.draftUpdatedAt, draftUpdatedAt),
+            ),
+          )
+          .returning({ id: posts.id });
+
+        if (rows.length === 0) return false;
+        await setPostTags(tx, id, draft.tags);
+        return true;
+      });
+
+      if (!promoted) return { ok: false, error: CONFLICT_ERROR };
+    } catch (err) {
+      // A staged slug that now collides with another post's live slug: the
+      // whole tx rolls back, so the buffer survives for the author to fix.
+      if (isPostSlugCollision(err)) {
+        return { ok: false, error: "That slug is taken." };
+      }
+      throw err;
+    }
+
+    revalidateTag("post-list", IMMEDIATE);
+    revalidateTag(`post:${draft.slug}`, IMMEDIATE);
+    if (draft.slug !== oldSlug) {
+      revalidateTag(`post:${oldSlug}`, IMMEDIATE);
+    }
+
+    return { ok: true, data: { id, slug: draft.slug } };
+  } catch (err) {
+    console.error("publishPostChanges failed", err);
+    return { ok: false, error: GENERIC_ERROR };
+  }
+}
+
+// Discards a public post's staged edits (clears posts.draft) without touching
+// the live content. No public revalidation — the live post never changed.
+// Idempotent when nothing is staged.
+export async function discardPostChanges(
+  id: string,
+): Promise<ActionResult<{ id: string }>> {
+  const session = await staffSession();
+  if (!session) {
+    return { ok: false, error: "Not authorized." };
+  }
+
+  const idResult = z.uuid().safeParse(id);
+  if (!idResult.success) {
+    return { ok: false, error: idResult.error.issues[0]!.message };
+  }
+
+  try {
+    const loaded = await loadOwnedDraft(id, session);
+    if (!loaded.ok) return loaded;
+
+    if (loaded.post.draft === null) {
+      return { ok: true, data: { id } };
+    }
+
+    await db
+      .update(posts)
+      .set({ draft: null, draftUpdatedAt: null })
+      .where(eq(posts.id, id));
+
+    return { ok: true, data: { id } };
+  } catch (err) {
+    console.error("discardPostChanges failed", err);
+    return { ok: false, error: GENERIC_ERROR };
+  }
+}
+
 export async function deletePost(
   id: string,
 ): Promise<ActionResult<{ id: string }>> {
@@ -438,6 +791,8 @@ export async function deletePost(
 }
 
 // Lifecycle columns loaded together by the status/schedule actions below.
+// `hasDraft` (not the buffer itself — just whether one exists) lets the
+// lifecycle actions reject while a public post has unpublished staged edits.
 type LifecycleRow = {
   authorId: string;
   slug: string;
@@ -445,6 +800,7 @@ type LifecycleRow = {
   thumbnailUrl: string;
   publishAt: Date | null;
   archiveAt: Date | null;
+  hasDraft: boolean;
 };
 
 const CONFLICT_ERROR = "This post was changed elsewhere. Reload and try again.";
@@ -464,6 +820,7 @@ async function loadOwnedLifecycle(
       thumbnailUrl: posts.thumbnailUrl,
       publishAt: posts.publishAt,
       archiveAt: posts.archiveAt,
+      hasDraft: sql<boolean>`${posts.draft} is not null`,
     })
     .from(posts)
     .where(eq(posts.id, id))
@@ -536,6 +893,13 @@ export async function transitionPostStatus(
     if (!loaded.ok) return loaded;
     const existing = loaded.post;
 
+    // A public post with unpublished staged edits must resolve them before any
+    // status move, so the buffer is never stranded on a post that has left the
+    // published/scheduled set (ADR-0011).
+    if (existing.hasDraft) {
+      return { ok: false, error: PENDING_CHANGES_ERROR };
+    }
+
     // `scheduled` is never an immediate transition target — it needs a future
     // publish_at (schedulePublish). Reject it after the ownership/not-found
     // check (so a non-owner still gets the authz result) but before the
@@ -565,7 +929,10 @@ export async function transitionPostStatus(
     // image, so "" (the draft placeholder from ADM-3) can't go public. The
     // thumbnail field itself arrives in ADM-6; until then editor-created
     // posts must have a thumbnail set before they can be published.
-    if (target === "published" && !isRenderableImageSrc(existing.thumbnailUrl)) {
+    if (
+      target === "published" &&
+      !isRenderableImageSrc(existing.thumbnailUrl)
+    ) {
       return {
         ok: false,
         error: "Add a thumbnail image before publishing.",
@@ -596,7 +963,14 @@ export async function transitionPostStatus(
       updates.archiveAt = null;
     }
 
-    if (!(await casUpdate(id, existing.status, updates))) {
+    // CAS also guards `draft is null`: the hasDraft check above is read-time,
+    // so a concurrent first-stage edit could otherwise commit a buffer while
+    // this transition flips the post off the public track — stranding an
+    // invisible, unresolvable snapshot (ADR-0011). If a buffer landed, this
+    // matches no row and reports a conflict.
+    if (
+      !(await casUpdate(id, existing.status, updates, [isNull(posts.draft)]))
+    ) {
       return { ok: false, error: CONFLICT_ERROR };
     }
 
@@ -640,6 +1014,9 @@ export async function schedulePublish(
     if (!loaded.ok) return loaded;
     const post = loaded.post;
 
+    if (post.hasDraft) {
+      return { ok: false, error: PENDING_CHANGES_ERROR };
+    }
     if (!canSchedulePublish(post.status)) {
       return {
         ok: false,
@@ -652,7 +1029,11 @@ export async function schedulePublish(
     // the cron hasn't flipped its status yet. Rescheduling it to the future
     // would silently retract a public post — treat it as published: archive
     // it first to take it down.
-    if (post.status === "scheduled" && post.publishAt !== null && post.publishAt <= now) {
+    if (
+      post.status === "scheduled" &&
+      post.publishAt !== null &&
+      post.publishAt <= now
+    ) {
       return {
         ok: false,
         error: "This post is already live. Archive it before rescheduling.",
@@ -677,16 +1058,15 @@ export async function schedulePublish(
       };
     }
 
-    // CAS also guards archive_at unchanged: a concurrent scheduleArchive
-    // could otherwise slip a nearer archive_at past the check above, leaving
-    // publish_at >= archive_at (a post that can never become visible).
+    // CAS also guards archive_at unchanged (so a concurrent scheduleArchive
+    // can't slip a nearer archive_at past the check above, leaving publish_at
+    // >= archive_at) and `draft is null` (so a concurrent first-stage edit
+    // can't strand a buffer on the post — ADR-0011).
     if (
-      !(await casUpdate(
-        id,
-        post.status,
-        { status: "scheduled", publishAt },
-        [unchanged(posts.archiveAt, post.archiveAt)],
-      ))
+      !(await casUpdate(id, post.status, { status: "scheduled", publishAt }, [
+        unchanged(posts.archiveAt, post.archiveAt),
+        isNull(posts.draft),
+      ]))
     ) {
       return { ok: false, error: CONFLICT_ERROR };
     }
@@ -729,6 +1109,9 @@ export async function scheduleArchive(
     if (!loaded.ok) return loaded;
     const post = loaded.post;
 
+    if (post.hasDraft) {
+      return { ok: false, error: PENDING_CHANGES_ERROR };
+    }
     if (!canScheduleArchive(post.status)) {
       return {
         ok: false,
@@ -746,11 +1129,14 @@ export async function scheduleArchive(
       };
     }
 
-    // CAS guards publish_at unchanged: mirror of schedulePublish, so a
-    // concurrent reschedule can't move publish_at past this archive time.
+    // CAS guards publish_at unchanged (mirror of schedulePublish, so a
+    // concurrent reschedule can't move publish_at past this archive time) and
+    // `draft is null` (so a concurrent first-stage edit can't strand a buffer
+    // on the post — ADR-0011).
     if (
       !(await casUpdate(id, post.status, { archiveAt }, [
         unchanged(posts.publishAt, post.publishAt),
+        isNull(posts.draft),
       ]))
     ) {
       return { ok: false, error: CONFLICT_ERROR };

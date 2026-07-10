@@ -1,5 +1,6 @@
 "use client";
 
+import { LayoutDashboard, LogOut, User } from "lucide-react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useState } from "react";
@@ -74,15 +75,18 @@ export function UserMenu({
             <DropdownMenuSeparator />
             {isStaff ? (
               <DropdownMenuItem render={<Link href="/admin" />}>
-                Admin dashboard
+                <LayoutDashboard className="size-4" />
+                Admin
               </DropdownMenuItem>
             ) : null}
             <DropdownMenuItem render={<Link href="/account" />}>
+              <User className="size-4" />
               Account
             </DropdownMenuItem>
             <DropdownMenuSeparator />
             {/* Base UI items fire onClick, not Radix's onSelect (ADR-0006). */}
             <DropdownMenuItem onClick={handleSignOut}>
+              <LogOut className="size-4" />
               Sign out
             </DropdownMenuItem>
           </DropdownMenuGroup>

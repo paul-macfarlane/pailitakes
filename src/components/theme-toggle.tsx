@@ -1,6 +1,6 @@
 "use client";
 
-import { Check, Moon, Sun } from "lucide-react";
+import { Check, Monitor, Moon, Sun } from "lucide-react";
 import { useTheme } from "next-themes";
 import { useSyncExternalStore } from "react";
 
@@ -13,9 +13,9 @@ import {
 } from "@/components/ui/dropdown-menu";
 
 const THEMES = [
-  { value: "light", label: "Light" },
-  { value: "dark", label: "Dark" },
-  { value: "system", label: "System" },
+  { value: "light", label: "Light", Icon: Sun },
+  { value: "dark", label: "Dark", Icon: Moon },
+  { value: "system", label: "System", Icon: Monitor },
 ] as const;
 
 const subscribeNoop = () => () => {};
@@ -43,8 +43,9 @@ export function ThemeToggle() {
         <Moon className="hidden size-4 dark:block" />
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
-        {THEMES.map(({ value, label }) => (
+        {THEMES.map(({ value, label, Icon }) => (
           <DropdownMenuItem key={value} onClick={() => setTheme(value)}>
+            <Icon className="size-4" />
             {label}
             {mounted && theme === value ? (
               <Check className="ml-auto size-4" />

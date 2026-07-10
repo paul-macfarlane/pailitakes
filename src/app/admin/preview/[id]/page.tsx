@@ -41,7 +41,11 @@ export default async function PreviewPostPage({
       <div className="mb-6 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-dashed p-3 text-sm">
         <span className="text-muted-foreground">
           Preview · {STATUS_LABELS[post.status]}
-          {isLive ? "" : " — not visible to the public"}
+          {post.hasPendingChanges
+            ? " · pending changes — not yet published"
+            : isLive
+              ? ""
+              : " — not visible to the public"}
         </span>
         <Link
           href={`/admin/posts/${post.id}/edit`}

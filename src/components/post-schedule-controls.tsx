@@ -35,11 +35,16 @@ export function PostScheduleControls({
   status,
   publishAt,
   archiveAt,
+  pendingChanges = false,
 }: {
   postId: string;
   status: PostStatus;
   publishAt: Date | null;
   archiveAt: Date | null;
+  // Draft-of-published (ADR-0011): a public post with unpublished staged edits
+  // can't be (re)scheduled until they're published or discarded (server rejects
+  // it too). Disable the inputs/buttons and say why.
+  pendingChanges?: boolean;
 }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -80,7 +85,10 @@ export function PostScheduleControls({
       ? toDateTimeLocalValue(publishAt)
       : "");
   const archiveValue =
-    archiveEdit ?? (mounted && archiveAt ? toDateTimeLocalValue(archiveAt) : "");
+    archiveEdit ??
+    (mounted && archiveAt ? toDateTimeLocalValue(archiveAt) : "");
+
+  const busy = isPending || pendingChanges;
 
   // Runs a scheduling action, surfacing its error or refreshing the page's
   // server data (status + timestamps) on success. Same isPending/try-catch
@@ -111,9 +119,7 @@ export function PostScheduleControls({
       setError("Pick a publish date and time.");
       return;
     }
-    run(() =>
-      schedulePublish(postId, new Date(publishValue).toISOString()),
-    );
+    run(() => schedulePublish(postId, new Date(publishValue).toISOString()));
   }
 
   function submitArchive() {
@@ -143,14 +149,14 @@ export function PostScheduleControls({
               className="w-auto"
               min={minValue}
               value={publishValue}
-              disabled={isPending}
+              disabled={busy}
               onChange={(event) => setPublishEdit(event.target.value)}
             />
             <Button
               type="button"
               size="sm"
               variant="outline"
-              disabled={isPending}
+              disabled={busy}
               onClick={submitPublish}
             >
               {status === "scheduled" ? "Reschedule" : "Schedule"}
@@ -176,14 +182,14 @@ export function PostScheduleControls({
               className="w-auto"
               min={minValue}
               value={archiveValue}
-              disabled={isPending}
+              disabled={busy}
               onChange={(event) => setArchiveEdit(event.target.value)}
             />
             <Button
               type="button"
               size="sm"
               variant="outline"
-              disabled={isPending}
+              disabled={busy}
               onClick={submitArchive}
             >
               {archiveAt ? "Reschedule" : "Schedule archive"}
@@ -193,7 +199,7 @@ export function PostScheduleControls({
                 type="button"
                 size="sm"
                 variant="ghost"
-                disabled={isPending}
+                disabled={busy}
                 onClick={() => run(() => cancelScheduledArchive(postId))}
               >
                 Cancel archive
@@ -206,9 +212,20 @@ export function PostScheduleControls({
       <p
         aria-live="polite"
         role={error ? "alert" : "status"}
-        className={error ? "text-sm text-destructive" : "sr-only"}
+        className={
+          error
+            ? "text-sm text-destructive"
+            : pendingChanges
+              ? "text-sm text-muted-foreground"
+              : "sr-only"
+        }
       >
-        {error ?? (isPending ? "Saving…" : "")}
+        {error ??
+          (pendingChanges
+            ? "Publish or discard your pending changes first."
+            : isPending
+              ? "Saving…"
+              : "")}
       </p>
     </div>
   );

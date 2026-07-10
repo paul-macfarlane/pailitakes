@@ -7,6 +7,7 @@ import { env } from "@/lib/env";
 import {
   advanceRevalidationMarker,
   getCrossedSlugs,
+  normalizePostStatuses,
 } from "@/lib/revalidation";
 
 // Constant-time compare (hash to a fixed length first so length never leaks):
@@ -32,6 +33,8 @@ export async function GET(request: Request) {
   }
 
   const now = new Date();
+  // Read crossed slugs against the CURRENT stored statuses, before normalizing
+  // (which can move a just-archived post out of the PUBLIC_STATUSES filter).
   const slugs = await getCrossedSlugs(now);
 
   // Revalidate BEFORE advancing the marker: a crash here reprocesses the same
@@ -45,7 +48,17 @@ export async function GET(request: Request) {
     revalidateTag("post-list", IMMEDIATE);
   }
 
+  // Catch stored statuses up to reality (scheduled -> published, archive-crossed
+  // -> archived) so the admin badge isn't stale — visibility itself is already
+  // handled by the query predicate above. Reported separately from
+  // `revalidated`: status bookkeeping, not cache invalidation.
+  const normalized = await normalizePostStatuses(now);
+
   await advanceRevalidationMarker(now);
 
-  return Response.json({ revalidated: slugs.length, ranAt: now.toISOString() });
+  return Response.json({
+    revalidated: slugs.length,
+    normalized,
+    ranAt: now.toISOString(),
+  });
 }

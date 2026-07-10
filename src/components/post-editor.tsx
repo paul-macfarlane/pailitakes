@@ -1,6 +1,7 @@
 "use client";
 
 import { standardSchemaResolver } from "@hookform/resolvers/standard-schema";
+import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { z } from "zod";
@@ -33,7 +34,7 @@ import {
   type EditorValues,
 } from "@/lib/post-autosave";
 import { httpsImageUrl, slugifyTitle } from "@/lib/post-input";
-import { cn } from "@/lib/utils";
+import { usesDraftBuffer } from "@/lib/post-status";
 
 const MAX_TAGS = 10;
 const MAX_TAG_LENGTH = 40;
@@ -119,9 +120,16 @@ const AUTOSAVE_INTERVAL_MS = 5000;
 export function PostEditor({
   categories,
   initialPost,
+  registerSave,
+  onStatus,
 }: {
   categories: { id: number; name: string }[];
   initialPost: EditablePost | null;
+  // The Save action and autosave status render in the page heading (a sibling),
+  // not in this form — so hand the current save fn up and bubble status changes.
+  // All autosave logic (interval, diffing, CAS) stays here, untouched.
+  registerSave: (save: () => void) => void;
+  onStatus: (status: string, isError: boolean) => void;
 }) {
   const defaultValues: EditorFormValues = initialPost
     ? {
@@ -152,6 +160,12 @@ export function PostEditor({
   const requiresThumbnail =
     initialPost !== null &&
     (initialPost.status === "published" || initialPost.status === "scheduled");
+  // On a public post, saves are STAGED into a draft buffer, not written live
+  // (ADR-0011) — the server routes them there; the editor only reflects this in
+  // its status label and by surfacing the "unpublished changes" banner.
+  const stagesEdits =
+    initialPost !== null && usesDraftBuffer(initialPost.status);
+  const router = useRouter();
   const resolver = useMemo(
     () => standardSchemaResolver(makeEditorFormSchema(requiresThumbnail)),
     [requiresThumbnail],
@@ -169,6 +183,10 @@ export function PostEditor({
   const postIdRef = useRef<string | null>(initialPost?.id ?? null);
   const lastSavedRef = useRef<EditorValues>(defaultValues);
   const savingRef = useRef(false);
+  // Tracks whether the "unpublished changes" banner (a sibling server island)
+  // is already showing, so the first staged save can reveal it via one
+  // router.refresh — and no later save repeats it.
+  const stagedRef = useRef(initialPost?.hasPendingChanges ?? false);
   // True once the author has typed into the slug field directly — guards
   // against a server-resolved slug (post-creation derivation, collision
   // retry) silently overwriting a deliberate manual choice.
@@ -249,7 +267,18 @@ export function PostEditor({
       }
 
       setStatusIsError(false);
-      setStatus(`Saved ${new Date().toLocaleTimeString()}`);
+      setStatus(
+        `Saved${stagesEdits ? " to draft" : ""} ${new Date().toLocaleTimeString()}`,
+      );
+
+      // First staged edit on a public post created the draft buffer — reveal
+      // the "unpublished changes" banner (a sibling server island) without a
+      // manual reload. Once only; the soft refresh re-fetches the server tree
+      // but leaves this editor's in-progress form state intact.
+      if (stagesEdits && !stagedRef.current) {
+        stagedRef.current = true;
+        router.refresh();
+      }
     } catch {
       // A rejected action call (network blip, server restart) must not
       // escape as an unhandled rejection from the autosave interval — and
@@ -260,8 +289,9 @@ export function PostEditor({
       savingRef.current = false;
     }
     // form is a stable object identity from useForm; everything else read
-    // inside is a ref or read fresh via form.getValues()/formState.
-  }, [form]);
+    // inside is a ref or read fresh via form.getValues()/formState. router and
+    // stagesEdits are stable for the editor's lifetime.
+  }, [form, router, stagesEdits]);
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -269,6 +299,14 @@ export function PostEditor({
     }, AUTOSAVE_INTERVAL_MS);
     return () => clearInterval(interval);
   }, [save]);
+
+  // Expose the save action + status to the heading toolbar (a sibling island).
+  useEffect(() => {
+    registerSave(() => void save());
+  }, [registerSave, save]);
+  useEffect(() => {
+    onStatus(status, statusIsError);
+  }, [onStatus, status, statusIsError]);
 
   const handlePreviewToggle = useCallback(async () => {
     setMode("preview");
@@ -487,22 +525,6 @@ export function PostEditor({
           <FieldError>{errors.bodyMd.message}</FieldError>
         ) : null}
       </Field>
-
-      <div className="flex items-center gap-3">
-        <Button type="button" variant="outline" onClick={() => void save()}>
-          Save now
-        </Button>
-        <p
-          aria-live="polite"
-          role={statusIsError ? "alert" : "status"}
-          className={cn(
-            "text-sm",
-            statusIsError ? "text-destructive" : "text-muted-foreground",
-          )}
-        >
-          {status}
-        </p>
-      </div>
     </form>
   );
 }

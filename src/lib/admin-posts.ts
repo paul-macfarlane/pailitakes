@@ -4,8 +4,9 @@ import { and, asc, desc, eq, ilike, inArray, sql, type SQL } from "drizzle-orm";
 
 import { db } from "@/db";
 import { categories, posts, postTags, tags, user } from "@/db/schema";
+import { tagToSlug } from "@/lib/post-input";
+import { usesDraftBuffer, type PostStatus } from "@/lib/post-status";
 import { postTagsAgg } from "@/lib/posts";
-import type { PostStatus } from "@/lib/post-status";
 
 // Editor-facing shape (ADM-2): everything the post editor form reads/writes.
 // Thumbnail/banner/video are deliberately absent from the editor UI (ADM-6),
@@ -24,6 +25,11 @@ export type EditablePost = {
   publishAt: Date | null;
   archiveAt: Date | null;
   tags: string[];
+  // Draft-of-published (ADR-0011): true when a public post has staged edits.
+  // When true, the content fields above are the STAGED snapshot, not the live
+  // post — the editor edits (and autosaves to) the pending copy.
+  hasPendingChanges: boolean;
+  draftUpdatedAt: Date | null;
 };
 
 // Loads a single post for editing. Authors are scoped to their own rows;
@@ -50,6 +56,8 @@ export async function getEditablePost(
       publishAt: posts.publishAt,
       archiveAt: posts.archiveAt,
       authorId: posts.authorId,
+      draft: posts.draft,
+      draftUpdatedAt: posts.draftUpdatedAt,
       tagName: tags.name,
     })
     .from(posts)
@@ -62,19 +70,29 @@ export async function getEditablePost(
   if (!first) return null;
   if (user.role !== "admin" && first.authorId !== user.id) return null;
 
+  // On a public post, edits are staged (ADR-0011): show the pending snapshot so
+  // the author edits their in-progress copy, not the live content. On any other
+  // status the buffer is ignored (drafts/archived edit live).
+  const draft = usesDraftBuffer(first.status) ? first.draft : null;
+  const liveTags = rows.flatMap((row) => (row.tagName ? [row.tagName] : []));
+
   return {
     id: first.id,
-    title: first.title,
-    slug: first.slug,
-    bodyMd: first.bodyMd,
+    title: draft?.title ?? first.title,
+    slug: draft?.slug ?? first.slug,
+    bodyMd: draft?.bodyMd ?? first.bodyMd,
     status: first.status,
-    categoryId: first.categoryId,
-    thumbnailUrl: first.thumbnailUrl,
-    bannerUrl: first.bannerUrl,
-    videoUrl: first.videoUrl,
+    categoryId: draft?.categoryId ?? first.categoryId,
+    thumbnailUrl: draft?.thumbnailUrl ?? first.thumbnailUrl,
+    // banner/video can legitimately be null in the snapshot — pick from the
+    // snapshot when it exists, not via ?? (which would fall back to live null).
+    bannerUrl: draft ? draft.bannerUrl : first.bannerUrl,
+    videoUrl: draft ? draft.videoUrl : first.videoUrl,
     publishAt: first.publishAt,
     archiveAt: first.archiveAt,
-    tags: rows.flatMap((row) => (row.tagName ? [row.tagName] : [])),
+    tags: draft ? draft.tags : liveTags,
+    hasPendingChanges: draft !== null,
+    draftUpdatedAt: draft ? first.draftUpdatedAt : null,
   };
 }
 
@@ -95,6 +113,10 @@ export type PreviewPost = {
   category: { slug: string; name: string };
   author: { name: string; image: string | null };
   tags: { slug: string; name: string }[];
+  // Draft-of-published (ADR-0011): true when the fields above are a public
+  // post's STAGED snapshot (what "Publish changes" will make live), so the
+  // preview shows pending edits rather than the current live content.
+  hasPendingChanges: boolean;
 };
 
 // Loads a post by id for private preview, BYPASSING visiblePostsWhere() so a
@@ -118,6 +140,8 @@ export async function getPostForPreview(
       publishAt: posts.publishAt,
       archiveAt: posts.archiveAt,
       authorId: posts.authorId,
+      categoryId: posts.categoryId,
+      draft: posts.draft,
       category: { slug: categories.slug, name: categories.name },
       author: { name: user.name, image: user.image },
       tags: postTagsAgg,
@@ -135,22 +159,50 @@ export async function getPostForPreview(
   if (!row) return null;
   if (user_.role !== "admin" && row.authorId !== user_.id) return null;
 
+  // On a public post, preview the STAGED snapshot (what will go live), not the
+  // current live content (ADR-0011). Category and tags come from the live join
+  // by default; when previewing a snapshot, resolve the staged category name
+  // and derive tag slugs so the preview reflects the pending edit faithfully.
+  const draft = usesDraftBuffer(row.status) ? row.draft : null;
+
+  let category = row.category;
+  let previewTags = row.tags;
+  if (draft) {
+    if (draft.categoryId !== row.categoryId) {
+      const [staged] = await db
+        .select({ slug: categories.slug, name: categories.name })
+        .from(categories)
+        .where(eq(categories.id, draft.categoryId))
+        .limit(1);
+      if (staged) category = staged;
+    }
+    const seen = new Set<string>();
+    previewTags = [];
+    for (const name of draft.tags) {
+      const slug = tagToSlug(name);
+      if (!slug || seen.has(slug)) continue;
+      seen.add(slug);
+      previewTags.push({ slug, name });
+    }
+  }
+
   // authorId is loaded only for the ownership check above, not part of the
   // render shape.
   return {
     id: row.id,
-    slug: row.slug,
-    title: row.title,
-    bodyMd: row.bodyMd,
+    slug: draft?.slug ?? row.slug,
+    title: draft?.title ?? row.title,
+    bodyMd: draft?.bodyMd ?? row.bodyMd,
     status: row.status,
-    thumbnailUrl: row.thumbnailUrl,
-    bannerUrl: row.bannerUrl,
-    videoUrl: row.videoUrl,
+    thumbnailUrl: draft?.thumbnailUrl ?? row.thumbnailUrl,
+    bannerUrl: draft ? draft.bannerUrl : row.bannerUrl,
+    videoUrl: draft ? draft.videoUrl : row.videoUrl,
     publishAt: row.publishAt,
     archiveAt: row.archiveAt,
-    category: row.category,
+    category,
     author: row.author,
-    tags: row.tags,
+    tags: previewTags,
+    hasPendingChanges: draft !== null,
   };
 }
 

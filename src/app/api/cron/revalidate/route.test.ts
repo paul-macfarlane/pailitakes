@@ -13,9 +13,13 @@ const crossedMock = vi.hoisted(() => ({
 const advanceMock = vi.hoisted(() => ({
   fn: vi.fn<(now: Date) => Promise<void>>(),
 }));
+const normalizeMock = vi.hoisted(() => ({
+  fn: vi.fn<(now: Date) => Promise<number>>(),
+}));
 vi.mock("@/lib/revalidation", () => ({
   getCrossedSlugs: crossedMock.fn,
   advanceRevalidationMarker: advanceMock.fn,
+  normalizePostStatuses: normalizeMock.fn,
 }));
 
 vi.mock("next/cache", () => ({ revalidateTag: vi.fn() }));
@@ -35,6 +39,7 @@ beforeEach(() => {
   envMock.CRON_SECRET = SECRET;
   crossedMock.fn.mockReset().mockResolvedValue([]);
   advanceMock.fn.mockReset().mockResolvedValue(undefined);
+  normalizeMock.fn.mockReset().mockResolvedValue(0);
   vi.mocked(revalidateTag).mockClear();
 });
 
@@ -80,5 +85,20 @@ describe("GET /api/cron/revalidate", () => {
     expect(await res.json()).toMatchObject({ revalidated: 0 });
     expect(revalidateTag).not.toHaveBeenCalled();
     expect(advanceMock.fn).toHaveBeenCalledOnce();
+  });
+
+  it("normalizes stored statuses before advancing the marker and reports the count separately", async () => {
+    normalizeMock.fn.mockResolvedValue(3);
+    const res = await GET(request(`Bearer ${SECRET}`));
+
+    expect(normalizeMock.fn).toHaveBeenCalledOnce();
+    // Reported separately from `revalidated` (status bookkeeping, not cache
+    // invalidation), so it never inflates the revalidation count.
+    expect(await res.json()).toMatchObject({ revalidated: 0, normalized: 3 });
+    // Normalize must land before the marker advances (same window discipline
+    // as revalidation).
+    expect(normalizeMock.fn.mock.invocationCallOrder[0]).toBeLessThan(
+      advanceMock.fn.mock.invocationCallOrder[0]!,
+    );
   });
 });

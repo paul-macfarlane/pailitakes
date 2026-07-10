@@ -1,6 +1,6 @@
 import "server-only";
 
-import { and, gt, inArray, lte, or, sql } from "drizzle-orm";
+import { and, eq, gt, inArray, lte, or, sql } from "drizzle-orm";
 
 import { db } from "@/db";
 import { posts, revalidationState } from "@/db/schema";
@@ -39,6 +39,42 @@ export async function getCrossedSlugs(now: Date): Promise<string[]> {
     );
 
   return [...new Set(crossed.map((row) => row.slug))];
+}
+
+// Normalizes stored post statuses to match reality (design §4): visibility is a
+// query predicate (visiblePostsWhere), so a scheduled post goes public the
+// instant its publish_at passes even though its stored status is still
+// 'scheduled' — leaving the admin badge stale. The cron catches the status up:
+// scheduled -> published once publish_at has passed, and published/scheduled ->
+// archived once archive_at has passed. Self-healing and idempotent: it targets
+// every currently-stale row (not just the last window), so a missed run simply
+// corrects on the next one.
+// Returns how many rows it normalized — reported separately from the cron's
+// cache-revalidation count (they measure different things: this is status
+// bookkeeping, not cache invalidation).
+export async function normalizePostStatuses(now: Date): Promise<number> {
+  // Publish first: a scheduled post past its publish time is live.
+  const published = await db
+    .update(posts)
+    .set({ status: "published" })
+    .where(and(eq(posts.status, "scheduled"), lte(posts.publishAt, now)))
+    .returning({ id: posts.id });
+
+  // Then archive: a public post past its archive time is hidden. Clear any
+  // staged draft (ADR-0011) so a pending snapshot isn't stranded on a post that
+  // just left the public set with no UI to resolve it.
+  const archived = await db
+    .update(posts)
+    .set({ status: "archived", draft: null, draftUpdatedAt: null })
+    .where(
+      and(
+        inArray(posts.status, ["scheduled", "published"]),
+        lte(posts.archiveAt, now),
+      ),
+    )
+    .returning({ id: posts.id });
+
+  return published.length + archived.length;
 }
 
 // Advances the cron's last-run marker to `now`, monotonically: an out-of-order

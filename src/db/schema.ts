@@ -8,6 +8,7 @@ import {
   customType,
   index,
   integer,
+  jsonb,
   pgEnum,
   pgTable,
   primaryKey,
@@ -147,6 +148,23 @@ export const posts = pgTable(
     commentsLocked: boolean("comments_locked").notNull().default(false),
     publishAt: timestamp("publish_at", { withTimezone: true }),
     archiveAt: timestamp("archive_at", { withTimezone: true }),
+    // Staged content edits for an already-public post (draft-of-published,
+    // ADR-0011): a COMPLETE pending snapshot the public never sees until
+    // "Publish changes" promotes it to the live columns above. Null when there
+    // are no pending changes. Shape mirrors postDraftSchema (post-input.ts),
+    // which is the validation source of truth — this $type is read-side
+    // ergonomics only.
+    draft: jsonb("draft").$type<{
+      title: string;
+      slug: string;
+      bodyMd: string;
+      categoryId: number;
+      thumbnailUrl: string;
+      bannerUrl: string | null;
+      videoUrl: string | null;
+      tags: string[];
+    }>(),
+    draftUpdatedAt: timestamp("draft_updated_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),

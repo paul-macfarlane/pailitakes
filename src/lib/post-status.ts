@@ -75,6 +75,16 @@ export function allowedTransitions(from: PostStatus): PostStatus[] {
   return [...ALLOWED_TRANSITIONS[from]];
 }
 
+// Whether edits to a post in this status are STAGED as pending changes rather
+// than written straight to the live columns (draft-of-published, ADR-0011).
+// True for the public-track statuses: the public already sees this content (or
+// will see it unchanged at a scheduled time), so an edit must not reach the
+// live post until the author explicitly publishes it. Draft/archived posts are
+// not public, so their edits write through immediately.
+export function usesDraftBuffer(status: PostStatus): boolean {
+  return (PUBLIC_STATUSES as readonly PostStatus[]).includes(status);
+}
+
 // Human labels for the current status (badge) and for a transition button
 // keyed by its TARGET status.
 export const STATUS_LABELS: Record<PostStatus, string> = {

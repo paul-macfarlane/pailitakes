@@ -103,5 +103,26 @@ export const postInputSchema = basePostInputSchema.extend({
 // keys mean "leave unchanged" (see basePostInputSchema comment above).
 export const postUpdateSchema = basePostInputSchema.partial();
 
+// A COMPLETE, publishable content snapshot staged on an already-public post
+// (draft-of-published, ADR-0011). postUpdateSchema is a partial autosave diff;
+// this is the whole resolved content that "Publish changes" promotes to the
+// live columns — so every field is present, the slug is resolved (not
+// title-derived), and the thumbnail is REQUIRED (a public post must keep a
+// real image, unlike a draft's "" placeholder). Stored as jsonb in
+// posts.draft; validated on write and re-validated before promotion.
+export const postDraftSchema = z.object({
+  title: basePostInputSchema.shape.title,
+  // Required here (basePostInputSchema.slug is optional for the derive-from-
+  // title path, which doesn't apply to an already-slugged public post).
+  slug: basePostInputSchema.shape.slug.unwrap(),
+  bodyMd: basePostInputSchema.shape.bodyMd,
+  categoryId: basePostInputSchema.shape.categoryId,
+  thumbnailUrl: httpsImageUrl,
+  bannerUrl: basePostInputSchema.shape.bannerUrl,
+  videoUrl: basePostInputSchema.shape.videoUrl,
+  tags: basePostInputSchema.shape.tags,
+});
+
 export type PostInput = z.infer<typeof postInputSchema>;
 export type PostUpdate = z.infer<typeof postUpdateSchema>;
+export type PostDraft = z.infer<typeof postDraftSchema>;
