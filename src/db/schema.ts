@@ -8,7 +8,6 @@ import {
   customType,
   index,
   integer,
-  jsonb,
   pgEnum,
   pgTable,
   primaryKey,
@@ -149,22 +148,8 @@ export const posts = pgTable(
     publishAt: timestamp("publish_at", { withTimezone: true }),
     archiveAt: timestamp("archive_at", { withTimezone: true }),
     // Staged content edits for an already-public post (draft-of-published,
-    // ADR-0011): a COMPLETE pending snapshot the public never sees until
-    // "Publish changes" promotes it to the live columns above. Null when there
-    // are no pending changes. Shape mirrors postDraftSchema (post-input.ts),
-    // which is the validation source of truth — this $type is read-side
-    // ergonomics only.
-    draft: jsonb("draft").$type<{
-      title: string;
-      slug: string;
-      bodyMd: string;
-      categoryId: number;
-      thumbnailUrl: string;
-      bannerUrl: string | null;
-      videoUrl: string | null;
-      tags: string[];
-    }>(),
-    draftUpdatedAt: timestamp("draft_updated_at", { withTimezone: true }),
+    // ADR-0011) live in the normalized post_drafts table below, not a column
+    // here — see ADR-0012 for why the jsonb buffer was normalized.
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
@@ -193,6 +178,36 @@ export const posts = pgTable(
     index("posts_author_id_idx").on(table.authorId),
   ],
 );
+
+// Staged content edits for an already-public post (draft-of-published,
+// ADR-0011), normalized into its own 1:1 table (ADR-0012 — was a jsonb
+// column on `posts`). `postId` is the PK: a row existing IS "this post has
+// pending changes" (no separate null-vs-present flag needed), and cascades
+// away if the post is deleted. Shape mirrors postDraftSchema
+// (src/lib/posts/input.ts), the validation source of truth.
+export const postDrafts = pgTable("post_drafts", {
+  postId: uuid("post_id")
+    .primaryKey()
+    .references(() => posts.id, { onDelete: "cascade" }),
+  title: text("title").notNull(),
+  slug: text("slug").notNull(),
+  bodyMd: text("body_md").notNull(),
+  thumbnailUrl: text("thumbnail_url").notNull(),
+  bannerUrl: text("banner_url"),
+  videoUrl: text("video_url"),
+  categoryId: integer("category_id")
+    .notNull()
+    .references(() => categories.id),
+  // Tag NAMES, not tag rows: real tag rows are only created (via
+  // setPostTags) when the draft is promoted, so discarding/deleting a draft
+  // never leaves orphan tags behind.
+  tags: text("tags").array().notNull(),
+  // The CAS token guarding every buffer write and the promote transaction
+  // (src/lib/posts/data.ts) — replaces posts.draft_updated_at. Callers set
+  // this explicitly on every write (not $onUpdate) so it can be read back
+  // and compared before the next write is allowed to land.
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+});
 
 export const tags = pgTable("tags", {
   id: serial("id").primaryKey(),

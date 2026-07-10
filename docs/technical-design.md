@@ -111,11 +111,6 @@ posts
   comments_locked boolean not null default false  -- admin lock (FR-4.4); ADR-0004
   publish_at    timestamptz null
   archive_at    timestamptz null
-  draft         jsonb null              -- staged edits for a public post: a
-                                        -- complete pending content snapshot the
-                                        -- public never sees until "Publish
-                                        -- changes" promotes it (ADR-0011)
-  draft_updated_at timestamptz null     -- when the pending snapshot last changed
   created_at    timestamptz
   updated_at    timestamptz
   search        tsvector GENERATED ALWAYS AS (
@@ -126,6 +121,24 @@ posts
 
 -- Excerpts are not stored: derived at render time from body_md
 -- (strip markdown, first ~160 chars).
+
+post_drafts                            -- staged edits for a public post
+  post_id       uuid PK, FK -> posts.id ON DELETE CASCADE
+  title         text
+  slug          text
+  body_md       text
+  thumbnail_url text
+  banner_url    text null
+  video_url     text null
+  category_id   int FK -> categories.id
+  tags          text[]                -- tag NAMES, not FKs (ADR-0012)
+  updated_at    timestamptz            -- CAS token for staged-edit writes
+                                        -- A row existing IS "pending
+                                        -- changes"; the row is a complete
+                                        -- snapshot the public never sees
+                                        -- until "Publish changes" promotes
+                                        -- it (ADR-0011, normalized in
+                                        -- ADR-0012)
 
 tags
   id            serial PK
@@ -272,7 +285,7 @@ ORDER BY rank DESC, publish_at DESC
 
 - **Access:** middleware redirects cookieless requests from `/admin/**` (UX only); `requireStaff()` gates the admin layout and every admin page (layouts and pages render in parallel, so a layout-only gate can't protect page content — ADR-0009); every server action re-checks role (action checks are the security boundary). Authors scoped to `author_id = self`; admin unscoped.
 - **Editor:** Markdown textarea + toggleable preview pane running the _same_ rendering pipeline as production (server action returns rendered HTML) — guarantees preview fidelity (FR-7.2). Autosave drafts on interval.
-- **Staged edits on public posts (ADR-0011):** editing a post that is publicly visible right now (`isPubliclyVisible()`, not status alone) autosaves into `posts.draft` (a complete pending snapshot) instead of the live columns, so the public keeps seeing the current content until the author hits "Publish changes" (promotes + revalidates) or "Discard changes". Anything not yet public — drafts, archived, and a scheduled post still awaiting its `publish_at` — writes through immediately. Buffer writes and the promote CAS-guard on `draftUpdatedAt` (no silent lost updates); the lifecycle actions guard `draft is null` so a pending snapshot can't be stranded by a racing status/schedule change, and a post with pending changes can't change status or (re)schedule until it's published or discarded. Editor/preview read the snapshot when present.
+- **Staged edits on public posts (ADR-0011, normalized in ADR-0012):** editing a post that is publicly visible right now (`isPubliclyVisible()`, not status alone) autosaves into the `post_drafts` table (a complete pending snapshot, one row per post) instead of the live columns, so the public keeps seeing the current content until the author hits "Publish changes" (promotes + revalidates) or "Discard changes". Anything not yet public — drafts, archived, and a scheduled post still awaiting its `publish_at` — writes through immediately. Buffer writes and the promote CAS-guard on `post_drafts.updated_at` (no silent lost updates); the lifecycle actions guard "no `post_drafts` row for this post" so a pending snapshot can't be stranded by a racing status/schedule change, and a post with pending changes can't change status or (re)schedule until it's published or discarded. Editor/preview read the snapshot when present via a LEFT JOIN.
 - **Thumbnails:** a URL field. Rendered with `next/image` + `unoptimized` + explicit dimensions (avoids maintaining a `remotePatterns` allowlist / open-proxy risk while keeping lazy loading and layout stability). Known tradeoffs: link rot and hotlink-blocking hosts. Revisit with Vercel Blob if uploads are ever wanted.
 - **Moderation log, announcements, categories, users (roles/bans):** simple CRUD screens.
 - **Preview:** `/admin/preview/[id]` renders any draft/scheduled post with the public layout, auth-gated.

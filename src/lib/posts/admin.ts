@@ -3,7 +3,15 @@ import "server-only";
 import { and, asc, desc, eq, ilike, inArray, sql, type SQL } from "drizzle-orm";
 
 import { db } from "@/db";
-import { categories, posts, postTags, tags, user } from "@/db/schema";
+import {
+  categories,
+  postDrafts,
+  posts,
+  postTags,
+  tags,
+  user,
+} from "@/db/schema";
+import { draftFromJoinRow, draftJoinColumns } from "@/lib/posts/data";
 import { tagToSlug } from "@/lib/posts/input";
 import { usesDraftBuffer, type PostStatus } from "@/lib/posts/status";
 import { postTagsAgg } from "@/lib/posts/posts";
@@ -57,11 +65,11 @@ export async function getEditablePost(
       publishAt: posts.publishAt,
       archiveAt: posts.archiveAt,
       authorId: posts.authorId,
-      draft: posts.draft,
-      draftUpdatedAt: posts.draftUpdatedAt,
       tagName: tags.name,
+      ...draftJoinColumns,
     })
     .from(posts)
+    .leftJoin(postDrafts, eq(postDrafts.postId, posts.id))
     .leftJoin(postTags, eq(postTags.postId, posts.id))
     .leftJoin(tags, eq(tags.id, postTags.tagId))
     .where(eq(posts.id, id))
@@ -74,7 +82,7 @@ export async function getEditablePost(
   // On a public post, edits are staged (ADR-0011): show the pending snapshot so
   // the author edits their in-progress copy, not the live content. On any other
   // status the buffer is ignored (drafts/archived edit live).
-  const draft = usesDraftBuffer(first.status) ? first.draft : null;
+  const draft = usesDraftBuffer(first.status) ? draftFromJoinRow(first) : null;
   const liveTags = rows.flatMap((row) => (row.tagName ? [row.tagName] : []));
 
   return {
@@ -142,18 +150,19 @@ export async function getPostForPreview(
       archiveAt: posts.archiveAt,
       authorId: posts.authorId,
       categoryId: posts.categoryId,
-      draft: posts.draft,
       category: { slug: categories.slug, name: categories.name },
       author: { name: user.name, image: user.image },
       tags: postTagsAgg,
+      ...draftJoinColumns,
     })
     .from(posts)
     .innerJoin(categories, eq(posts.categoryId, categories.id))
     .innerJoin(user, eq(posts.authorId, user.id))
+    .leftJoin(postDrafts, eq(postDrafts.postId, posts.id))
     .leftJoin(postTags, eq(postTags.postId, posts.id))
     .leftJoin(tags, eq(tags.id, postTags.tagId))
     .where(eq(posts.id, id))
-    .groupBy(posts.id, categories.id, user.id)
+    .groupBy(posts.id, categories.id, user.id, postDrafts.postId)
     .limit(1);
 
   const [row] = rows;
@@ -164,7 +173,7 @@ export async function getPostForPreview(
   // current live content (ADR-0011). Category and tags come from the live join
   // by default; when previewing a snapshot, resolve the staged category name
   // and derive tag slugs so the preview reflects the pending edit faithfully.
-  const draft = usesDraftBuffer(row.status) ? row.draft : null;
+  const draft = usesDraftBuffer(row.status) ? draftFromJoinRow(row) : null;
 
   let category = row.category;
   let previewTags = row.tags;

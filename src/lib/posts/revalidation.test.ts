@@ -27,7 +27,7 @@ vi.mock("@/db", () => ({ db: testDb }));
 const { getCrossedSlugs, advanceRevalidationMarker, normalizePostStatuses } =
   await import("./revalidation");
 
-const { categories, posts, revalidationState, user } = schema;
+const { categories, postDrafts, posts, revalidationState, user } = schema;
 
 const runId = `t-adm9-${crypto.randomUUID().slice(0, 8)}`;
 const authorId = `user-${runId}`;
@@ -222,10 +222,19 @@ describe("advanceRevalidationMarker", () => {
 describe("normalizePostStatuses", () => {
   async function statusOf(id: string) {
     const [row] = await testDb
-      .select({ status: posts.status, draft: posts.draft })
+      .select({ status: posts.status })
       .from(posts)
       .where(eq(posts.id, id));
     return row!;
+  }
+
+  // The staged-draft buffer lives in its own 1:1 table (ADR-0012).
+  async function draftRowOf(id: string) {
+    const [row] = await testDb
+      .select({ postId: postDrafts.postId })
+      .from(postDrafts)
+      .where(eq(postDrafts.postId, id));
+    return row;
   }
 
   it("flips a scheduled post to published once its publish_at has passed, and counts it", async () => {
@@ -263,24 +272,26 @@ describe("normalizePostStatuses", () => {
         status: "published",
         publishAt: BEFORE_WINDOW,
         archiveAt: IN_WINDOW,
-        draft: {
-          title: `${runId} staged`,
-          slug: `${runId}-norm-arch`,
-          bodyMd: "staged",
-          categoryId,
-          thumbnailUrl: "https://img.example.com/t.jpg",
-          bannerUrl: null,
-          videoUrl: null,
-          tags: [],
-        },
       })
       .returning({ id: posts.id });
+    await testDb.insert(postDrafts).values({
+      postId: post!.id,
+      title: `${runId} staged`,
+      slug: `${runId}-norm-arch`,
+      bodyMd: "staged",
+      categoryId,
+      thumbnailUrl: "https://img.example.com/t.jpg",
+      bannerUrl: null,
+      videoUrl: null,
+      tags: [],
+      updatedAt: new Date(),
+    });
 
     await normalizePostStatuses(NOW);
     const after = await statusOf(post!.id);
     expect(after.status).toBe("archived");
     // A pending snapshot must not be stranded on a now-hidden post (ADR-0011).
-    expect(after.draft).toBeNull();
+    expect(await draftRowOf(post!.id)).toBeUndefined();
   });
 
   it("is idempotent — a second run leaves already-normalized rows unchanged", async () => {

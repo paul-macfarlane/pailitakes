@@ -26,7 +26,7 @@ const {
   listCategoryOptions,
 } = await import("./admin");
 
-const { categories, posts, postTags, tags, user } = schema;
+const { categories, postDrafts, posts, postTags, tags, user } = schema;
 
 const SEED_PREFIX = "t-adm2-";
 const runId = `${SEED_PREFIX}${crypto.randomUUID().slice(0, 8)}`;
@@ -288,19 +288,20 @@ describe("getEditablePost", () => {
         categoryId: activeCategoryId,
         status: "published",
         publishAt: new Date("2026-01-01T00:00:00Z"),
-        draft: {
-          title: `${runId} staged-title`,
-          slug: `${runId}-overlay`,
-          bodyMd: "Staged body.",
-          categoryId: activeCategoryId,
-          thumbnailUrl: "https://img.example.com/t.jpg",
-          bannerUrl: null,
-          videoUrl: null,
-          tags: [`${runId}-staged-tag`],
-        },
-        draftUpdatedAt: new Date("2026-06-01T00:00:00Z"),
       })
       .returning({ id: posts.id });
+    await testDb.insert(postDrafts).values({
+      postId: post!.id,
+      title: `${runId} staged-title`,
+      slug: `${runId}-overlay`,
+      bodyMd: "Staged body.",
+      categoryId: activeCategoryId,
+      thumbnailUrl: "https://img.example.com/t.jpg",
+      bannerUrl: null,
+      videoUrl: null,
+      tags: [`${runId}-staged-tag`],
+      updatedAt: new Date("2026-06-01T00:00:00Z"),
+    });
 
     const result = await getEditablePost(post!.id, {
       id: authorId,
@@ -389,19 +390,20 @@ describe("getPostForPreview", () => {
         categoryId: activeCategoryId,
         status: "published",
         publishAt: new Date("2026-01-01T00:00:00Z"),
-        draft: {
-          title: `${runId} pv-staged`,
-          slug: `${runId}-pv-overlay`,
-          bodyMd: "# Staged preview body",
-          categoryId: activeCategoryId,
-          thumbnailUrl: "https://img.example.com/t.jpg",
-          bannerUrl: null,
-          videoUrl: null,
-          tags: [`${runId} Pv Tag`],
-        },
-        draftUpdatedAt: new Date("2026-06-01T00:00:00Z"),
       })
       .returning({ id: posts.id });
+    await testDb.insert(postDrafts).values({
+      postId: post!.id,
+      title: `${runId} pv-staged`,
+      slug: `${runId}-pv-overlay`,
+      bodyMd: "# Staged preview body",
+      categoryId: activeCategoryId,
+      thumbnailUrl: "https://img.example.com/t.jpg",
+      bannerUrl: null,
+      videoUrl: null,
+      tags: [`${runId} Pv Tag`],
+      updatedAt: new Date("2026-06-01T00:00:00Z"),
+    });
 
     const result = await getPostForPreview(post!.id, {
       id: authorId,
