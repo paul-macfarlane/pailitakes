@@ -2,7 +2,7 @@ import { and, eq, inArray, like, lt, notExists, sql } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
 import * as schema from "@/db/schema";
-import { tagToSlug } from "@/lib/post-input";
+import { tagToSlug } from "@/lib/posts/input";
 
 // vi.hoisted lifts this above the mock factory (TDZ otherwise) — same
 // pattern as src/lib/posts.test.ts: one pool/db serves both the mocked
@@ -24,7 +24,7 @@ const {
   listAdminPosts,
   listAuthorOptions,
   listCategoryOptions,
-} = await import("./admin-posts");
+} = await import("./admin");
 
 const { categories, posts, postTags, tags, user } = schema;
 

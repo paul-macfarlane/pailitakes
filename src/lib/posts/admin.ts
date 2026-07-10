@@ -4,10 +4,10 @@ import { and, asc, desc, eq, ilike, inArray, sql, type SQL } from "drizzle-orm";
 
 import { db } from "@/db";
 import { categories, posts, postTags, tags, user } from "@/db/schema";
-import { tagToSlug } from "@/lib/post-input";
-import { usesDraftBuffer, type PostStatus } from "@/lib/post-status";
-import { postTagsAgg } from "@/lib/posts";
-import { escapeLike } from "@/lib/sql-like";
+import { tagToSlug } from "@/lib/posts/input";
+import { usesDraftBuffer, type PostStatus } from "@/lib/posts/status";
+import { postTagsAgg } from "@/lib/posts/posts";
+import { escapeLike } from "@/lib/shared/sql-like";
 
 // Editor-facing shape (ADM-2): everything the post editor form reads/writes.
 // Thumbnail/banner/video are deliberately absent from the editor UI (ADM-6),

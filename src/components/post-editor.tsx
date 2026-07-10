@@ -27,14 +27,14 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import type { EditablePost } from "@/lib/admin-posts";
+import type { EditablePost } from "@/lib/posts/admin";
 import {
   buildUpdateDiff,
   toActionInput,
   type EditorValues,
-} from "@/lib/post-autosave";
-import { httpsImageUrl, slugifyTitle } from "@/lib/post-input";
-import { usesDraftBuffer } from "@/lib/post-status";
+} from "@/lib/posts/autosave";
+import { httpsImageUrl, slugifyTitle } from "@/lib/posts/input";
+import { usesDraftBuffer } from "@/lib/posts/status";
 
 const MAX_TAGS = 10;
 const MAX_TAG_LENGTH = 40;

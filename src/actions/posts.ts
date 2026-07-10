@@ -20,9 +20,9 @@ import { z } from "zod";
 
 import { db, type Db } from "@/db";
 import { categories, posts, postTags, tags } from "@/db/schema";
-import { isStaff } from "@/lib/authz";
-import { IMMEDIATE } from "@/lib/cache";
-import { isRenderableImageSrc } from "@/lib/image-src";
+import { isStaff } from "@/lib/auth/permissions";
+import { IMMEDIATE } from "@/lib/shared/cache";
+import { isRenderableImageSrc } from "@/lib/content/image-src";
 import {
   postDraftSchema,
   postInputSchema,
@@ -32,7 +32,7 @@ import {
   type PostDraft,
   type PostInput,
   type PostUpdate,
-} from "@/lib/post-input";
+} from "@/lib/posts/input";
 import {
   canScheduleArchive,
   canSchedulePublish,
@@ -40,8 +40,8 @@ import {
   isPubliclyVisible,
   POST_STATUSES,
   type PostStatus,
-} from "@/lib/post-status";
-import { getSession } from "@/lib/session";
+} from "@/lib/posts/status";
+import { getSession } from "@/lib/auth/session";
 
 export type ActionResult<T> =
   { ok: true; data: T } | { ok: false; error: string };

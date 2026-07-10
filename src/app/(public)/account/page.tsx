@@ -11,7 +11,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { getSession } from "@/lib/session";
+import { getSession } from "@/lib/auth/session";
 
 export const metadata: Metadata = {
   title: "Account",

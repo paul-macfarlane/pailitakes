@@ -3,11 +3,11 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { PostArticle } from "@/components/post-article";
-import { getPostForPreview } from "@/lib/admin-posts";
-import { requirePostIdParam } from "@/lib/admin-route";
-import { renderMarkdown } from "@/lib/markdown";
-import { isPubliclyVisible, STATUS_LABELS } from "@/lib/post-status";
-import { requireStaff } from "@/lib/session";
+import { getPostForPreview } from "@/lib/posts/admin";
+import { requirePostIdParam } from "@/lib/admin/route-params";
+import { renderMarkdown } from "@/lib/content/markdown";
+import { isPubliclyVisible, STATUS_LABELS } from "@/lib/posts/status";
+import { requireStaff } from "@/lib/auth/session";
 
 export const metadata: Metadata = {
   title: "Preview",

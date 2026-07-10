@@ -7,8 +7,8 @@ import { HeaderAuth, HeaderAuthFallback } from "@/components/header-auth";
 import { HeaderShell } from "@/components/header-shell";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Skeleton } from "@/components/ui/skeleton";
-import { isAdmin } from "@/lib/authz";
-import { getSession, requireStaff } from "@/lib/session";
+import { isAdmin } from "@/lib/auth/permissions";
+import { getSession, requireStaff } from "@/lib/auth/session";
 
 export const metadata: Metadata = {
   title: "Admin",

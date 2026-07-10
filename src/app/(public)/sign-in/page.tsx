@@ -10,8 +10,8 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { safeNextPath } from "@/lib/redirect-target";
-import { getSession } from "@/lib/session";
+import { safeNextPath } from "@/lib/auth/redirect-target";
+import { getSession } from "@/lib/auth/session";
 
 export const metadata: Metadata = {
   title: "Sign in",

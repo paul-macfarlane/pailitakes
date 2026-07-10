@@ -4,9 +4,9 @@ import { notFound } from "next/navigation";
 import { cacheLife, cacheTag } from "next/cache";
 
 import { PostArticle } from "@/components/post-article";
-import { deriveExcerpt } from "@/lib/excerpt";
-import { renderMarkdown } from "@/lib/markdown";
-import { getVisiblePostBySlug } from "@/lib/posts";
+import { deriveExcerpt } from "@/lib/content/excerpt";
+import { renderMarkdown } from "@/lib/content/markdown";
+import { getVisiblePostBySlug } from "@/lib/posts/posts";
 
 // Cached per slug (design §3): tag `post:{slug}` for on-demand invalidation
 // from publish/edit/archive actions and the revalidation cron; 60s

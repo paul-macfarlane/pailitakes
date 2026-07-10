@@ -4,8 +4,8 @@ import { ExternalImage } from "@/components/external-image";
 import { LiteYouTubeActivation } from "@/components/lite-youtube-activation";
 import { PostBody } from "@/components/post-body";
 import { YouTubeEmbed } from "@/components/youtube-embed";
-import { postHeroSrc } from "@/lib/image-src";
-import { extractYouTubeId } from "@/lib/markdown";
+import { postHeroSrc } from "@/lib/content/image-src";
+import { extractYouTubeId } from "@/lib/content/markdown";
 
 // One source of truth for how a rendered post looks (hero, byline, video,
 // body, tags) — the public post page and the ADM-7 admin preview both use it,

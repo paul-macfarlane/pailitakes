@@ -6,7 +6,7 @@ import {
   postUpdateSchema,
   slugifyTitle,
   tagToSlug,
-} from "./post-input";
+} from "./input";
 
 describe("slugifyTitle", () => {
   it("lowercases and strips diacritics", () => {

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
-import { getHomeFeed, HOME_PAGE_SIZE } from "@/lib/home-feed";
+import { getHomeFeed, HOME_PAGE_SIZE } from "@/lib/posts/home-feed";
 
 // Offset must be a page boundary: every distinct value mints its own cache
 // entry (with background revalidation), so free-form offsets would let one

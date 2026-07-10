@@ -4,8 +4,8 @@ import { headers } from "next/headers";
 import { notFound, redirect } from "next/navigation";
 import { cache } from "react";
 
-import { auth } from "@/lib/auth";
-import { isAdmin, isStaff } from "@/lib/authz";
+import { auth } from "@/lib/auth/auth";
+import { isAdmin, isStaff } from "@/lib/auth/permissions";
 
 // Request-scoped session read for Server Components and server actions.
 // cache() dedupes lookups within a single render pass.

@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 // src/actions/posts.test.ts — this file needs no DB harness, just the same
 // settable fake session mock.
 const sessionMock = vi.hoisted(() => ({ current: null as unknown }));
-vi.mock("@/lib/session", () => ({
+vi.mock("@/lib/auth/session", () => ({
   getSession: async () => sessionMock.current,
 }));
 

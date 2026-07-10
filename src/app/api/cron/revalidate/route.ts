@@ -2,13 +2,13 @@ import { createHash, timingSafeEqual } from "node:crypto";
 
 import { revalidateTag } from "next/cache";
 
-import { IMMEDIATE } from "@/lib/cache";
-import { env } from "@/lib/env";
+import { IMMEDIATE } from "@/lib/shared/cache";
+import { env } from "@/lib/shared/env";
 import {
   advanceRevalidationMarker,
   getCrossedSlugs,
   normalizePostStatuses,
-} from "@/lib/revalidation";
+} from "@/lib/posts/revalidation";
 
 // Constant-time compare (hash to a fixed length first so length never leaks):
 // the bearer token is a shared secret, so avoid a timing side channel.

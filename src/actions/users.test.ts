@@ -23,7 +23,7 @@ const { pool, testDb } = await vi.hoisted(async () => {
 vi.mock("@/db", () => ({ db: testDb }));
 
 const sessionMock = vi.hoisted(() => ({ current: null as unknown }));
-vi.mock("@/lib/session", () => ({
+vi.mock("@/lib/auth/session", () => ({
   getSession: async () => sessionMock.current,
   requireStaff: async () => {
     throw new Error("requireStaff is unmocked");

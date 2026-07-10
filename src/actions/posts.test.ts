@@ -2,7 +2,7 @@ import { and, eq, inArray, like, lt, notExists, sql } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
 import * as schema from "@/db/schema";
-import { slugifyTitle } from "@/lib/post-input";
+import { slugifyTitle } from "@/lib/posts/input";
 
 // vi.hoisted lifts this above the mock factories below (TDZ otherwise) —
 // same pattern as src/lib/posts.test.ts: one pool/db serves both the mocked
@@ -24,7 +24,7 @@ vi.mock("@/db", () => ({ db: testDb }));
 // getSession, so requireStaff throwing if ever invoked is a deliberate
 // tripwire, not a real implementation.
 const sessionMock = vi.hoisted(() => ({ current: null as unknown }));
-vi.mock("@/lib/session", () => ({
+vi.mock("@/lib/auth/session", () => ({
   getSession: async () => sessionMock.current,
   requireStaff: async () => {
     throw new Error("requireStaff is unmocked — actions must use getSession");

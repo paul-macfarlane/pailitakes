@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation";
 
 import { buttonVariants } from "@/components/ui/button";
 import { UserMenu } from "@/components/user-menu";
-import { authClient } from "@/lib/auth-client";
+import { authClient } from "@/lib/auth/client";
 
 // Static, request-data-free placeholder matching the avatar footprint. Used
 // both while the session is pending and as the Suspense fallback — the latter

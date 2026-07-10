@@ -14,7 +14,7 @@ import {
   canScheduleArchive,
   canSchedulePublish,
   type PostStatus,
-} from "@/lib/post-status";
+} from "@/lib/posts/status";
 
 // Formats a Date as the local "YYYY-MM-DDTHH:mm" a datetime-local input wants.
 function toDateTimeLocalValue(date: Date): string {

@@ -10,7 +10,7 @@ import {
   STATUS_LABELS,
   TRANSITION_LABELS,
   type PostStatus,
-} from "@/lib/post-status";
+} from "@/lib/posts/status";
 import { cn } from "@/lib/utils";
 
 // Status badge + transition buttons for a saved post. Orthogonal to the

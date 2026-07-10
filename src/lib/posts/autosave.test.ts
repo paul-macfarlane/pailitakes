@@ -1,10 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import {
-  buildUpdateDiff,
-  toActionInput,
-  type EditorValues,
-} from "./post-autosave";
+import { buildUpdateDiff, toActionInput, type EditorValues } from "./autosave";
 
 function values(overrides: Partial<EditorValues> = {}): EditorValues {
   return {

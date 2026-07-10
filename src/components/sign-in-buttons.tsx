@@ -3,8 +3,8 @@
 import { useEffect, useState } from "react";
 
 import { Button } from "@/components/ui/button";
-import { authClient } from "@/lib/auth-client";
-import { safeNextPath } from "@/lib/redirect-target";
+import { authClient } from "@/lib/auth/client";
+import { safeNextPath } from "@/lib/auth/redirect-target";
 
 type Provider = "google" | "discord";
 

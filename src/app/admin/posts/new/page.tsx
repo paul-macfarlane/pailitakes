@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import Link from "next/link";
 
 import { PostEditorSection } from "@/components/post-editor-section";
-import { listCategoryOptions } from "@/lib/admin-posts";
-import { requireStaff } from "@/lib/session";
+import { listCategoryOptions } from "@/lib/posts/admin";
+import { requireStaff } from "@/lib/auth/session";
 
 export const metadata: Metadata = {
   title: "New post",
