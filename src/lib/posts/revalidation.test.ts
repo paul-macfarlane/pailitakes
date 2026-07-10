@@ -14,12 +14,8 @@ import * as schema from "@/db/schema";
 // Same DB-backed harness as the other lib tests (vi.hoisted pool + mocked
 // "@/db"); the functions run their real queries against it.
 const { pool, testDb } = await vi.hoisted(async () => {
-  const { drizzle } = await import("drizzle-orm/node-postgres");
-  const { Pool } = await import("pg");
-  const schema = await import("@/db/schema");
-  const { testDatabaseUrl } = await import("@/test/db-url");
-  const pool = new Pool({ connectionString: testDatabaseUrl(), max: 2 });
-  return { pool, testDb: drizzle(pool, { schema }) };
+  const { createTestDb } = await import("@/test/helpers");
+  return createTestDb();
 });
 
 vi.mock("@/db", () => ({ db: testDb }));

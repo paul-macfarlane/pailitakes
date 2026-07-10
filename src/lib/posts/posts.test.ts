@@ -1,7 +1,8 @@
-import { and, eq, inArray, like, lt, notExists, sql } from "drizzle-orm";
+import { inArray, like } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
 import * as schema from "@/db/schema";
+import { sweepStalePostFixtures } from "@/test/helpers";
 
 // vi.mock factories are hoisted above every other top-level statement in
 // this file, so they can't close over a plain `const testDb = ...` (TDZ).
@@ -10,12 +11,8 @@ import * as schema from "@/db/schema";
 // the real module, which would pull in src/lib/env.ts) and the seeding/
 // cleanup code below.
 const { pool, testDb } = await vi.hoisted(async () => {
-  const { drizzle } = await import("drizzle-orm/node-postgres");
-  const { Pool } = await import("pg");
-  const schema = await import("@/db/schema");
-  const { testDatabaseUrl } = await import("@/test/db-url");
-  const pool = new Pool({ connectionString: testDatabaseUrl(), max: 2 });
-  return { pool, testDb: drizzle(pool, { schema }) };
+  const { createTestDb } = await import("@/test/helpers");
+  return createTestDb();
 });
 
 vi.mock("@/db", () => ({ db: testDb }));
@@ -89,45 +86,10 @@ beforeAll(async () => {
   // (and, for tags/categories, reference-gated) so a concurrent run's fresh
   // rows in the shared local database are never touched; assertions don't
   // depend on this sweep — isolation comes from runId slugs and the random T2.
-  const staleBefore = new Date(Date.now() - 60 * 60 * 1000);
-  await testDb
-    .delete(posts)
-    .where(
-      and(
-        like(posts.slug, `${SEED_PREFIX}%`),
-        lt(posts.createdAt, staleBefore),
-      ),
-    );
-  await testDb.delete(tags).where(
-    and(
-      like(tags.slug, `tag-%${SEED_PREFIX}%`),
-      notExists(
-        testDb
-          .select({ one: sql`1` })
-          .from(postTags)
-          .where(eq(postTags.tagId, tags.id)),
-      ),
-    ),
-  );
-  await testDb.delete(categories).where(
-    and(
-      like(categories.slug, `cat-${SEED_PREFIX}%`),
-      notExists(
-        testDb
-          .select({ one: sql`1` })
-          .from(posts)
-          .where(eq(posts.categoryId, categories.id)),
-      ),
-    ),
-  );
-  await testDb
-    .delete(user)
-    .where(
-      and(
-        like(user.id, `user-${SEED_PREFIX}%`),
-        lt(user.createdAt, staleBefore),
-      ),
-    );
+  await sweepStalePostFixtures(testDb, {
+    seedPrefix: SEED_PREFIX,
+    tagSlugPattern: `tag-%${SEED_PREFIX}%`,
+  });
 
   await testDb.insert(user).values({
     id: userId,

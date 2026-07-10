@@ -76,67 +76,72 @@ describe("isPubliclyVisible", () => {
   const past = new Date("2026-06-01T00:00:00Z");
   const future = new Date("2026-08-01T00:00:00Z");
 
-  it("hides drafts and archived posts regardless of timestamps", () => {
-    expect(
-      isPubliclyVisible(
-        { status: "draft", publishAt: past, archiveAt: null },
-        now,
-      ),
-    ).toBe(false);
-    expect(
-      isPubliclyVisible(
-        { status: "archived", publishAt: past, archiveAt: null },
-        now,
-      ),
-    ).toBe(false);
-  });
-
-  it("treats a scheduled post whose publish time has passed as live", () => {
-    expect(
-      isPubliclyVisible(
-        { status: "scheduled", publishAt: past, archiveAt: null },
-        now,
-      ),
-    ).toBe(true);
-  });
-
-  it("hides a scheduled/published post whose publish time is still in the future", () => {
-    expect(
-      isPubliclyVisible(
-        { status: "scheduled", publishAt: future, archiveAt: null },
-        now,
-      ),
-    ).toBe(false);
-    expect(
-      isPubliclyVisible(
-        { status: "published", publishAt: future, archiveAt: null },
-        now,
-      ),
-    ).toBe(false);
-  });
-
-  it("hides a published post whose archive time has passed", () => {
-    expect(
-      isPubliclyVisible(
-        { status: "published", publishAt: past, archiveAt: past },
-        now,
-      ),
-    ).toBe(false);
-    expect(
-      isPubliclyVisible(
-        { status: "published", publishAt: past, archiveAt: future },
-        now,
-      ),
-    ).toBe(true);
-  });
-
-  it("hides a published post with no publish date", () => {
-    expect(
-      isPubliclyVisible(
-        { status: "published", publishAt: null, archiveAt: null },
-        now,
-      ),
-    ).toBe(false);
+  // Table-driven (5c) visibility matrix: every case shares one body —
+  // `isPubliclyVisible({ status, publishAt, archiveAt }, now) === expected`
+  // — differing only in the status/timestamps. Consolidates what were 5 `it`
+  // blocks (8 assertions total, two of them bundling 2 sub-cases each) into
+  // one table of 8 rows; zero coverage change, only the shape of the count.
+  it.each([
+    ["hides a draft regardless of timestamps", "draft", past, null, false],
+    [
+      "hides an archived post regardless of timestamps",
+      "archived",
+      past,
+      null,
+      false,
+    ],
+    [
+      "treats a scheduled post whose publish time has passed as live",
+      "scheduled",
+      past,
+      null,
+      true,
+    ],
+    [
+      "hides a scheduled post whose publish time is still in the future",
+      "scheduled",
+      future,
+      null,
+      false,
+    ],
+    [
+      "hides a published post whose publish time is still in the future",
+      "published",
+      future,
+      null,
+      false,
+    ],
+    [
+      "hides a published post whose archive time has passed",
+      "published",
+      past,
+      past,
+      false,
+    ],
+    [
+      "shows a published post before its archive time",
+      "published",
+      past,
+      future,
+      true,
+    ],
+    [
+      "hides a published post with no publish date",
+      "published",
+      null,
+      null,
+      false,
+    ],
+  ] satisfies [
+    name: string,
+    status: PostStatus,
+    publishAt: Date | null,
+    archiveAt: Date | null,
+    expected: boolean,
+  ][])("%s", (_name, status, publishAt, archiveAt, expected) => {
+    expect(isPubliclyVisible({ status, publishAt, archiveAt }, now)).toBe(
+      expected,
+    );
   });
 });
 
