@@ -25,7 +25,7 @@ test.describe("signed-in user", () => {
     ).toBeVisible();
     // A reader is not staff, so the admin shortcut is absent.
     await expect(
-      page.getByRole("menuitem", { name: "Admin dashboard" }),
+      page.getByRole("menuitem", { name: "Admin", exact: true }),
     ).toHaveCount(0);
   });
 
@@ -83,7 +83,7 @@ test.describe("staff user", () => {
   }) => {
     await page.goto("/");
     await page.getByRole("button", { name: "Account menu" }).click();
-    await page.getByRole("menuitem", { name: "Admin dashboard" }).click();
+    await page.getByRole("menuitem", { name: "Admin", exact: true }).click();
     await page.waitForURL((url) => new URL(url).pathname === "/admin");
     await expect(page.getByRole("heading", { name: "Posts" })).toBeVisible();
   });

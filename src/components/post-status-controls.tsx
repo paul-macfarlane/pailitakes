@@ -19,9 +19,14 @@ import { cn } from "@/lib/utils";
 export function PostStatusControls({
   postId,
   status,
+  pendingChanges = false,
 }: {
   postId: string;
   status: PostStatus;
+  // Draft-of-published (ADR-0011): a public post with unpublished staged edits
+  // can't change status until they're published or discarded (the server
+  // rejects it too). Disable the buttons and say why.
+  pendingChanges?: boolean;
 }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -52,7 +57,7 @@ export function PostStatusControls({
     });
   }
 
-  const busy = isPending;
+  const busy = isPending || pendingChanges;
 
   return (
     <div className="flex flex-col gap-3 rounded-lg border p-4">
@@ -84,7 +89,12 @@ export function PostStatusControls({
           error ? "text-destructive" : "text-muted-foreground",
         )}
       >
-        {error ?? (busy ? "Updating…" : "")}
+        {error ??
+          (pendingChanges
+            ? "Publish or discard your pending changes first."
+            : isPending
+              ? "Updating…"
+              : "")}
       </p>
     </div>
   );

@@ -2,7 +2,8 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
-import { PostEditor } from "@/components/post-editor";
+import { PostEditorSection } from "@/components/post-editor-section";
+import { PostPendingControls } from "@/components/post-pending-controls";
 import { PostScheduleControls } from "@/components/post-schedule-controls";
 import { PostStatusControls } from "@/components/post-status-controls";
 import { getEditablePost, listCategoryOptions } from "@/lib/admin-posts";
@@ -37,27 +38,33 @@ export default async function EditPostPage({
       >
         ← Posts
       </Link>
-      <div className="mb-6 flex items-center justify-between gap-4">
-        <h1 className="text-2xl font-semibold">Edit post</h1>
-        <Link
-          href={`/admin/preview/${post.id}`}
-          target="_blank"
-          rel="noopener"
-          className="text-sm font-medium underline hover:text-foreground"
-        >
-          Preview
-        </Link>
-      </div>
-      <div className="mb-6 flex flex-col gap-4">
-        <PostStatusControls postId={post.id} status={post.status} />
-        <PostScheduleControls
-          postId={post.id}
-          status={post.status}
-          publishAt={post.publishAt}
-          archiveAt={post.archiveAt}
-        />
-      </div>
-      <PostEditor categories={categories} initialPost={post} />
+      <PostEditorSection
+        heading="Edit post"
+        previewHref={`/admin/preview/${post.id}`}
+        categories={categories}
+        initialPost={post}
+      >
+        <div className="mb-6 flex flex-col gap-4">
+          {post.hasPendingChanges ? (
+            <PostPendingControls
+              postId={post.id}
+              draftUpdatedAt={post.draftUpdatedAt}
+            />
+          ) : null}
+          <PostStatusControls
+            postId={post.id}
+            status={post.status}
+            pendingChanges={post.hasPendingChanges}
+          />
+          <PostScheduleControls
+            postId={post.id}
+            status={post.status}
+            publishAt={post.publishAt}
+            archiveAt={post.archiveAt}
+            pendingChanges={post.hasPendingChanges}
+          />
+        </div>
+      </PostEditorSection>
     </>
   );
 }

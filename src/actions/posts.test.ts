@@ -36,6 +36,8 @@ vi.mock("next/cache", () => ({ revalidateTag: vi.fn() }));
 const {
   createPost,
   updatePost,
+  publishPostChanges,
+  discardPostChanges,
   deletePost,
   transitionPostStatus,
   schedulePublish,
@@ -564,6 +566,286 @@ describe("updatePost", () => {
   });
 });
 
+describe("staged draft edits (draft-of-published, ADR-0011)", () => {
+  async function seedPublished(suffix: string) {
+    const [row] = await testDb
+      .insert(posts)
+      .values({
+        authorId,
+        title: `${runId} ${suffix}`,
+        slug: `${runId}-${suffix}`,
+        bodyMd: "Live body.",
+        thumbnailUrl: "https://img.example.com/live.jpg",
+        categoryId,
+        status: "published",
+        publishAt: new Date(Date.now() - 1000),
+      })
+      .returning({ id: posts.id, slug: posts.slug });
+    return row!;
+  }
+
+  it("stages an edit to a published post into the buffer, leaving live and the cache untouched", async () => {
+    const post = await seedPublished("stage-basic");
+    authorSession();
+    vi.mocked(revalidateTag).mockClear();
+
+    const result = await updatePost(post.id, {
+      title: `${runId} staged title`,
+    });
+    expect(result.ok).toBe(true);
+
+    const [row] = await testDb
+      .select()
+      .from(posts)
+      .where(eq(posts.id, post.id));
+    // Live content is unchanged...
+    expect(row!.title).toBe(`${runId} stage-basic`);
+    // ...the pending snapshot holds the edit...
+    expect(row!.draft?.title).toBe(`${runId} staged title`);
+    expect(row!.draftUpdatedAt).not.toBeNull();
+    // ...and staging never revalidates public caches (live is unchanged).
+    expect(revalidateTag).not.toHaveBeenCalled();
+  });
+
+  it("merges a second staged edit onto the buffer, seeding tags from live on the first", async () => {
+    const post = await seedPublished("stage-merge");
+    const [tag] = await testDb
+      .insert(tags)
+      .values({ slug: `${runId}-sm-tag`, name: `${runId}-sm-tag` })
+      .returning({ id: tags.id });
+    await testDb.insert(postTags).values({ postId: post.id, tagId: tag!.id });
+    authorSession();
+
+    await updatePost(post.id, { title: `${runId} merged one` });
+    await updatePost(post.id, { bodyMd: "Staged body two." });
+
+    const [row] = await testDb
+      .select()
+      .from(posts)
+      .where(eq(posts.id, post.id));
+    expect(row!.draft?.title).toBe(`${runId} merged one`); // from the first edit
+    expect(row!.draft?.bodyMd).toBe("Staged body two."); // from the second
+    expect(row!.draft?.tags).toEqual([`${runId}-sm-tag`]); // seeded from live
+  });
+
+  it("refuses to stage an edit that clears a public post's thumbnail", async () => {
+    const post = await seedPublished("stage-thumb");
+    authorSession();
+
+    const result = await updatePost(post.id, { thumbnailUrl: "" });
+    expect(result).toEqual({
+      ok: false,
+      error: "A published or scheduled post must keep its thumbnail.",
+    });
+    const [row] = await testDb
+      .select({ draft: posts.draft })
+      .from(posts)
+      .where(eq(posts.id, post.id));
+    expect(row!.draft).toBeNull();
+  });
+
+  it("clears the buffer when a staged edit reverts back to the live content", async () => {
+    const post = await seedPublished("stage-revert");
+    authorSession();
+
+    await updatePost(post.id, { title: `${runId} temp title` });
+    const [staged] = await testDb
+      .select({ draft: posts.draft })
+      .from(posts)
+      .where(eq(posts.id, post.id));
+    expect(staged!.draft).not.toBeNull();
+
+    // Revert the title back to the live value — nothing left to stage.
+    const revert = await updatePost(post.id, {
+      title: `${runId} stage-revert`,
+    });
+    expect(revert.ok).toBe(true);
+    const [after] = await testDb
+      .select({ draft: posts.draft })
+      .from(posts)
+      .where(eq(posts.id, post.id));
+    expect(after!.draft).toBeNull();
+  });
+
+  it("surfaces a slug collision at stage time, not only at publish", async () => {
+    const other = await seedPublished("stage-slug-other");
+    const post = await seedPublished("stage-slug-mine");
+    authorSession();
+
+    const result = await updatePost(post.id, { slug: other.slug });
+    expect(result).toEqual({ ok: false, error: "That slug is taken." });
+    const [row] = await testDb
+      .select({ draft: posts.draft })
+      .from(posts)
+      .where(eq(posts.id, post.id));
+    expect(row!.draft).toBeNull();
+  });
+
+  it("writes edits to a scheduled (future) post live, not into the buffer", async () => {
+    const [post] = await testDb
+      .insert(posts)
+      .values({
+        authorId,
+        title: `${runId} sched-future`,
+        slug: `${runId}-sched-future`,
+        bodyMd: "Body.",
+        thumbnailUrl: "https://img.example.com/live.jpg",
+        categoryId,
+        status: "scheduled",
+        publishAt: new Date(Date.now() + 7 * 24 * 3600 * 1000),
+      })
+      .returning({ id: posts.id });
+    authorSession();
+
+    // A scheduled post whose publish_at is still in the future isn't public
+    // yet, so its edits write live (nothing would promote a buffer at publish).
+    const result = await updatePost(post!.id, {
+      title: `${runId} sched-future edited`,
+    });
+    expect(result.ok).toBe(true);
+    const [row] = await testDb
+      .select()
+      .from(posts)
+      .where(eq(posts.id, post!.id));
+    expect(row!.title).toBe(`${runId} sched-future edited`);
+    expect(row!.draft).toBeNull();
+  });
+
+  it("publishPostChanges promotes the buffer to live, clears it, and revalidates", async () => {
+    const post = await seedPublished("promote");
+    authorSession();
+    await updatePost(post.id, {
+      title: `${runId} promoted title`,
+      bodyMd: "Promoted body.",
+    });
+    vi.mocked(revalidateTag).mockClear();
+
+    const result = await publishPostChanges(post.id);
+    expect(result.ok).toBe(true);
+
+    const [row] = await testDb
+      .select()
+      .from(posts)
+      .where(eq(posts.id, post.id));
+    expect(row!.title).toBe(`${runId} promoted title`);
+    expect(row!.bodyMd).toBe("Promoted body.");
+    expect(row!.draft).toBeNull();
+    expect(row!.draftUpdatedAt).toBeNull();
+    expect(revalidateTag).toHaveBeenCalledWith("post-list", expect.anything());
+    expect(revalidateTag).toHaveBeenCalledWith(
+      `post:${post.slug}`,
+      expect.anything(),
+    );
+  });
+
+  it("publishPostChanges is a no-op success when nothing is staged", async () => {
+    const post = await seedPublished("promote-noop");
+    authorSession();
+    vi.mocked(revalidateTag).mockClear();
+
+    const result = await publishPostChanges(post.id);
+    expect(result).toEqual({
+      ok: true,
+      data: { id: post.id, slug: post.slug },
+    });
+    expect(revalidateTag).not.toHaveBeenCalled();
+  });
+
+  it("publishPostChanges revalidates both slugs when the staged slug differs", async () => {
+    const post = await seedPublished("promote-slug");
+    authorSession();
+    const newSlug = `${runId}-promote-slug-renamed`;
+    await updatePost(post.id, { slug: newSlug });
+    vi.mocked(revalidateTag).mockClear();
+
+    const result = await publishPostChanges(post.id);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.data.slug).toBe(newSlug);
+    expect(revalidateTag).toHaveBeenCalledWith(
+      `post:${newSlug}`,
+      expect.anything(),
+    );
+    expect(revalidateTag).toHaveBeenCalledWith(
+      `post:${post.slug}`,
+      expect.anything(),
+    );
+  });
+
+  it("discardPostChanges clears the buffer without revalidating or changing live", async () => {
+    const post = await seedPublished("discard");
+    authorSession();
+    await updatePost(post.id, { title: `${runId} discarded title` });
+    vi.mocked(revalidateTag).mockClear();
+
+    const result = await discardPostChanges(post.id);
+    expect(result.ok).toBe(true);
+
+    const [row] = await testDb
+      .select()
+      .from(posts)
+      .where(eq(posts.id, post.id));
+    expect(row!.title).toBe(`${runId} discard`); // live unchanged
+    expect(row!.draft).toBeNull();
+    expect(revalidateTag).not.toHaveBeenCalled();
+  });
+
+  it("blocks a status transition while the post has staged changes", async () => {
+    const post = await seedPublished("guard-transition");
+    authorSession();
+    await updatePost(post.id, { title: `${runId} guarded` });
+
+    const result = await transitionPostStatus(post.id, "draft");
+    expect(result).toEqual({
+      ok: false,
+      error: "Publish or discard your pending changes first.",
+    });
+    const [row] = await testDb
+      .select({ status: posts.status })
+      .from(posts)
+      .where(eq(posts.id, post.id));
+    expect(row!.status).toBe("published");
+  });
+
+  it("blocks scheduling an archive while the post has staged changes", async () => {
+    const post = await seedPublished("guard-schedule");
+    authorSession();
+    await updatePost(post.id, { title: `${runId} guarded sched` });
+
+    const future = new Date(Date.now() + 7 * 24 * 3600 * 1000).toISOString();
+    const result = await scheduleArchive(post.id, future);
+    expect(result).toEqual({
+      ok: false,
+      error: "Publish or discard your pending changes first.",
+    });
+  });
+
+  it("rejects publish/discard from a non-owner author", async () => {
+    const post = await seedPublished("promote-owner");
+    authorSession();
+    await updatePost(post.id, { title: `${runId} owned stage` });
+
+    // A non-owner AUTHOR passes the staff gate, fails ownership.
+    sessionMock.current = {
+      user: { id: readerId, role: "author", bannedAt: null },
+    };
+    expect(await publishPostChanges(post.id)).toEqual({
+      ok: false,
+      error: "Not authorized.",
+    });
+    expect(await discardPostChanges(post.id)).toEqual({
+      ok: false,
+      error: "Not authorized.",
+    });
+    // The buffer survived the rejected calls.
+    const [row] = await testDb
+      .select({ draft: posts.draft })
+      .from(posts)
+      .where(eq(posts.id, post.id));
+    expect(row!.draft?.title).toBe(`${runId} owned stage`);
+  });
+});
+
 describe("deletePost", () => {
   it("rejects an author but allows an admin, removing the post and its tags", async () => {
     const [post] = await testDb
@@ -815,12 +1097,12 @@ describe("transitionPostStatus", () => {
       thumbnailUrl: HTTPS_THUMB,
     });
     authorSession();
-    expect(
-      await transitionPostStatus(scheduledTarget.id, "scheduled"),
-    ).toEqual({
-      ok: false,
-      error: "Use schedule publish to set a publish time.",
-    });
+    expect(await transitionPostStatus(scheduledTarget.id, "scheduled")).toEqual(
+      {
+        ok: false,
+        error: "Use schedule publish to set a publish time.",
+      },
+    );
   });
 
   it("rejects an unknown target status", async () => {
@@ -938,7 +1220,8 @@ describe("transitionPostStatus", () => {
           "select count(*)::int as n from pg_locks where not granted and locktype in ('transactionid','tuple')",
         );
         if (rows[0].n > 0) break;
-        if (i >= 400) throw new Error("action UPDATE never blocked on the lock");
+        if (i >= 400)
+          throw new Error("action UPDATE never blocked on the lock");
         await new Promise((resolve) => setTimeout(resolve, 25));
       }
 

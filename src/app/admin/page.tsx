@@ -206,7 +206,7 @@ export default async function AdminPage({
           {rows.map((post) => (
             <li
               key={post.id}
-              className="flex flex-wrap items-center justify-between gap-2 p-3"
+              className="flex flex-wrap items-center justify-between gap-2 p-4"
             >
               <div className="min-w-0">
                 <Link

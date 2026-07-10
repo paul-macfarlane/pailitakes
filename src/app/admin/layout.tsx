@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { Suspense } from "react";
 
+import { HeaderAuth } from "@/components/header-auth";
 import { HeaderShell } from "@/components/header-shell";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -38,7 +39,12 @@ export default function AdminLayout({
             Admin
           </Link>
         </div>
-        <ThemeToggle />
+        {/* Same right-side controls as the public SiteHeader (theme + account
+            menu) so the two headers are consistent. */}
+        <div className="flex shrink-0 items-center gap-1">
+          <ThemeToggle />
+          <HeaderAuth />
+        </div>
       </HeaderShell>
       <main className="mx-auto w-full max-w-5xl px-4 py-8">
         <Suspense

@@ -2,6 +2,7 @@ import { and, eq, inArray, like, lt, notExists, sql } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
 import * as schema from "@/db/schema";
+import { tagToSlug } from "@/lib/post-input";
 
 // vi.hoisted lifts this above the mock factory (TDZ otherwise) — same
 // pattern as src/lib/posts.test.ts: one pool/db serves both the mocked
@@ -274,6 +275,45 @@ describe("getEditablePost", () => {
     });
     expect(result).toBeNull();
   });
+
+  it("overlays a published post's staged snapshot and flags pending changes (ADR-0011)", async () => {
+    const [post] = await testDb
+      .insert(posts)
+      .values({
+        authorId,
+        title: `${runId} live-title`,
+        slug: `${runId}-overlay`,
+        bodyMd: "Live body.",
+        thumbnailUrl: "https://img.example.com/t.jpg",
+        categoryId: activeCategoryId,
+        status: "published",
+        publishAt: new Date("2026-01-01T00:00:00Z"),
+        draft: {
+          title: `${runId} staged-title`,
+          slug: `${runId}-overlay`,
+          bodyMd: "Staged body.",
+          categoryId: activeCategoryId,
+          thumbnailUrl: "https://img.example.com/t.jpg",
+          bannerUrl: null,
+          videoUrl: null,
+          tags: [`${runId}-staged-tag`],
+        },
+        draftUpdatedAt: new Date("2026-06-01T00:00:00Z"),
+      })
+      .returning({ id: posts.id });
+
+    const result = await getEditablePost(post!.id, {
+      id: authorId,
+      role: "author",
+    });
+    // The editor sees the STAGED snapshot, not the live content.
+    expect(result?.hasPendingChanges).toBe(true);
+    expect(result?.title).toBe(`${runId} staged-title`);
+    expect(result?.bodyMd).toBe("Staged body.");
+    expect(result?.tags).toEqual([`${runId}-staged-tag`]);
+    // Live status/scheduling are still reported as-is.
+    expect(result?.status).toBe("published");
+  });
 });
 
 describe("getPostForPreview", () => {
@@ -335,6 +375,44 @@ describe("getPostForPreview", () => {
       role: "author",
     });
     expect(result).toBeNull();
+  });
+
+  it("previews a published post's staged snapshot, deriving tag slugs (ADR-0011)", async () => {
+    const [post] = await testDb
+      .insert(posts)
+      .values({
+        authorId,
+        title: `${runId} pv-live`,
+        slug: `${runId}-pv-overlay`,
+        bodyMd: "Live preview body.",
+        thumbnailUrl: "https://img.example.com/t.jpg",
+        categoryId: activeCategoryId,
+        status: "published",
+        publishAt: new Date("2026-01-01T00:00:00Z"),
+        draft: {
+          title: `${runId} pv-staged`,
+          slug: `${runId}-pv-overlay`,
+          bodyMd: "# Staged preview body",
+          categoryId: activeCategoryId,
+          thumbnailUrl: "https://img.example.com/t.jpg",
+          bannerUrl: null,
+          videoUrl: null,
+          tags: [`${runId} Pv Tag`],
+        },
+        draftUpdatedAt: new Date("2026-06-01T00:00:00Z"),
+      })
+      .returning({ id: posts.id });
+
+    const result = await getPostForPreview(post!.id, {
+      id: authorId,
+      role: "author",
+    });
+    expect(result?.hasPendingChanges).toBe(true);
+    expect(result?.title).toBe(`${runId} pv-staged`);
+    expect(result?.bodyMd).toBe("# Staged preview body");
+    expect(result?.tags).toEqual([
+      { slug: tagToSlug(`${runId} Pv Tag`), name: `${runId} Pv Tag` },
+    ]);
   });
 });
 

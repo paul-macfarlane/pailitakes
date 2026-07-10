@@ -132,6 +132,46 @@ test.describe("authoring lifecycle", () => {
     await expect(page.getByRole("heading", { name: title })).toHaveCount(0);
   });
 
+  test("edits to a published post stay staged until published", async ({
+    page,
+  }) => {
+    const title = `E2E Staged ${crypto.randomUUID().slice(0, 8)}`;
+    const { id, slug } = await createDraft(page, title);
+
+    // Publish the post first.
+    await clickUntil(page.getByRole("button", { name: "Publish now" }), () =>
+      expect(page.getByText("Published")).toBeVisible(),
+    );
+
+    // Edit the (now published) post's title. This stages a draft rather than
+    // writing live; the first staged save surfaces the "Unpublished changes"
+    // banner (a sibling island revealed via router.refresh).
+    const newTitle = `${title} EDITED`;
+    await page.locator("#title").fill(newTitle);
+    await clickUntil(page.getByRole("button", { name: "Save now" }), () =>
+      expect(page.getByText("Unpublished changes")).toBeVisible(),
+    );
+
+    // The public post still shows the ORIGINAL title — staging never touches
+    // the live content or its cache.
+    await page.goto(`/posts/${slug}`);
+    await expect(page.getByRole("heading", { name: title })).toBeVisible();
+    await expect(page.getByRole("heading", { name: newTitle })).toHaveCount(0);
+
+    // Promote the staged changes from the editor.
+    await page.goto(`/admin/posts/${id}/edit`);
+    await clickUntil(
+      page.getByRole("button", { name: "Publish changes" }),
+      () => expect(page.getByText("Unpublished changes")).toHaveCount(0),
+    );
+
+    // Now the public post reflects the edit.
+    await expect(async () => {
+      await page.goto(`/posts/${slug}`);
+      await expect(page.getByRole("heading", { name: newTitle })).toBeVisible();
+    }).toPass();
+  });
+
   test("shows a draft in the private preview", async ({ page }) => {
     const title = `E2E Preview ${crypto.randomUUID().slice(0, 8)}`;
     const { id } = await createDraft(page, title);
