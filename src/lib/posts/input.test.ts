@@ -9,23 +9,28 @@ import {
 } from "./input";
 
 describe("slugifyTitle", () => {
-  it("lowercases and strips diacritics", () => {
-    expect(slugifyTitle("Café Résumé")).toBe("cafe-resume");
-  });
-
-  it("collapses runs of non-alphanumeric characters into a single hyphen", () => {
-    expect(slugifyTitle("Hello,   World!! -- Again")).toBe("hello-world-again");
-  });
-
-  it("trims leading/trailing hyphens", () => {
-    expect(slugifyTitle("--Leading and Trailing--")).toBe(
+  // Table-driven (5c): each case is a pure `input -> expected` equality
+  // check on the same function — see the `it.each` cases arrays throughout
+  // this file for the convention (name goes in the format string via `%s`).
+  it.each([
+    ["lowercases and strips diacritics", "Café Résumé", "cafe-resume"],
+    [
+      "collapses runs of non-alphanumeric characters into a single hyphen",
+      "Hello,   World!! -- Again",
+      "hello-world-again",
+    ],
+    [
+      "trims leading/trailing hyphens",
+      "--Leading and Trailing--",
       "leading-and-trailing",
-    );
-  });
-
-  it("falls back to 'post' for an all-emoji title", () => {
-    expect(slugifyTitle("🔥🔥🔥")).toBe("post");
-  });
+    ],
+    ["falls back to 'post' for an all-emoji title", "🔥🔥🔥", "post"],
+  ] satisfies [name: string, input: string, expected: string][])(
+    "%s",
+    (_name, input, expected) => {
+      expect(slugifyTitle(input)).toBe(expected);
+    },
+  );
 
   it("truncates to 80 characters and trims a trailing hyphen after truncation", () => {
     const longTitle = "word ".repeat(30).trim();
@@ -36,35 +41,33 @@ describe("slugifyTitle", () => {
 });
 
 describe("tagToSlug", () => {
-  it("lowercases and strips diacritics, same as slugifyTitle", () => {
-    expect(tagToSlug("Café")).toBe("cafe");
-  });
-
-  it("returns '' (no 'post' fallback) for an all-emoji tag name", () => {
-    expect(tagToSlug("🔥🔥🔥")).toBe("");
-  });
-
-  it("returns '' for a CJK-only tag name that has no ASCII slug characters", () => {
-    expect(tagToSlug("日本語")).toBe("");
-  });
+  it.each([
+    ["lowercases and strips diacritics, same as slugifyTitle", "Café", "cafe"],
+    ["returns '' (no 'post' fallback) for an all-emoji tag name", "🔥🔥🔥", ""],
+    [
+      "returns '' for a CJK-only tag name that has no ASCII slug characters",
+      "日本語",
+      "",
+    ],
+  ] satisfies [name: string, input: string, expected: string][])(
+    "%s",
+    (_name, input, expected) => {
+      expect(tagToSlug(input)).toBe(expected);
+    },
+  );
 });
 
 describe("httpsImageUrl", () => {
-  it("accepts an https URL", () => {
-    expect(httpsImageUrl.safeParse("https://example.com/a.jpg").success).toBe(
-      true,
-    );
-  });
-
-  it("rejects an http URL", () => {
-    expect(httpsImageUrl.safeParse("http://example.com/a.jpg").success).toBe(
-      false,
-    );
-  });
-
-  it("rejects a non-URL string", () => {
-    expect(httpsImageUrl.safeParse("not a url").success).toBe(false);
-  });
+  it.each([
+    ["accepts an https URL", "https://example.com/a.jpg", true],
+    ["rejects an http URL", "http://example.com/a.jpg", false],
+    ["rejects a non-URL string", "not a url", false],
+  ] satisfies [name: string, input: string, expected: boolean][])(
+    "%s",
+    (_name, input, expected) => {
+      expect(httpsImageUrl.safeParse(input).success).toBe(expected);
+    },
+  );
 });
 
 describe("postInputSchema", () => {
@@ -74,89 +77,58 @@ describe("postInputSchema", () => {
     categoryId: 1,
   };
 
-  it("accepts an empty thumbnailUrl", () => {
-    const result = postInputSchema.safeParse({
-      ...valid,
-      thumbnailUrl: "",
-    });
-    expect(result.success).toBe(true);
-  });
+  // Table-driven (5c): every case below shares one body —
+  // `postInputSchema.safeParse({ ...valid, ...override }).success === expected`
+  // — differing only in which field is overridden and whether that override
+  // should pass. Consolidates what were 12 separate `it` blocks (7 rejects +
+  // 5 accepts) into one table of 12 rows; zero coverage change, only the
+  // shape of the test count.
+  const cases: [
+    name: string,
+    override: Record<string, unknown>,
+    expected: boolean,
+  ][] = [
+    ["accepts an empty thumbnailUrl", { thumbnailUrl: "" }, true],
+    [
+      "accepts an https thumbnailUrl",
+      { thumbnailUrl: "https://example.com/thumb.jpg" },
+      true,
+    ],
+    [
+      "rejects an http thumbnailUrl",
+      { thumbnailUrl: "http://example.com/thumb.jpg" },
+      false,
+    ],
+    [
+      "rejects more than 10 tags",
+      { tags: Array.from({ length: 11 }, (_, i) => `tag-${i}`) },
+      false,
+    ],
+    [
+      "accepts up to 10 tags",
+      { tags: Array.from({ length: 10 }, (_, i) => `tag-${i}`) },
+      true,
+    ],
+    [
+      "rejects an all-emoji tag name instead of letting it collapse to a shared slug",
+      { tags: ["🔥🔥🔥"] },
+      false,
+    ],
+    [
+      "rejects a videoUrl over 2048 characters",
+      { videoUrl: `https://example.com/${"a".repeat(2048)}` },
+      false,
+    ],
+    ["rejects an empty title", { title: "" }, false],
+    ["rejects a title over 200 characters", { title: "a".repeat(201) }, false],
+    ["rejects a slug containing spaces", { slug: "Foo Bar" }, false],
+    ["rejects a slug with a leading hyphen", { slug: "-lead" }, false],
+    ["accepts a well-formed slug", { slug: "foo-bar" }, true],
+  ];
 
-  it("accepts an https thumbnailUrl", () => {
-    const result = postInputSchema.safeParse({
-      ...valid,
-      thumbnailUrl: "https://example.com/thumb.jpg",
-    });
-    expect(result.success).toBe(true);
-  });
-
-  it("rejects an http thumbnailUrl", () => {
-    const result = postInputSchema.safeParse({
-      ...valid,
-      thumbnailUrl: "http://example.com/thumb.jpg",
-    });
-    expect(result.success).toBe(false);
-  });
-
-  it("rejects more than 10 tags", () => {
-    const result = postInputSchema.safeParse({
-      ...valid,
-      tags: Array.from({ length: 11 }, (_, i) => `tag-${i}`),
-    });
-    expect(result.success).toBe(false);
-  });
-
-  it("accepts up to 10 tags", () => {
-    const result = postInputSchema.safeParse({
-      ...valid,
-      tags: Array.from({ length: 10 }, (_, i) => `tag-${i}`),
-    });
-    expect(result.success).toBe(true);
-  });
-
-  it("rejects an all-emoji tag name instead of letting it collapse to a shared slug", () => {
-    const result = postInputSchema.safeParse({
-      ...valid,
-      tags: ["🔥🔥🔥"],
-    });
-    expect(result.success).toBe(false);
-  });
-
-  it("rejects a videoUrl over 2048 characters", () => {
-    const longUrl = `https://example.com/${"a".repeat(2048)}`;
-    const result = postInputSchema.safeParse({
-      ...valid,
-      videoUrl: longUrl,
-    });
-    expect(result.success).toBe(false);
-  });
-
-  it("rejects an empty title", () => {
-    const result = postInputSchema.safeParse({ ...valid, title: "" });
-    expect(result.success).toBe(false);
-  });
-
-  it("rejects a title over 200 characters", () => {
-    const result = postInputSchema.safeParse({
-      ...valid,
-      title: "a".repeat(201),
-    });
-    expect(result.success).toBe(false);
-  });
-
-  it("rejects a slug containing spaces", () => {
-    const result = postInputSchema.safeParse({ ...valid, slug: "Foo Bar" });
-    expect(result.success).toBe(false);
-  });
-
-  it("rejects a slug with a leading hyphen", () => {
-    const result = postInputSchema.safeParse({ ...valid, slug: "-lead" });
-    expect(result.success).toBe(false);
-  });
-
-  it("accepts a well-formed slug", () => {
-    const result = postInputSchema.safeParse({ ...valid, slug: "foo-bar" });
-    expect(result.success).toBe(true);
+  it.each(cases)("%s", (_name, override, expected) => {
+    const result = postInputSchema.safeParse({ ...valid, ...override });
+    expect(result.success).toBe(expected);
   });
 });
 

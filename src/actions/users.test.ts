@@ -10,14 +10,14 @@ import {
 } from "vitest";
 
 import * as schema from "@/db/schema";
+import { sessionUser } from "@/test/helpers";
 
+// vi.hoisted lifts this above the mock factories below (TDZ otherwise) —
+// one pool/db serves both the mocked "@/db" (used by the actions under
+// test) and the seeding/cleanup code here.
 const { pool, testDb } = await vi.hoisted(async () => {
-  const { drizzle } = await import("drizzle-orm/node-postgres");
-  const { Pool } = await import("pg");
-  const schema = await import("@/db/schema");
-  const { testDatabaseUrl } = await import("@/test/db-url");
-  const pool = new Pool({ connectionString: testDatabaseUrl(), max: 2 });
-  return { pool, testDb: drizzle(pool, { schema }) };
+  const { createTestDb } = await import("@/test/helpers");
+  return createTestDb();
 });
 
 vi.mock("@/db", () => ({ db: testDb }));
@@ -45,14 +45,10 @@ const readerId = `user-${runId}-reader`;
 const ALL = [adminAId, adminBId, authorId, readerId];
 
 function asAdmin() {
-  sessionMock.current = {
-    user: { id: adminAId, role: "admin", bannedAt: null },
-  };
+  sessionMock.current = sessionUser(adminAId, "admin");
 }
 function asAuthor() {
-  sessionMock.current = {
-    user: { id: authorId, role: "author", bannedAt: null },
-  };
+  sessionMock.current = sessionUser(authorId, "author");
 }
 function noSession() {
   sessionMock.current = null;

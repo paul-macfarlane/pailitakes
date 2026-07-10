@@ -1,7 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
 
-// preview.ts imports only markdown + session (no @/db), so — unlike
-// src/actions/posts.test.ts — this file needs no DB harness, just the same
+import { sessionUser } from "@/test/helpers";
+
+// preview.ts imports only markdown + session (no @/db), so — unlike the
+// posts action test files — this file needs no DB harness, just the same
 // settable fake session mock.
 const sessionMock = vi.hoisted(() => ({ current: null as unknown }));
 vi.mock("@/lib/auth/session", () => ({
@@ -11,12 +13,10 @@ vi.mock("@/lib/auth/session", () => ({
 const { renderPostPreview } = await import("./preview");
 
 function staffSession(role: "author" | "admin" = "author") {
-  sessionMock.current = { user: { id: "user-1", role, bannedAt: null } };
+  sessionMock.current = sessionUser("user-1", role);
 }
 function readerSession() {
-  sessionMock.current = {
-    user: { id: "user-1", role: "reader", bannedAt: null },
-  };
+  sessionMock.current = sessionUser("user-1", "reader");
 }
 function noSession() {
   sessionMock.current = null;

@@ -1,19 +1,16 @@
-import { and, eq, inArray, like, lt, notExists, sql } from "drizzle-orm";
+import { eq, inArray, like } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
 import * as schema from "@/db/schema";
 import { tagToSlug } from "@/lib/posts/input";
+import { sweepStalePostFixtures } from "@/test/helpers";
 
 // vi.hoisted lifts this above the mock factory (TDZ otherwise) — same
 // pattern as src/lib/posts.test.ts: one pool/db serves both the mocked
 // "@/db" (used by admin-posts.ts) and the seeding/cleanup code here.
 const { pool, testDb } = await vi.hoisted(async () => {
-  const { drizzle } = await import("drizzle-orm/node-postgres");
-  const { Pool } = await import("pg");
-  const schema = await import("@/db/schema");
-  const { testDatabaseUrl } = await import("@/test/db-url");
-  const pool = new Pool({ connectionString: testDatabaseUrl(), max: 2 });
-  return { pool, testDb: drizzle(pool, { schema }) };
+  const { createTestDb } = await import("@/test/helpers");
+  return createTestDb();
 });
 
 vi.mock("@/db", () => ({ db: testDb }));
@@ -42,46 +39,8 @@ let sortedSecondId: number;
 
 beforeAll(async () => {
   // Hygiene sweep of leftovers from runs that died before afterAll — same
-  // pattern as src/lib/posts.test.ts / src/actions/posts.test.ts.
-  const staleBefore = new Date(Date.now() - 60 * 60 * 1000);
-  await testDb
-    .delete(posts)
-    .where(
-      and(
-        like(posts.slug, `${SEED_PREFIX}%`),
-        lt(posts.createdAt, staleBefore),
-      ),
-    );
-  await testDb.delete(tags).where(
-    and(
-      like(tags.slug, `${SEED_PREFIX}%`),
-      notExists(
-        testDb
-          .select({ one: sql`1` })
-          .from(postTags)
-          .where(eq(postTags.tagId, tags.id)),
-      ),
-    ),
-  );
-  await testDb.delete(categories).where(
-    and(
-      like(categories.slug, `cat-${SEED_PREFIX}%`),
-      notExists(
-        testDb
-          .select({ one: sql`1` })
-          .from(posts)
-          .where(eq(posts.categoryId, categories.id)),
-      ),
-    ),
-  );
-  await testDb
-    .delete(user)
-    .where(
-      and(
-        like(user.id, `user-${SEED_PREFIX}%`),
-        lt(user.createdAt, staleBefore),
-      ),
-    );
+  // pattern as the other lib/posts and posts-action test files.
+  await sweepStalePostFixtures(testDb, { seedPrefix: SEED_PREFIX });
 
   await testDb.insert(user).values([
     {
