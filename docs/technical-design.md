@@ -1,6 +1,6 @@
 # Paulitakes — Technical Design
 
-**Version:** 0.3 (Locked; amended by ADR-0004)
+**Version:** 0.3 (Locked; amended by ADR-0004; §6 project layout updated per ADR-0013)
 **Owner:** Paul
 **Last updated:** July 5, 2026
 **Companion doc:** Paulitakes Product Doc v0.2
@@ -301,6 +301,8 @@ ORDER BY rank DESC, publish_at DESC
 
 ## 6. Project Structure (sketch)
 
+Layout updated per ADR-0013 (thin action/route-handler boundaries; `src/lib` reorganized by domain into a service/data layering).
+
 ```
 src/
   app/
@@ -318,22 +320,41 @@ src/
       moderation/page.tsx         # moderation log
       announcements/page.tsx
       settings/page.tsx           # categories, users
+      _components/                # colocated, single-route components
     api/
       auth/[...all]/route.ts      # Better Auth handler
       view/route.ts               # analytics beacon
       comments/route.ts           # comment tree reads (no-store)
       cron/revalidate/route.ts    # cron-job.org target (secret-protected)
-  components/                     # server + client components (shadcn/ui)
+                                   # route handlers: validate -> guard -> delegate
+                                   # to a lib service, same as actions/
+  components/                     # components shared across route segments
+    ui/                           # shadcn/ui primitives
   db/schema.ts                    # Drizzle schema
-  lib/
-    auth.ts                       # Better Auth config (Google, Discord, roles)
-    markdown.ts                   # unified pipeline
-    excerpt.ts                    # derive excerpt from body_md
-    moderation.ts                 # AI SDK / gateway client + prompt
-    posts.ts                      # visiblePostsWhere() and queries
-    ratelimit.ts
-  actions/                        # server actions (posts, comments, likes, admin)
+  lib/                            # organized by domain; a single-route
+                                   # component instead lives in that route's
+                                   # own _components/ (see app/ above)
+    auth/                         # session, permissions, roles, guards,
+                                   # redirect-target, Better Auth client
+    posts/                        # posts, status, input, autosave, admin,
+                                   # home-feed, revalidation
+      service/                    # business logic, split by sub-domain
+      data.ts                     # all Drizzle access for the domain
+    users/                        # admin, display-name
+      service.ts
+      data.ts
+    content/                      # markdown, excerpt, image-src
+    admin/                        # cross-domain admin-screen helpers
+                                   # (route-params, search)
+    shared/                       # cache, env, sql-like, action-result
+    utils.ts                      # shadcn generators hardcode "@/lib/utils"
+  actions/
+    posts/                        # crud.ts, draft.ts, lifecycle.ts
+    users.ts
+    preview.ts
 ```
+
+Each domain under `lib/` follows the same shape: `service*.ts` holds business logic (server-only), `data.ts` holds all DB access (server-only, pure queries/mutations + error classification, no business rules). Actions in `actions/` and route handlers under `app/api/` are thin: validate input (zod) -> check auth (a guard) -> delegate to a domain service.
 
 ---
 
