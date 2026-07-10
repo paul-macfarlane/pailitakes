@@ -1,24 +1,15 @@
 "use server";
 
 // Preview lets an author see rendered output before saving. Same staff gate
-// and error shape as src/actions/posts.ts; "use server" files export only
-// actions, so the 3-line staff-session helper is duplicated here rather than
-// imported.
+// and error shape as the post actions (src/actions/posts/*).
 
 import { z } from "zod";
 
-import type { ActionResult } from "@/actions/posts";
-import { isStaff } from "@/lib/auth/permissions";
+import { staffSession } from "@/lib/auth/guards";
 import { renderMarkdown } from "@/lib/content/markdown";
-import { getSession } from "@/lib/auth/session";
+import type { ActionResult } from "@/lib/shared/action-result";
 
 const GENERIC_ERROR = "Something went wrong. Please try again.";
-
-// Staff-only gate shared by every action below (authors + admins; §5.7).
-async function staffSession() {
-  const session = await getSession();
-  return session && isStaff(session.user) ? session : null;
-}
 
 // Same cap as post-input's bodyMd.
 const previewInputSchema = z.object({

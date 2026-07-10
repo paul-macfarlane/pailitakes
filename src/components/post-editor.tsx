@@ -6,7 +6,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { z } from "zod";
 
-import { createPost, updatePost } from "@/actions/posts";
+import { createPost, updatePost } from "@/actions/posts/crud";
 import { renderPostPreview } from "@/actions/preview";
 import { ExternalImage } from "@/components/external-image";
 import { LiteYouTubeActivation } from "@/components/lite-youtube-activation";
