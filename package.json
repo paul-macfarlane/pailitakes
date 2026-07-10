@@ -19,7 +19,11 @@
     "test:e2e": "playwright test",
     "db:promote-admin": "tsx scripts/promote-admin.ts",
     "format": "prettier --write .",
-    "format:check": "prettier --check ."
+    "format:check": "prettier --check .",
+    "prepare": "husky"
+  },
+  "lint-staged": {
+    "*.{ts,tsx,js,jsx,mjs,cjs,json,md,css,yml,yaml}": "prettier --write"
   },
   "dependencies": {
     "@base-ui/react": "^1.6.0",
@@ -68,6 +72,8 @@
     "eslint": "^9",
     "eslint-config-next": "16.2.10",
     "eslint-config-prettier": "^10.1.8",
+    "husky": "^9.1.7",
+    "lint-staged": "^17.0.8",
     "prettier": "^3.9.4",
     "tailwindcss": "^4",
     "tsx": "^4.23.0",
