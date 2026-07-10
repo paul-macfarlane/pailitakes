@@ -30,6 +30,24 @@ export function AdminNav({ isAdmin }: { isAdmin: boolean }) {
   );
 }
 
+// Static fallback for the Suspense boundary that resolves `isAdmin` on the
+// server. It renders in the prerendered shell of dynamic routes (e.g.
+// /admin/posts/[id]/edit), so it must not read request data (usePathname) —
+// hence just the always-present Posts link, no active-state, no Users link.
+// The resolved AdminNav (active-state + admin-only Users link) streams in.
+export function AdminNavFallback() {
+  return (
+    <nav aria-label="Admin" className="flex items-center gap-4 text-sm">
+      <Link
+        href="/admin"
+        className="text-muted-foreground transition-colors hover:text-foreground"
+      >
+        Posts
+      </Link>
+    </nav>
+  );
+}
+
 function AdminNavLink({
   href,
   active,

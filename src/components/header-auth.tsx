@@ -7,16 +7,25 @@ import { buttonVariants } from "@/components/ui/button";
 import { UserMenu } from "@/components/user-menu";
 import { authClient } from "@/lib/auth-client";
 
+// Static, request-data-free placeholder matching the avatar footprint. Used
+// both while the session is pending and as the Suspense fallback — the latter
+// is what the prerendered shell of a dynamic route renders, so it must not
+// read usePathname/useSession.
+export function HeaderAuthFallback() {
+  return <div aria-hidden className="size-8 rounded-full bg-muted" />;
+}
+
 // Session-aware corner of the site header. Kept client-side so the header —
 // and every ISR page under the public layout — stays statically cacheable
-// (design §2: user-specific data lives in small client islands).
+// (design §2: user-specific data lives in small client islands). Reads
+// usePathname, so callers wrap it in <Suspense> (fallback: HeaderAuthFallback)
+// so it can be deferred out of the prerendered shell on dynamic routes.
 export function HeaderAuth() {
   const { data: session, isPending } = authClient.useSession();
   const pathname = usePathname();
 
   if (isPending) {
-    // Placeholder matching the avatar footprint to avoid layout shift.
-    return <div aria-hidden className="size-8 rounded-full bg-muted" />;
+    return <HeaderAuthFallback />;
   }
 
   if (session) {

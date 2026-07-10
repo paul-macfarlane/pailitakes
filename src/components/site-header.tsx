@@ -1,6 +1,7 @@
 import Link from "next/link";
+import { Suspense } from "react";
 
-import { HeaderAuth } from "@/components/header-auth";
+import { HeaderAuth, HeaderAuthFallback } from "@/components/header-auth";
 import { HeaderShell } from "@/components/header-shell";
 import { ThemeToggle } from "@/components/theme-toggle";
 
@@ -40,7 +41,11 @@ export function SiteHeader() {
       </div>
       <div className="flex shrink-0 items-center gap-1">
         <ThemeToggle />
-        <HeaderAuth />
+        {/* HeaderAuth reads usePathname; wrap so it's deferred out of the
+            prerendered shell on dynamic routes (cacheComponents). */}
+        <Suspense fallback={<HeaderAuthFallback />}>
+          <HeaderAuth />
+        </Suspense>
       </div>
     </HeaderShell>
   );
