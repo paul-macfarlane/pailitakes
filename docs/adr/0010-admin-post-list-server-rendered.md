@@ -8,11 +8,11 @@
 
 The design (§3, locked) says `/admin/**` reads are "deliberately uncached (client-fetched, no-store) — interactive data freshness is TanStack Query's job." Read literally, the ADM-8 dashboard post list (filter by status/category/author, sort by updated/published) would be a client component using `useQuery` against a new `/api/admin/posts` route, behind a `QueryClientProvider`.
 
-TanStack Query is not yet installed or wired. Its stated rationale is *interactive data freshness* — the reason comments and likes are client-fetched (optimistic updates, near-real-time). A filtered, paginated post list has no such need: it's a read whose inputs are the filter selections.
+TanStack Query is not yet installed or wired. Its stated rationale is _interactive data freshness_ — the reason comments and likes are client-fetched (optimistic updates, near-real-time). A filtered, paginated post list has no such need: it's a read whose inputs are the filter selections.
 
 ## Decision
 
-Server-render the admin post list. Filters/sort/page live in the URL search params; the Server Component (`/admin/page.tsx`) parses them (zod, with `.catch` fallbacks) and calls `listAdminPosts()` directly. The route is dynamic and uncached (as §3 requires) because `requireStaff()` reads the session — it is simply uncached via *dynamic server rendering* rather than via a client fetch.
+Server-render the admin post list. Filters/sort/page live in the URL search params; the Server Component (`/admin/page.tsx`) parses them (zod, with `.catch` fallbacks) and calls `listAdminPosts()` directly. The route is dynamic and uncached (as §3 requires) because `requireStaff()` reads the session — it is simply uncached via _dynamic server rendering_ rather than via a client fetch.
 
 Author scoping is enforced in `listAdminPosts()` (authors hard-scoped to their own rows; a non-admin's `author` filter is ignored), consistent with the rule that server-side checks are the security boundary.
 
