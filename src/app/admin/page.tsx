@@ -9,6 +9,7 @@ import {
   listCategoryOptions,
   type AdminPostRow,
 } from "@/lib/admin-posts";
+import { SEARCH_QUERY_MAX, searchQuerySchema } from "@/lib/admin-search";
 import { POST_STATUSES, STATUS_LABELS } from "@/lib/post-status";
 import { requireStaff } from "@/lib/session";
 
@@ -19,8 +20,7 @@ const filterSchema = z.object({
   status: z.enum(POST_STATUSES).optional().catch(undefined),
   category: z.coerce.number().int().positive().optional().catch(undefined),
   author: z.uuid().optional().catch(undefined),
-  // Blank/oversized/missing search all collapse to undefined (no filter).
-  q: z.string().trim().min(1).max(100).optional().catch(undefined),
+  q: searchQuerySchema,
   sort: z.enum(["updated", "published"]).catch("updated"),
   page: z.coerce.number().int().min(1).catch(1),
 });
@@ -77,6 +77,29 @@ export default async function AdminPage({
     offset,
   });
 
+  // Any filter/search/sort deviating from the defaults → offer a reset. Sort
+  // counts: "Reset" returns the whole form to its default state.
+  const hasActiveFilters =
+    Boolean(filters.status) ||
+    Boolean(categoryId) ||
+    Boolean(authorId) ||
+    Boolean(filters.q) ||
+    filters.sort !== "updated";
+
+  // Remount the form whenever the applied filters change (Apply, Reset;
+  // pagination keeps it stable). A soft navigation reconciles the existing
+  // form in place, which does NOT reset an uncontrolled <select>'s value — so
+  // without a changing key, Reset would clear the URL but leave the controls
+  // showing the old selection. Built from the sanitized ids so it matches
+  // what's actually applied.
+  const formKey = [
+    filters.status ?? "",
+    categoryId ?? "",
+    authorId ?? "",
+    filters.q ?? "",
+    filters.sort,
+  ].join("|");
+
   // Preserve the (sanitized) active filters — not page — when building a page
   // link, so pagination never carries a dropped/invalid filter.
   function pageHref(page: number) {
@@ -95,24 +118,15 @@ export default async function AdminPage({
     <>
       <div className="mb-6 flex items-center justify-between gap-4">
         <h1 className="text-2xl font-semibold">Posts</h1>
-        <div className="flex items-center gap-3">
-          {isAdmin && (
-            <Link href="/admin/users" className="text-sm hover:underline">
-              Users
-            </Link>
-          )}
-          <Button
-            render={<Link href="/admin/posts/new" />}
-            nativeButton={false}
-          >
-            New post
-          </Button>
-        </div>
+        <Button render={<Link href="/admin/posts/new" />} nativeButton={false}>
+          New post
+        </Button>
       </div>
 
       {/* Native GET form: submitting rewrites the URL search params. Omitting
           `page` resets to the first page on a new filter. */}
       <form
+        key={formKey}
         method="get"
         className="mb-6 flex flex-wrap items-end gap-3 rounded-lg border p-4"
       >
@@ -123,7 +137,7 @@ export default async function AdminPage({
             name="q"
             defaultValue={filters.q ?? ""}
             placeholder="Title…"
-            maxLength={100}
+            maxLength={SEARCH_QUERY_MAX}
             className="h-8 rounded-lg border border-input bg-transparent px-2 text-sm"
           />
         </label>
@@ -193,6 +207,16 @@ export default async function AdminPage({
         <Button type="submit" variant="outline" size="sm">
           Apply
         </Button>
+        {hasActiveFilters ? (
+          <Button
+            variant="ghost"
+            size="sm"
+            render={<Link href="/admin" />}
+            nativeButton={false}
+          >
+            Reset
+          </Button>
+        ) : null}
       </form>
 
       {rows.length === 0 ? (

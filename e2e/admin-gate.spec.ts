@@ -100,9 +100,20 @@ test.describe("admin route gating", () => {
 
     test("sees the Users link and the users screen", async ({ page }) => {
       await page.goto("/admin");
+      // Posts is the active section on the dashboard.
+      await expect(page.getByRole("link", { name: "Posts" })).toHaveAttribute(
+        "aria-current",
+        "page",
+      );
+
       await page.getByRole("link", { name: "Users" }).click();
       await page.waitForURL("**/admin/users");
       await expect(page.getByRole("heading", { name: "Users" })).toBeVisible();
+      // The admin nav now reflects the active section.
+      await expect(page.getByRole("link", { name: "Users" })).toHaveAttribute(
+        "aria-current",
+        "page",
+      );
     });
   });
 });

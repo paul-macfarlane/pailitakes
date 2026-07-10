@@ -7,6 +7,7 @@ import { categories, posts, postTags, tags, user } from "@/db/schema";
 import { tagToSlug } from "@/lib/post-input";
 import { usesDraftBuffer, type PostStatus } from "@/lib/post-status";
 import { postTagsAgg } from "@/lib/posts";
+import { escapeLike } from "@/lib/sql-like";
 
 // Editor-facing shape (ADM-2): everything the post editor form reads/writes.
 // Thumbnail/banner/video are deliberately absent from the editor UI (ADM-6),
@@ -221,13 +222,6 @@ export type AdminPostRow = {
 export type AdminPostSort = "updated" | "published";
 
 export const ADMIN_POSTS_PAGE_SIZE = 25;
-
-// Escapes LIKE/ILIKE metacharacters so a user's query matches literally — the
-// value is already parameterized (no injection), but bare %/_ would otherwise
-// act as wildcards. Postgres uses backslash as the default LIKE escape char.
-function escapeLike(input: string): string {
-  return input.replace(/[\\%_]/g, (ch) => `\\${ch}`);
-}
 
 // Filtered/sorted post list for the admin dashboard. SECURITY: authors are
 // hard-scoped to their own rows here (§5.7) — a non-admin's `authorId` filter

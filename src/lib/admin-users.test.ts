@@ -24,7 +24,9 @@ const authorId = `user-${runId}-author`;
 const adminId = `user-${runId}-admin`;
 
 beforeAll(async () => {
-  await testDb.delete(user).where(inArray(user.id, [readerId, authorId, adminId]));
+  await testDb
+    .delete(user)
+    .where(inArray(user.id, [readerId, authorId, adminId]));
   await testDb.insert(user).values([
     {
       id: readerId,
@@ -90,6 +92,36 @@ describe("listUsers", () => {
     expect(rows).toHaveLength(1);
     // The DB has more than one user (the three seeded here at minimum).
     expect(hasMore).toBe(true);
+  });
+
+  it("searches by name substring, case-insensitively", async () => {
+    // The runId is embedded in every seeded name, and uppercasing it proves
+    // the match is case-insensitive (ilike).
+    const { rows } = await listUsers({ q: runId.toUpperCase(), limit: 100 });
+    const ids = rows.map((r) => r.id);
+    expect(ids).toEqual(expect.arrayContaining([readerId, authorId, adminId]));
+  });
+
+  it("searches by email substring", async () => {
+    // `reader-${runId}` appears in the reader's email but not in any seeded
+    // name (names use a space: "Reader ${runId}"), so this isolates email.
+    const { rows } = await listUsers({ q: `reader-${runId}`, limit: 100 });
+    const ids = rows.map((r) => r.id);
+    expect(ids).toContain(readerId);
+    expect(ids).not.toContain(authorId);
+    expect(ids).not.toContain(adminId);
+  });
+
+  it("combines the role filter with search", async () => {
+    const { rows } = await listUsers({
+      role: "author",
+      q: runId,
+      limit: 100,
+    });
+    const ids = rows.map((r) => r.id);
+    expect(ids).toContain(authorId);
+    expect(ids).not.toContain(readerId);
+    expect(ids).not.toContain(adminId);
   });
 
   it("exposes the fields the screen renders", async () => {

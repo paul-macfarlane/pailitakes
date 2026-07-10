@@ -59,6 +59,36 @@ test.describe("admin user management", () => {
     );
   });
 
+  test("filters the list with search", async ({ page }) => {
+    await page.goto("/admin/users");
+    const subjectRow = page.locator("li", {
+      hasText: `${subject.id}@e2e.test`,
+    });
+    const selfRow = page.locator("li", { hasText: `${admin.userId}@e2e.test` });
+    await expect(subjectRow).toBeVisible();
+
+    // The subject's id lives in its email, not the admin's, so searching it
+    // narrows the list to the subject alone. Also set a role filter so the
+    // reset is exercised against a <select> as well as the search input.
+    const roleSelect = page.locator('form select[name="role"]');
+    await page.getByRole("searchbox").fill(subject.id);
+    await roleSelect.selectOption("reader");
+    await page.getByRole("button", { name: "Apply" }).click();
+
+    await expect(subjectRow).toBeVisible();
+    await expect(selfRow).toHaveCount(0);
+
+    // Reset returns the form to its defaults (unfiltered list) — including the
+    // control values, not just the URL. The Base UI Button rendered as a Link
+    // shifts role (link→button) on hydration and shares the nav's /admin/users
+    // href, so match by text within the form.
+    await page.locator("form").getByText("Reset", { exact: true }).click();
+    await page.waitForURL((url) => new URL(url).search === "");
+    await expect(selfRow).toBeVisible();
+    await expect(page.getByRole("searchbox")).toHaveValue("");
+    await expect(roleSelect).toHaveValue("");
+  });
+
   test("disables controls on the admin's own row", async ({ page }) => {
     await page.goto("/admin/users");
     const selfRow = page.locator("li", { hasText: `${admin.userId}@e2e.test` });

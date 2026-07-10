@@ -2,11 +2,13 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { Suspense } from "react";
 
+import { AdminNav } from "@/components/admin-nav";
 import { HeaderAuth } from "@/components/header-auth";
 import { HeaderShell } from "@/components/header-shell";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Skeleton } from "@/components/ui/skeleton";
-import { requireStaff } from "@/lib/session";
+import { isAdmin } from "@/lib/authz";
+import { getSession, requireStaff } from "@/lib/session";
 
 export const metadata: Metadata = {
   title: "Admin",
@@ -26,18 +28,19 @@ export default function AdminLayout({
   return (
     <>
       <HeaderShell maxWidthClass="max-w-5xl">
-        <div className="flex items-baseline gap-3">
-          {/* Brand returns to the public site; "Admin" is the in-shell home
-              link back to the dashboard (feedback: no way back to admin). */}
+        <div className="flex min-w-0 items-center gap-5">
+          {/* Brand returns to the public site; the in-shell nav toggles between
+              the Posts and Users sections (feedback: consistent admin nav). */}
           <Link href="/" className="text-lg font-bold tracking-tight">
             Paulitakes
           </Link>
-          <Link
-            href="/admin"
-            className="text-sm text-muted-foreground hover:text-foreground"
-          >
-            Admin
-          </Link>
+          {/* Users link is admin-only and resolved server-side; the fallback
+              renders the always-present Posts link so the shell still streams
+              without blocking on the session read (getSession is cache()'d and
+              deduped with the gate below). */}
+          <Suspense fallback={<AdminNav isAdmin={false} />}>
+            <AdminNavSection />
+          </Suspense>
         </div>
         {/* Same right-side controls as the public SiteHeader (theme + account
             menu) so the two headers are consistent. */}
@@ -67,4 +70,12 @@ async function AdminGate({ children }: { children: React.ReactNode }) {
   await requireStaff();
 
   return <>{children}</>;
+}
+
+// Resolves the admin-only Users link server-side. UX only — requireAdmin() on
+// /admin/users is the real boundary — so a missing/non-admin session just
+// hides the link.
+async function AdminNavSection() {
+  const session = await getSession();
+  return <AdminNav isAdmin={session ? isAdmin(session.user) : false} />;
 }

@@ -4,6 +4,7 @@ import { z } from "zod";
 
 import { UserManagementControls } from "@/components/user-management-controls";
 import { Button } from "@/components/ui/button";
+import { SEARCH_QUERY_MAX, searchQuerySchema } from "@/lib/admin-search";
 import {
   ADMIN_USERS_PAGE_SIZE,
   listUsers,
@@ -19,6 +20,7 @@ export const metadata: Metadata = {
 
 const filterSchema = z.object({
   role: z.enum(ROLE_VALUES).optional().catch(undefined),
+  q: searchQuerySchema,
   page: z.coerce.number().int().min(1).catch(1),
 });
 
@@ -47,13 +49,24 @@ export default async function AdminUsersPage({
 
   const { rows, hasMore } = await listUsers({
     role: filters.role,
+    q: filters.q,
     limit: ADMIN_USERS_PAGE_SIZE,
     offset,
   });
 
+  const hasActiveFilters = Boolean(filters.role) || Boolean(filters.q);
+
+  // Remount the form whenever the applied filters change (Apply, Reset,
+  // pagination keeps it stable). A soft navigation reconciles the existing
+  // form in place, which does NOT reset an uncontrolled <select>'s value — so
+  // without a changing key, Reset would clear the URL but leave the controls
+  // showing the old selection.
+  const formKey = `${filters.role ?? ""}|${filters.q ?? ""}`;
+
   function pageHref(page: number) {
     const params = new URLSearchParams();
     if (filters.role) params.set("role", filters.role);
+    if (filters.q) params.set("q", filters.q);
     if (page > 1) params.set("page", String(page));
     const query = params.toString();
     return query ? `/admin/users?${query}` : "/admin/users";
@@ -61,17 +74,25 @@ export default async function AdminUsersPage({
 
   return (
     <>
-      <div className="mb-6 flex items-center justify-between gap-4">
-        <h1 className="text-2xl font-semibold">Users</h1>
-        <Link href="/admin" className="text-sm hover:underline">
-          ← Posts
-        </Link>
-      </div>
+      <h1 className="mb-6 text-2xl font-semibold">Users</h1>
 
       <form
+        key={formKey}
         method="get"
         className="mb-6 flex flex-wrap items-end gap-3 rounded-lg border p-4"
       >
+        <label className="flex flex-col gap-1 text-sm">
+          <span className="text-muted-foreground">Search</span>
+          <input
+            type="search"
+            name="q"
+            defaultValue={filters.q ?? ""}
+            placeholder="Name or email…"
+            maxLength={SEARCH_QUERY_MAX}
+            className="h-8 rounded-lg border border-input bg-transparent px-2 text-sm"
+          />
+        </label>
+
         <label className="flex flex-col gap-1 text-sm">
           <span className="text-muted-foreground">Role</span>
           <select
@@ -90,13 +111,23 @@ export default async function AdminUsersPage({
         <Button type="submit" variant="outline" size="sm">
           Apply
         </Button>
+        {hasActiveFilters ? (
+          <Button
+            variant="ghost"
+            size="sm"
+            render={<Link href="/admin/users" />}
+            nativeButton={false}
+          >
+            Reset
+          </Button>
+        ) : null}
       </form>
 
       {rows.length === 0 ? (
         <p className="text-muted-foreground">
           {filters.page > 1
             ? "No users on this page — go back a page."
-            : "No users match this filter."}
+            : "No users match these filters."}
         </p>
       ) : (
         <ul className="divide-y rounded-lg border">

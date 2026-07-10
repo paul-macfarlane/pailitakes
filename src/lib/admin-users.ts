@@ -1,10 +1,11 @@
 import "server-only";
 
-import { desc, eq } from "drizzle-orm";
+import { and, desc, eq, ilike, or, type SQL } from "drizzle-orm";
 
 import { db } from "@/db";
 import { user } from "@/db/schema";
 import type { Role } from "@/lib/roles";
+import { escapeLike } from "@/lib/sql-like";
 
 // Re-export under the domain name; the single source is src/lib/roles.ts
 // (drift-guarded against the pg enum).
@@ -34,10 +35,11 @@ export function wouldOrphanAdmins(
 }
 
 // Users for the admin user-management screen, newest first. Optional role
-// filter. Fetches one extra row to report hasMore (same shape as
-// listAdminPosts).
+// filter and free-text search (name or email, case-insensitive substring).
+// Fetches one extra row to report hasMore (same shape as listAdminPosts).
 export async function listUsers(params: {
   role?: UserRole;
+  q?: string;
   limit?: number;
   offset?: number;
 }): Promise<{ rows: AdminUserRow[]; hasMore: boolean }> {
@@ -46,6 +48,15 @@ export async function listUsers(params: {
     100,
   );
   const offset = Math.max(params.offset ?? 0, 0);
+
+  const conditions: SQL[] = [];
+  if (params.role) conditions.push(eq(user.role, params.role));
+  const q = params.q?.trim();
+  if (q) {
+    const pattern = `%${escapeLike(q)}%`;
+    const search = or(ilike(user.name, pattern), ilike(user.email, pattern));
+    if (search) conditions.push(search);
+  }
 
   const rows = await db
     .select({
@@ -57,7 +68,7 @@ export async function listUsers(params: {
       createdAt: user.createdAt,
     })
     .from(user)
-    .where(params.role ? eq(user.role, params.role) : undefined)
+    .where(conditions.length ? and(...conditions) : undefined)
     .orderBy(desc(user.createdAt), desc(user.id))
     .limit(limit + 1)
     .offset(offset);
