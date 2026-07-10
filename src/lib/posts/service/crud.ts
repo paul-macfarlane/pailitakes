@@ -116,10 +116,10 @@ function draftContentEquals(a: PostDraft, b: PostDraft): boolean {
   );
 }
 
-// Stages an edit to a currently-public post into posts.draft instead of the
-// live columns (ADR-0011). Merges the partial autosave diff onto the current
-// pending snapshot — or, on the first staged edit, onto the live content — so
-// the buffer always holds a COMPLETE, publishable snapshot that
+// Stages an edit to a currently-public post into its post_drafts row instead
+// of the live columns (ADR-0011). Merges the partial autosave diff onto the
+// current pending snapshot — or, on the first staged edit, onto the live
+// content — so the buffer always holds a COMPLETE, publishable snapshot that
 // publishPostChanges can promote wholesale. Never revalidates public caches:
 // the live post is unchanged until the author publishes.
 async function stageDraftEdit(
@@ -173,8 +173,8 @@ async function stageDraftEdit(
   const snapshot = validated.data;
 
   // Immediate slug-collision feedback (parity with the live-write path): the
-  // staged slug lives in jsonb with no unique constraint, so a clash would
-  // otherwise stay hidden until publish. Only check a slug that actually
+  // staged slug lives in post_drafts with no unique constraint, so a clash
+  // would otherwise stay hidden until publish. Only check a slug that actually
   // differs from this post's live slug.
   if (snapshot.slug !== row.slug) {
     if (await findSlugClash(snapshot.slug, id)) {
@@ -229,15 +229,16 @@ export async function updatePostService(
       return { ok: false, error: "Unknown category." };
     }
 
-    // A post that is publicly visible RIGHT NOW stages edits into posts.draft
-    // instead of writing live, so the public keeps seeing the current content
-    // until the author promotes the pending changes (ADR-0011). Routing on
-    // actual visibility, not just status, matters at the edges: a scheduled
-    // post whose publish_at is still in the future isn't public yet, so its
-    // edits write live and are simply what goes out at publish time (staging
-    // them would strand the edits, since nothing promotes the buffer when the
-    // scheduled time arrives). A scheduled post already past its publish_at is
-    // live and does stage. Draft/archived posts aren't public — write through.
+    // A post that is publicly visible RIGHT NOW stages edits into its
+    // post_drafts row instead of writing live, so the public keeps seeing
+    // the current content until the author promotes the pending changes
+    // (ADR-0011). Routing on actual visibility, not just status, matters at
+    // the edges: a scheduled post whose publish_at is still in the future
+    // isn't public yet, so its edits write live and are simply what goes out
+    // at publish time (staging them would strand the edits, since nothing
+    // promotes the buffer when the scheduled time arrives). A scheduled post
+    // already past its publish_at is live and does stage. Draft/archived
+    // posts aren't public — write through.
     if (isPubliclyVisible(existing)) {
       return await stageDraftEdit(id, data);
     }

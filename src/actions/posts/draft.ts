@@ -1,6 +1,7 @@
 "use server";
 
-// Publish/discard a public post's staged edits (posts.draft, ADR-0011).
+// Publish/discard a public post's staged edits (its post_drafts row,
+// ADR-0011).
 // Server actions are the security boundary — see src/actions/posts/crud.ts.
 
 import { z } from "zod";

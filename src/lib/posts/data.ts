@@ -562,10 +562,17 @@ export async function promoteStagedDraft(
 }
 
 // Discards a post's staged edits (deletes its post_drafts row, if any)
-// without touching the live content, unconditionally (no CAS — discard
-// always wins).
+// without touching the live content, unconditionally (no CAS — a discard
+// never conflicts with a concurrent stage, only with a concurrent promote,
+// and it always wins that race). Still locks the post row first, matching
+// every other draft-buffer mutator (lockPostRow, then post_drafts): that
+// shared lock ordering is what actually serializes discard against
+// stage/promote, so the two can't interleave.
 export async function clearPostDraftUnconditional(id: string): Promise<void> {
-  await db.delete(postDrafts).where(eq(postDrafts.postId, id));
+  await db.transaction(async (tx) => {
+    await lockPostRow(tx, id);
+    await tx.delete(postDrafts).where(eq(postDrafts.postId, id));
+  });
 }
 
 // Lifecycle columns loaded together by the status/schedule actions below.

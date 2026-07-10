@@ -108,8 +108,8 @@ export const postUpdateSchema = basePostInputSchema.partial();
 // this is the whole resolved content that "Publish changes" promotes to the
 // live columns — so every field is present, the slug is resolved (not
 // title-derived), and the thumbnail is REQUIRED (a public post must keep a
-// real image, unlike a draft's "" placeholder). Stored as jsonb in
-// posts.draft; validated on write and re-validated before promotion.
+// real image, unlike a draft's "" placeholder). Stored in the post_drafts
+// row for the post; validated on write and re-validated before promotion.
 export const postDraftSchema = z.object({
   title: basePostInputSchema.shape.title,
   // Required here (basePostInputSchema.slug is optional for the derive-from-
