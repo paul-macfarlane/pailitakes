@@ -2,10 +2,10 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
-import { PostEditorSection } from "@/components/post-editor-section";
-import { PostPendingControls } from "@/components/post-pending-controls";
-import { PostScheduleControls } from "@/components/post-schedule-controls";
-import { PostStatusControls } from "@/components/post-status-controls";
+import { PostEditorSection } from "@/app/admin/posts/_components/post-editor-section";
+import { PostPendingControls } from "@/app/admin/posts/[id]/edit/_components/post-pending-controls";
+import { PostScheduleControls } from "@/app/admin/posts/[id]/edit/_components/post-schedule-controls";
+import { PostStatusControls } from "@/app/admin/posts/[id]/edit/_components/post-status-controls";
 import { getEditablePost, listCategoryOptions } from "@/lib/posts/admin";
 import { requirePostIdParam } from "@/lib/admin/route-params";
 import { requireStaff } from "@/lib/auth/session";

@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { Suspense } from "react";
 
-import { SignInButtons } from "@/components/sign-in-buttons";
+import { SignInButtons } from "@/app/(public)/sign-in/_components/sign-in-buttons";
 import {
   Card,
   CardContent,

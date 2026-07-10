@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useCallback, useRef, useState } from "react";
 
-import { PostEditor } from "@/components/post-editor";
+import { PostEditor } from "@/app/admin/posts/_components/post-editor";
 import { Button } from "@/components/ui/button";
 import type { EditablePost } from "@/lib/posts/admin";
 import { cn } from "@/lib/utils";

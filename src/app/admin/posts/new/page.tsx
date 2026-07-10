@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 
-import { PostEditorSection } from "@/components/post-editor-section";
+import { PostEditorSection } from "@/app/admin/posts/_components/post-editor-section";
 import { listCategoryOptions } from "@/lib/posts/admin";
 import { requireStaff } from "@/lib/auth/session";
 

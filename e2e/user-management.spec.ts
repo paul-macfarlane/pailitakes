@@ -33,15 +33,22 @@ test.describe("admin user management", () => {
     await expect(page.getByRole("heading", { name: "Users" })).toBeVisible();
 
     const row = page.locator("li", { hasText: `${subject.id}@e2e.test` });
-    const badge = row.locator("span"); // RoleBadge is the row's only <span>
-    const roleSelect = page.locator(`#role-${subject.id}`);
+    // The RoleBadge span carries no data-slot; the Select's SelectValue span
+    // (data-slot="select-value") shares the same row and, once the role
+    // changes, the same text — so exclude it rather than matching on text.
+    const badge = row.locator("span:not([data-slot])");
+    const roleCombobox = row.getByRole("combobox", { name: "Role" });
     await expect(badge).toHaveText("Reader");
 
-    // Retry covers a pre-hydration change event; the badge is server-rendered,
-    // so it only flips once the action + refresh actually ran (not from the
-    // client-side selectOption alone).
+    // Retry covers a pre-hydration click; the badge is server-rendered, so it
+    // only flips once the action + refresh actually ran (not from the
+    // client-side selection alone). Scope the option to the Select's popup
+    // (data-slot="select-content") — the filter form's native <option>s also
+    // expose role="option" with the same accessible names.
+    const roleOptions = page.locator('[data-slot="select-content"]');
     await expect(async () => {
-      await roleSelect.selectOption("author");
+      await roleCombobox.click();
+      await roleOptions.getByRole("option", { name: "Author" }).click();
       await expect(badge).toHaveText("Author");
     }).toPass({ timeout: 15000 });
   });
@@ -49,7 +56,7 @@ test.describe("admin user management", () => {
   test("bans and unbans a user", async ({ page }) => {
     await page.goto("/admin/users");
     const row = page.locator("li", { hasText: `${subject.id}@e2e.test` });
-    const badge = row.locator("span");
+    const badge = row.locator("span:not([data-slot])");
 
     await clickUntil(row.getByRole("button", { name: "Ban" }), () =>
       expect(badge).toContainText("Banned"),
@@ -96,7 +103,9 @@ test.describe("admin user management", () => {
     await expect(selfRow).toContainText("(you)");
     // Self-demotion/self-ban are blocked in the UI (and server-side) — this is
     // what prevents an admin from removing the last admin via their own row.
-    await expect(selfRow.locator("select")).toBeDisabled();
+    await expect(
+      selfRow.getByRole("combobox", { name: "Role" }),
+    ).toBeDisabled();
     await expect(selfRow.getByRole("button", { name: "Ban" })).toBeDisabled();
   });
 });

@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { z } from "zod";
 
-import { UserManagementControls } from "@/components/user-management-controls";
+import { UserManagementControls } from "@/app/admin/users/_components/user-management-controls";
 import { Button } from "@/components/ui/button";
 import { SEARCH_QUERY_MAX, searchQuerySchema } from "@/lib/admin/search";
 import {

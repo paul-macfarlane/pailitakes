@@ -1,5 +1,5 @@
 import { getHomeFeed } from "@/lib/posts/home-feed";
-import { LoadMorePosts } from "@/components/load-more-posts";
+import { LoadMorePosts } from "@/app/(public)/_components/load-more-posts";
 import { PostCard } from "@/components/post-card";
 
 // Whole page cached and tagged via getHomeFeed (`post-list`, 60s — design
