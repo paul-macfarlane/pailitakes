@@ -1,5 +1,13 @@
 import { eq, inArray } from "drizzle-orm";
-import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  afterAll,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from "vitest";
 
 import * as schema from "@/db/schema";
 
@@ -37,7 +45,9 @@ const readerId = `user-${runId}-reader`;
 const ALL = [adminAId, adminBId, authorId, readerId];
 
 function asAdmin() {
-  sessionMock.current = { user: { id: adminAId, role: "admin", bannedAt: null } };
+  sessionMock.current = {
+    user: { id: adminAId, role: "admin", bannedAt: null },
+  };
 }
 function asAuthor() {
   sessionMock.current = {
@@ -64,10 +74,30 @@ beforeEach(async () => {
   // Reset to a known state before each case (roles/bans get mutated).
   await testDb.delete(user).where(inArray(user.id, ALL));
   await testDb.insert(user).values([
-    { id: adminAId, name: `AdminA ${runId}`, email: `a-${runId}@e.com`, role: "admin" },
-    { id: adminBId, name: `AdminB ${runId}`, email: `b-${runId}@e.com`, role: "admin" },
-    { id: authorId, name: `Author ${runId}`, email: `au-${runId}@e.com`, role: "author" },
-    { id: readerId, name: `Reader ${runId}`, email: `r-${runId}@e.com`, role: "reader" },
+    {
+      id: adminAId,
+      name: `AdminA ${runId}`,
+      email: `a-${runId}@e.com`,
+      role: "admin",
+    },
+    {
+      id: adminBId,
+      name: `AdminB ${runId}`,
+      email: `b-${runId}@e.com`,
+      role: "admin",
+    },
+    {
+      id: authorId,
+      name: `Author ${runId}`,
+      email: `au-${runId}@e.com`,
+      role: "author",
+    },
+    {
+      id: readerId,
+      name: `Reader ${runId}`,
+      email: `r-${runId}@e.com`,
+      role: "reader",
+    },
   ]);
 });
 

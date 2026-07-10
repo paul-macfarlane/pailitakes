@@ -13,7 +13,9 @@ import {
 
 describe("POST_STATUSES", () => {
   it("matches the post_status pg enum exactly (no drift)", () => {
-    expect([...POST_STATUSES].sort()).toEqual([...postStatus.enumValues].sort());
+    expect([...POST_STATUSES].sort()).toEqual(
+      [...postStatus.enumValues].sort(),
+    );
   });
 });
 
@@ -76,7 +78,10 @@ describe("isPubliclyVisible", () => {
 
   it("hides drafts and archived posts regardless of timestamps", () => {
     expect(
-      isPubliclyVisible({ status: "draft", publishAt: past, archiveAt: null }, now),
+      isPubliclyVisible(
+        { status: "draft", publishAt: past, archiveAt: null },
+        now,
+      ),
     ).toBe(false);
     expect(
       isPubliclyVisible(

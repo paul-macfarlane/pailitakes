@@ -11,7 +11,9 @@ import { PUBLIC_STATUSES } from "@/lib/post-status";
 // post has none. Shared so the public post detail and the ADM-7 preview
 // aggregate tags identically (used with a leftJoin on postTags/tags + a
 // groupBy on the post). Exported for src/lib/admin-posts.ts's preview query.
-export const postTagsAgg = sql<{ slug: string; name: string }[]>`coalesce(json_agg(json_build_object('slug', ${tags.slug}, 'name', ${tags.name}) order by ${tags.name}) filter (where ${tags.id} is not null), '[]'::json)`;
+export const postTagsAgg = sql<
+  { slug: string; name: string }[]
+>`coalesce(json_agg(json_build_object('slug', ${tags.slug}, 'name', ${tags.name}) order by ${tags.name}) filter (where ${tags.id} is not null), '[]'::json)`;
 
 // A post is publicly visible iff (design §4):
 //   status IN ('published','scheduled') AND publish_at <= now
