@@ -3,7 +3,7 @@ import "server-only";
 import { and, eq, gt, inArray, lte, or, sql } from "drizzle-orm";
 
 import { db } from "@/db";
-import { posts, revalidationState } from "@/db/schema";
+import { postDrafts, posts, revalidationState } from "@/db/schema";
 import { PUBLIC_STATUSES } from "@/lib/posts/status";
 
 // Distinct slugs of posts whose publish_at or archive_at crossed since the
@@ -61,18 +61,31 @@ export async function normalizePostStatuses(now: Date): Promise<number> {
     .returning({ id: posts.id });
 
   // Then archive: a public post past its archive time is hidden. Clear any
-  // staged draft (ADR-0011) so a pending snapshot isn't stranded on a post that
-  // just left the public set with no UI to resolve it.
-  const archived = await db
-    .update(posts)
-    .set({ status: "archived", draft: null, draftUpdatedAt: null })
-    .where(
-      and(
-        inArray(posts.status, ["scheduled", "published"]),
-        lte(posts.archiveAt, now),
-      ),
-    )
-    .returning({ id: posts.id });
+  // staged draft (ADR-0011/0012) in the same transaction so a pending
+  // snapshot isn't stranded on a post that just left the public set with no
+  // UI to resolve it.
+  const archived = await db.transaction(async (tx) => {
+    const rows = await tx
+      .update(posts)
+      .set({ status: "archived" })
+      .where(
+        and(
+          inArray(posts.status, ["scheduled", "published"]),
+          lte(posts.archiveAt, now),
+        ),
+      )
+      .returning({ id: posts.id });
+
+    if (rows.length > 0) {
+      await tx.delete(postDrafts).where(
+        inArray(
+          postDrafts.postId,
+          rows.map((row) => row.id),
+        ),
+      );
+    }
+    return rows;
+  });
 
   return published.length + archived.length;
 }

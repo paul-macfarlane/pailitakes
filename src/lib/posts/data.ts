@@ -11,6 +11,7 @@ import {
   inArray,
   isNull,
   ne,
+  notExists,
   notInArray,
   sql,
   type SQL,
@@ -18,10 +19,10 @@ import {
 import type { PgColumn } from "drizzle-orm/pg-core";
 
 import { db, type Db } from "@/db";
-import { categories, posts, postTags, tags } from "@/db/schema";
+import { categories, postDrafts, posts, postTags, tags } from "@/db/schema";
 import type { StaffSession } from "@/lib/auth/guards";
 import { tagToSlug, type PostDraft, type PostInput } from "@/lib/posts/input";
-import type { PostStatus } from "@/lib/posts/status";
+import { usesDraftBuffer, type PostStatus } from "@/lib/posts/status";
 
 // node-postgres surfaces Postgres error codes (and the violated constraint
 // name) as `.code`/`.constraint` on the thrown error; drizzle's
@@ -137,7 +138,7 @@ export async function insertPost(
 }
 
 // The post's current tag NAMES — the seed for a draft snapshot's tags on the
-// first staged edit (before posts.draft exists to carry them).
+// first staged edit (before a post_drafts row exists to carry them).
 export async function loadPostTagNames(postId: string): Promise<string[]> {
   const rows = await db
     .select({ name: tags.name })
@@ -247,6 +248,55 @@ export async function deletePostRow(
   return deleted;
 }
 
+// Column selection for a LEFT JOINed post_drafts row, reused by every read
+// site that overlays the staged snapshot (loadOwnedDraft, loadStageDraftBase,
+// and the admin.ts read overlay) so the shape can't drift between them.
+// `draftPostId` is the presence sentinel: every other post_drafts column is
+// NOT NULL at the table level, so they're only possibly-null here because of
+// the LEFT JOIN (no row joined = no pending changes).
+export const draftJoinColumns = {
+  draftPostId: postDrafts.postId,
+  draftTitle: postDrafts.title,
+  draftSlug: postDrafts.slug,
+  draftBodyMd: postDrafts.bodyMd,
+  draftCategoryId: postDrafts.categoryId,
+  draftThumbnailUrl: postDrafts.thumbnailUrl,
+  draftBannerUrl: postDrafts.bannerUrl,
+  draftVideoUrl: postDrafts.videoUrl,
+  draftTags: postDrafts.tags,
+  draftUpdatedAt: postDrafts.updatedAt,
+} as const;
+
+type DraftJoinRow = {
+  draftPostId: string | null;
+  draftTitle: string | null;
+  draftSlug: string | null;
+  draftBodyMd: string | null;
+  draftCategoryId: number | null;
+  draftThumbnailUrl: string | null;
+  draftBannerUrl: string | null;
+  draftVideoUrl: string | null;
+  draftTags: string[] | null;
+  draftUpdatedAt: Date | null;
+};
+
+// Reassembles the PostDraft snapshot (postDraftSchema shape) from a row
+// selected with draftJoinColumns, or null when no post_drafts row was
+// joined (no pending changes).
+export function draftFromJoinRow(row: DraftJoinRow): PostDraft | null {
+  if (row.draftPostId === null) return null;
+  return {
+    title: row.draftTitle!,
+    slug: row.draftSlug!,
+    bodyMd: row.draftBodyMd!,
+    categoryId: row.draftCategoryId!,
+    thumbnailUrl: row.draftThumbnailUrl!,
+    bannerUrl: row.draftBannerUrl,
+    videoUrl: row.draftVideoUrl,
+    tags: row.draftTags ?? [],
+  };
+}
+
 // Loads the draft-buffer columns and runs the shared ownership check for the
 // publish/discard actions (the counterpart to loadOwnedLifecycle for the
 // status actions). One source of truth for the ownership predicate so it
@@ -269,10 +319,10 @@ export async function loadOwnedDraft(
     .select({
       authorId: posts.authorId,
       slug: posts.slug,
-      draft: posts.draft,
-      draftUpdatedAt: posts.draftUpdatedAt,
+      ...draftJoinColumns,
     })
     .from(posts)
+    .leftJoin(postDrafts, eq(postDrafts.postId, posts.id))
     .where(eq(posts.id, id))
     .limit(1);
 
@@ -284,7 +334,7 @@ export async function loadOwnedDraft(
     ok: true,
     post: {
       slug: existing.slug,
-      draft: existing.draft,
+      draft: draftFromJoinRow(existing),
       draftUpdatedAt: existing.draftUpdatedAt,
     },
   };
@@ -309,8 +359,6 @@ export async function loadStageDraftBase(
 ): Promise<StageDraftBaseRow | undefined> {
   const [row] = await db
     .select({
-      draft: posts.draft,
-      draftUpdatedAt: posts.draftUpdatedAt,
       title: posts.title,
       slug: posts.slug,
       bodyMd: posts.bodyMd,
@@ -318,15 +366,28 @@ export async function loadStageDraftBase(
       thumbnailUrl: posts.thumbnailUrl,
       bannerUrl: posts.bannerUrl,
       videoUrl: posts.videoUrl,
+      ...draftJoinColumns,
     })
     .from(posts)
+    .leftJoin(postDrafts, eq(postDrafts.postId, posts.id))
     .where(eq(posts.id, id))
     .limit(1);
-  return row;
+  if (!row) return undefined;
+  return {
+    title: row.title,
+    slug: row.slug,
+    bodyMd: row.bodyMd,
+    categoryId: row.categoryId,
+    thumbnailUrl: row.thumbnailUrl,
+    bannerUrl: row.bannerUrl,
+    videoUrl: row.videoUrl,
+    draft: draftFromJoinRow(row),
+    draftUpdatedAt: row.draftUpdatedAt,
+  };
 }
 
 // Immediate slug-collision check for a staged edit (parity with the
-// live-write path): the staged slug lives in jsonb with no unique
+// live-write path): the staged slug lives in post_drafts with no unique
 // constraint, so a clash would otherwise stay hidden until publish.
 export async function findSlugClash(
   slug: string,
@@ -346,53 +407,116 @@ export function unchanged(column: PgColumn, value: Date | null): SQL {
   return value === null ? isNull(column) : eq(column, value);
 }
 
-// Both the clear and set writes below CAS on draftUpdatedAt so a concurrent
-// stage/publish that changed the buffer between our read and this write
-// matches no row — a conflict, not a silent clobber — and on status so a
-// concurrent unpublish can't strand the snapshot on a now-draft post.
-function stageDraftGuard(id: string, draftUpdatedAt: Date | null): SQL {
-  return and(
-    eq(posts.id, id),
-    inArray(posts.status, ["published", "scheduled"]),
-    unchanged(posts.draftUpdatedAt, draftUpdatedAt),
-  )!;
+// Null-safe equality on the CAS token, compared in memory (post_drafts.
+// updated_at, once the row's been read inside the caller's transaction)
+// rather than as a SQL predicate — the caller already holds the row lock, so
+// there's no race between reading it and comparing.
+function sameTimestamp(a: Date | null, b: Date | null): boolean {
+  if (a === null || b === null) return a === b;
+  return a.getTime() === b.getTime();
+}
+
+// Locks the post row (SELECT ... FOR UPDATE) for the rest of the caller's
+// transaction, so every draft-buffer write for the same post (stage, clear,
+// promote) serializes against the others — the same guarantee the old single
+// `UPDATE posts SET draft = ...` CAS statement got for free from Postgres row
+// locking, now that the buffer lives in its own table (ADR-0012). Returns the
+// row's status (callers also need "is this post still publicly visible?"),
+// or undefined if the post no longer exists.
+async function lockPostRow(
+  tx: Tx,
+  id: string,
+): Promise<{ status: PostStatus } | undefined> {
+  const [row] = await tx
+    .select({ status: posts.status })
+    .from(posts)
+    .where(eq(posts.id, id))
+    .for("update");
+  return row;
+}
+
+// Reads the current post_drafts row's CAS token inside the caller's
+// transaction (which must already hold the post row lock from lockPostRow).
+async function readDraftUpdatedAt(tx: Tx, id: string): Promise<Date | null> {
+  const [row] = await tx
+    .select({ updatedAt: postDrafts.updatedAt })
+    .from(postDrafts)
+    .where(eq(postDrafts.postId, id))
+    .limit(1);
+  return row?.updatedAt ?? null;
 }
 
 // Reverting edits back to the live content leaves nothing to stage — clears
 // the buffer so the post isn't stuck showing "pending changes" with its
 // status/schedule controls locked. Returns whether the write landed.
+//
+// Both this and writeStagedDraft below CAS on draftUpdatedAt (a concurrent
+// stage/publish that changed the buffer between our read and this write
+// matches nothing — a conflict, not a silent clobber) and on status (so a
+// concurrent unpublish can't strand the snapshot on a now-draft post). Both
+// guards are enforced by locking the post row first (lockPostRow) and
+// re-reading post_drafts inside that lock, rather than as a single UPDATE ...
+// WHERE — see ADR-0012.
 export async function clearStagedDraft(
   id: string,
   draftUpdatedAt: Date | null,
 ): Promise<boolean> {
-  const cleared = await db
-    .update(posts)
-    .set({ draft: null, draftUpdatedAt: null })
-    .where(stageDraftGuard(id, draftUpdatedAt))
-    .returning({ id: posts.id });
-  return cleared.length > 0;
+  return db.transaction(async (tx) => {
+    const post = await lockPostRow(tx, id);
+    if (!post || !usesDraftBuffer(post.status)) return false;
+
+    const current = await readDraftUpdatedAt(tx, id);
+    if (!sameTimestamp(draftUpdatedAt, current)) return false;
+
+    if (current !== null) {
+      await tx.delete(postDrafts).where(eq(postDrafts.postId, id));
+    }
+    return true;
+  });
 }
 
 // Writes (or merges onto) the staged snapshot. Returns whether the write
-// landed.
+// landed. See clearStagedDraft above for the shared CAS/status-guard design.
 export async function writeStagedDraft(
   id: string,
   draftUpdatedAt: Date | null,
   snapshot: PostDraft,
 ): Promise<boolean> {
-  const updated = await db
-    .update(posts)
-    .set({ draft: snapshot, draftUpdatedAt: new Date() })
-    .where(stageDraftGuard(id, draftUpdatedAt))
-    .returning({ id: posts.id });
-  return updated.length > 0;
+  return db.transaction(async (tx) => {
+    const post = await lockPostRow(tx, id);
+    if (!post || !usesDraftBuffer(post.status)) return false;
+
+    const current = await readDraftUpdatedAt(tx, id);
+    if (!sameTimestamp(draftUpdatedAt, current)) return false;
+
+    const values = {
+      title: snapshot.title,
+      slug: snapshot.slug,
+      bodyMd: snapshot.bodyMd,
+      categoryId: snapshot.categoryId,
+      thumbnailUrl: snapshot.thumbnailUrl,
+      bannerUrl: snapshot.bannerUrl,
+      videoUrl: snapshot.videoUrl,
+      tags: snapshot.tags,
+      updatedAt: new Date(),
+    };
+    if (current === null) {
+      await tx.insert(postDrafts).values({ postId: id, ...values });
+    } else {
+      await tx.update(postDrafts).set(values).where(eq(postDrafts.postId, id));
+    }
+    return true;
+  });
 }
 
 // Promotes a staged snapshot to the live columns and clears the buffer, in
-// one transaction (ADR-0011). CAS on draftUpdatedAt: a concurrent autosave
-// that re-staged newer edits between the caller's read and here matches no
-// row, so the transaction rolls back and the caller reports a conflict
-// instead of promoting a stale snapshot and nulling the newer one.
+// one transaction (ADR-0011): locks the post row (serializing against any
+// concurrent stage/clear/promote — ADR-0012), CAS-checks the draft's
+// updated_at, writes the live columns, deletes the post_drafts row, then
+// replaces the tag set. A concurrent autosave that re-staged newer edits
+// between the caller's read and here changes updated_at, matching nothing
+// here, so the transaction rolls back and the caller reports a conflict
+// instead of promoting a stale snapshot and discarding the newer one.
 export async function promoteStagedDraft(
   id: string,
   draftUpdatedAt: Date | null,
@@ -400,6 +524,12 @@ export async function promoteStagedDraft(
 ): Promise<"promoted" | "conflict" | "slug-collision"> {
   try {
     const promoted = await db.transaction(async (tx) => {
+      const post = await lockPostRow(tx, id);
+      if (!post) return false;
+
+      const current = await readDraftUpdatedAt(tx, id);
+      if (!sameTimestamp(draftUpdatedAt, current)) return false;
+
       const rows = await tx
         .update(posts)
         .set({
@@ -410,18 +540,14 @@ export async function promoteStagedDraft(
           thumbnailUrl: draft.thumbnailUrl,
           bannerUrl: draft.bannerUrl,
           videoUrl: draft.videoUrl,
-          draft: null,
-          draftUpdatedAt: null,
         })
-        .where(
-          and(
-            eq(posts.id, id),
-            unchanged(posts.draftUpdatedAt, draftUpdatedAt),
-          ),
-        )
+        .where(eq(posts.id, id))
         .returning({ id: posts.id });
-
       if (rows.length === 0) return false;
+
+      if (current !== null) {
+        await tx.delete(postDrafts).where(eq(postDrafts.postId, id));
+      }
       await setPostTags(tx, id, draft.tags);
       return true;
     });
@@ -435,18 +561,17 @@ export async function promoteStagedDraft(
   }
 }
 
-// Discards a post's staged edits (clears posts.draft) without touching the
-// live content, unconditionally (no CAS — discard always wins).
+// Discards a post's staged edits (deletes its post_drafts row, if any)
+// without touching the live content, unconditionally (no CAS — discard
+// always wins).
 export async function clearPostDraftUnconditional(id: string): Promise<void> {
-  await db
-    .update(posts)
-    .set({ draft: null, draftUpdatedAt: null })
-    .where(eq(posts.id, id));
+  await db.delete(postDrafts).where(eq(postDrafts.postId, id));
 }
 
 // Lifecycle columns loaded together by the status/schedule actions below.
-// `hasDraft` (not the buffer itself — just whether one exists) lets the
-// lifecycle actions reject while a public post has unpublished staged edits.
+// `hasDraft` (not the buffer itself — just whether a post_drafts row exists)
+// lets the lifecycle actions reject while a public post has unpublished
+// staged edits.
 export type LifecycleRow = {
   authorId: string;
   slug: string;
@@ -472,7 +597,7 @@ export async function loadOwnedLifecycle(
       thumbnailUrl: posts.thumbnailUrl,
       publishAt: posts.publishAt,
       archiveAt: posts.archiveAt,
-      hasDraft: sql<boolean>`${posts.draft} is not null`,
+      hasDraft: sql<boolean>`exists (select 1 from ${postDrafts} where ${postDrafts.postId} = ${posts.id})`,
     })
     .from(posts)
     .where(eq(posts.id, id))
@@ -513,7 +638,12 @@ export async function casUpdate(
 // unresolvable snapshot (ADR-0011). If a buffer landed, the guarded write
 // below matches no row and the caller reports a conflict.
 function noPendingDraftGuard(): SQL {
-  return isNull(posts.draft);
+  return notExists(
+    db
+      .select({ one: sql`1` })
+      .from(postDrafts)
+      .where(eq(postDrafts.postId, posts.id)),
+  );
 }
 
 // transitionPostStatus's write, keyed on the columns it needs to change

@@ -44,7 +44,18 @@ const {
 } = await import("./posts/lifecycle");
 const { revalidateTag } = await import("next/cache");
 
-const { categories, posts, postTags, tags, user } = schema;
+const { categories, postDrafts, posts, postTags, tags, user } = schema;
+
+// The staged-draft buffer lives in its own 1:1 table (ADR-0012) — a shared
+// helper for the "draft storage internals" assertions below (undefined means
+// no pending changes).
+async function loadDraftRow(postId: string) {
+  const [row] = await testDb
+    .select()
+    .from(postDrafts)
+    .where(eq(postDrafts.postId, postId));
+  return row;
+}
 
 const SEED_PREFIX = "t-adm3-";
 const runId = `${SEED_PREFIX}${crypto.randomUUID().slice(0, 8)}`;
@@ -599,8 +610,9 @@ describe("staged draft edits (draft-of-published, ADR-0011)", () => {
     // Live content is unchanged...
     expect(row!.title).toBe(`${runId} stage-basic`);
     // ...the pending snapshot holds the edit...
-    expect(row!.draft?.title).toBe(`${runId} staged title`);
-    expect(row!.draftUpdatedAt).not.toBeNull();
+    const draftRow = await loadDraftRow(post.id);
+    expect(draftRow?.title).toBe(`${runId} staged title`);
+    expect(draftRow?.updatedAt).not.toBeNull();
     // ...and staging never revalidates public caches (live is unchanged).
     expect(revalidateTag).not.toHaveBeenCalled();
   });
@@ -617,13 +629,10 @@ describe("staged draft edits (draft-of-published, ADR-0011)", () => {
     await updatePost(post.id, { title: `${runId} merged one` });
     await updatePost(post.id, { bodyMd: "Staged body two." });
 
-    const [row] = await testDb
-      .select()
-      .from(posts)
-      .where(eq(posts.id, post.id));
-    expect(row!.draft?.title).toBe(`${runId} merged one`); // from the first edit
-    expect(row!.draft?.bodyMd).toBe("Staged body two."); // from the second
-    expect(row!.draft?.tags).toEqual([`${runId}-sm-tag`]); // seeded from live
+    const draftRow = await loadDraftRow(post.id);
+    expect(draftRow?.title).toBe(`${runId} merged one`); // from the first edit
+    expect(draftRow?.bodyMd).toBe("Staged body two."); // from the second
+    expect(draftRow?.tags).toEqual([`${runId}-sm-tag`]); // seeded from live
   });
 
   it("refuses to stage an edit that clears a public post's thumbnail", async () => {
@@ -635,11 +644,7 @@ describe("staged draft edits (draft-of-published, ADR-0011)", () => {
       ok: false,
       error: "A published or scheduled post must keep its thumbnail.",
     });
-    const [row] = await testDb
-      .select({ draft: posts.draft })
-      .from(posts)
-      .where(eq(posts.id, post.id));
-    expect(row!.draft).toBeNull();
+    expect(await loadDraftRow(post.id)).toBeUndefined();
   });
 
   it("clears the buffer when a staged edit reverts back to the live content", async () => {
@@ -647,22 +652,14 @@ describe("staged draft edits (draft-of-published, ADR-0011)", () => {
     authorSession();
 
     await updatePost(post.id, { title: `${runId} temp title` });
-    const [staged] = await testDb
-      .select({ draft: posts.draft })
-      .from(posts)
-      .where(eq(posts.id, post.id));
-    expect(staged!.draft).not.toBeNull();
+    expect(await loadDraftRow(post.id)).not.toBeUndefined();
 
     // Revert the title back to the live value — nothing left to stage.
     const revert = await updatePost(post.id, {
       title: `${runId} stage-revert`,
     });
     expect(revert.ok).toBe(true);
-    const [after] = await testDb
-      .select({ draft: posts.draft })
-      .from(posts)
-      .where(eq(posts.id, post.id));
-    expect(after!.draft).toBeNull();
+    expect(await loadDraftRow(post.id)).toBeUndefined();
   });
 
   it("surfaces a slug collision at stage time, not only at publish", async () => {
@@ -672,11 +669,7 @@ describe("staged draft edits (draft-of-published, ADR-0011)", () => {
 
     const result = await updatePost(post.id, { slug: other.slug });
     expect(result).toEqual({ ok: false, error: "That slug is taken." });
-    const [row] = await testDb
-      .select({ draft: posts.draft })
-      .from(posts)
-      .where(eq(posts.id, post.id));
-    expect(row!.draft).toBeNull();
+    expect(await loadDraftRow(post.id)).toBeUndefined();
   });
 
   it("writes edits to a scheduled (future) post live, not into the buffer", async () => {
@@ -706,7 +699,7 @@ describe("staged draft edits (draft-of-published, ADR-0011)", () => {
       .from(posts)
       .where(eq(posts.id, post!.id));
     expect(row!.title).toBe(`${runId} sched-future edited`);
-    expect(row!.draft).toBeNull();
+    expect(await loadDraftRow(post!.id)).toBeUndefined();
   });
 
   it("publishPostChanges promotes the buffer to live, clears it, and revalidates", async () => {
@@ -727,8 +720,7 @@ describe("staged draft edits (draft-of-published, ADR-0011)", () => {
       .where(eq(posts.id, post.id));
     expect(row!.title).toBe(`${runId} promoted title`);
     expect(row!.bodyMd).toBe("Promoted body.");
-    expect(row!.draft).toBeNull();
-    expect(row!.draftUpdatedAt).toBeNull();
+    expect(await loadDraftRow(post.id)).toBeUndefined();
     expect(revalidateTag).toHaveBeenCalledWith("post-list", expect.anything());
     expect(revalidateTag).toHaveBeenCalledWith(
       `post:${post.slug}`,
@@ -784,7 +776,7 @@ describe("staged draft edits (draft-of-published, ADR-0011)", () => {
       .from(posts)
       .where(eq(posts.id, post.id));
     expect(row!.title).toBe(`${runId} discard`); // live unchanged
-    expect(row!.draft).toBeNull();
+    expect(await loadDraftRow(post.id)).toBeUndefined();
     expect(revalidateTag).not.toHaveBeenCalled();
   });
 
@@ -836,11 +828,8 @@ describe("staged draft edits (draft-of-published, ADR-0011)", () => {
       error: "Not authorized.",
     });
     // The buffer survived the rejected calls.
-    const [row] = await testDb
-      .select({ draft: posts.draft })
-      .from(posts)
-      .where(eq(posts.id, post.id));
-    expect(row!.draft?.title).toBe(`${runId} owned stage`);
+    const draftRow = await loadDraftRow(post.id);
+    expect(draftRow?.title).toBe(`${runId} owned stage`);
   });
 });
 
