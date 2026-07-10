@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { Suspense } from "react";
 
-import { AdminNav } from "@/components/admin-nav";
-import { HeaderAuth } from "@/components/header-auth";
+import { AdminNav, AdminNavFallback } from "@/components/admin-nav";
+import { HeaderAuth, HeaderAuthFallback } from "@/components/header-auth";
 import { HeaderShell } from "@/components/header-shell";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -37,8 +37,10 @@ export default function AdminLayout({
           {/* Users link is admin-only and resolved server-side; the fallback
               renders the always-present Posts link so the shell still streams
               without blocking on the session read (getSession is cache()'d and
-              deduped with the gate below). */}
-          <Suspense fallback={<AdminNav isAdmin={false} />}>
+              deduped with the gate below). The fallback is request-data-free
+              (no usePathname) so it's valid in the prerendered shell of a
+              dynamic route like /admin/posts/[id]/edit (cacheComponents). */}
+          <Suspense fallback={<AdminNavFallback />}>
             <AdminNavSection />
           </Suspense>
         </div>
@@ -46,7 +48,11 @@ export default function AdminLayout({
             menu) so the two headers are consistent. */}
         <div className="flex shrink-0 items-center gap-1">
           <ThemeToggle />
-          <HeaderAuth />
+          {/* HeaderAuth reads usePathname; wrap so it's deferred out of the
+              prerendered shell on dynamic routes (cacheComponents). */}
+          <Suspense fallback={<HeaderAuthFallback />}>
+            <HeaderAuth />
+          </Suspense>
         </div>
       </HeaderShell>
       <main className="mx-auto w-full max-w-5xl px-4 py-8">
