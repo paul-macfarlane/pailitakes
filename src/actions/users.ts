@@ -12,9 +12,9 @@ import { z } from "zod";
 import type { ActionResult } from "@/actions/posts";
 import { db, type Db } from "@/db";
 import { user, userRole } from "@/db/schema";
-import { wouldOrphanAdmins } from "@/lib/admin-users";
-import { isAdmin } from "@/lib/authz";
-import { getSession } from "@/lib/session";
+import { wouldOrphanAdmins } from "@/lib/users/admin";
+import { isAdmin } from "@/lib/auth/permissions";
+import { getSession } from "@/lib/auth/session";
 
 const GENERIC_ERROR = "Something went wrong. Please try again.";
 

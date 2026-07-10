@@ -5,7 +5,7 @@ import { useState, useTransition } from "react";
 
 import { setUserBanned, setUserRole } from "@/actions/users";
 import { Button } from "@/components/ui/button";
-import { ROLE_VALUES, roleLabel, type Role } from "@/lib/roles";
+import { ROLE_VALUES, roleLabel, type Role } from "@/lib/auth/roles";
 
 // Per-row role select + ban toggle (ADM-10). Calls the admin-only server
 // actions (which re-check auth and the last-admin guard) and refreshes the

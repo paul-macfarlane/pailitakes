@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { isStaff } from "./authz";
+import { isStaff } from "./permissions";
 
 describe("isStaff", () => {
   it("allows an author", () => {

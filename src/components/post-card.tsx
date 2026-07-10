@@ -1,7 +1,7 @@
 import Link from "next/link";
 
 import { ExternalImage } from "@/components/external-image";
-import type { HomeFeedCard } from "@/lib/home-feed";
+import type { HomeFeedCard } from "@/lib/posts/home-feed";
 
 // UTC-pinned: this component renders on the server (first page) AND on the
 // client (load-more island); a viewer-local zone would show the same post

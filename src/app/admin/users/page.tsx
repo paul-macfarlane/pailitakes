@@ -4,14 +4,14 @@ import { z } from "zod";
 
 import { UserManagementControls } from "@/components/user-management-controls";
 import { Button } from "@/components/ui/button";
-import { SEARCH_QUERY_MAX, searchQuerySchema } from "@/lib/admin-search";
+import { SEARCH_QUERY_MAX, searchQuerySchema } from "@/lib/admin/search";
 import {
   ADMIN_USERS_PAGE_SIZE,
   listUsers,
   type AdminUserRow,
-} from "@/lib/admin-users";
-import { ROLE_VALUES, roleLabel } from "@/lib/roles";
-import { requireAdmin } from "@/lib/session";
+} from "@/lib/users/admin";
+import { ROLE_VALUES, roleLabel } from "@/lib/auth/roles";
+import { requireAdmin } from "@/lib/auth/session";
 
 export const metadata: Metadata = {
   title: "Users",

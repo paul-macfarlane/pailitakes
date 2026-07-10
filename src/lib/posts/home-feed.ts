@@ -2,8 +2,8 @@ import "server-only";
 
 import { cacheLife, cacheTag } from "next/cache";
 
-import { deriveExcerpt } from "@/lib/excerpt";
-import { EXCERPT_SOURCE_CHARS, listVisiblePosts } from "@/lib/posts";
+import { deriveExcerpt } from "@/lib/content/excerpt";
+import { EXCERPT_SOURCE_CHARS, listVisiblePosts } from "@/lib/posts/posts";
 
 export const HOME_PAGE_SIZE = 10;
 

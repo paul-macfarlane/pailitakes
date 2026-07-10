@@ -14,12 +14,12 @@ import {
   FieldLabel,
 } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import { authClient } from "@/lib/auth-client";
+import { authClient } from "@/lib/auth/client";
 import {
   isValidDisplayName,
   MAX_DISPLAY_NAME_LENGTH,
   normalizeDisplayName,
-} from "@/lib/display-name";
+} from "@/lib/users/display-name";
 
 const displayNameSchema = z.object({
   name: z.string().refine(isValidDisplayName, {

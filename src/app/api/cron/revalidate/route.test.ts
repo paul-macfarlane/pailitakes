@@ -5,7 +5,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const envMock = vi.hoisted(() => ({
   CRON_SECRET: undefined as string | undefined,
 }));
-vi.mock("@/lib/env", () => ({ env: envMock }));
+vi.mock("@/lib/shared/env", () => ({ env: envMock }));
 
 const crossedMock = vi.hoisted(() => ({
   fn: vi.fn<(now: Date) => Promise<string[]>>(),
@@ -16,7 +16,7 @@ const advanceMock = vi.hoisted(() => ({
 const normalizeMock = vi.hoisted(() => ({
   fn: vi.fn<(now: Date) => Promise<number>>(),
 }));
-vi.mock("@/lib/revalidation", () => ({
+vi.mock("@/lib/posts/revalidation", () => ({
   getCrossedSlugs: crossedMock.fn,
   advanceRevalidationMarker: advanceMock.fn,
   normalizePostStatuses: normalizeMock.fn,

@@ -3,7 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 
 // Fail fast on invalid configuration (validated once, server-only).
-import "@/lib/env";
+import "@/lib/shared/env";
 
 import { ThemeProvider } from "@/components/theme-provider";
 

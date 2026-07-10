@@ -1,6 +1,6 @@
 import Image from "next/image";
 
-import { isRenderableImageSrc } from "@/lib/image-src";
+import { isRenderableImageSrc } from "@/lib/content/image-src";
 
 // The one way external author-supplied images render (design §8): https-only
 // (see isRenderableImageSrc), `unoptimized` (no wildcard remotePatterns),

@@ -1,4 +1,4 @@
-import { getHomeFeed } from "@/lib/home-feed";
+import { getHomeFeed } from "@/lib/posts/home-feed";
 import { LoadMorePosts } from "@/components/load-more-posts";
 import { PostCard } from "@/components/post-card";
 

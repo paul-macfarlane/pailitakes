@@ -10,8 +10,8 @@ import * as schema from "@/db/schema";
 import {
   MAX_DISPLAY_NAME_LENGTH,
   normalizeDisplayName,
-} from "@/lib/display-name";
-import { env } from "@/lib/env";
+} from "@/lib/users/display-name";
+import { env } from "@/lib/shared/env";
 
 export const auth = betterAuth({
   baseURL: env.BETTER_AUTH_URL,

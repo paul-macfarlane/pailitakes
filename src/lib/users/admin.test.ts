@@ -14,7 +14,7 @@ const { pool, testDb } = await vi.hoisted(async () => {
 
 vi.mock("@/db", () => ({ db: testDb }));
 
-const { listUsers, wouldOrphanAdmins } = await import("./admin-users");
+const { listUsers, wouldOrphanAdmins } = await import("./admin");
 
 const { user } = schema;
 

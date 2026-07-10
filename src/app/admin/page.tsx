@@ -8,10 +8,10 @@ import {
   listAuthorOptions,
   listCategoryOptions,
   type AdminPostRow,
-} from "@/lib/admin-posts";
-import { SEARCH_QUERY_MAX, searchQuerySchema } from "@/lib/admin-search";
-import { POST_STATUSES, STATUS_LABELS } from "@/lib/post-status";
-import { requireStaff } from "@/lib/session";
+} from "@/lib/posts/admin";
+import { SEARCH_QUERY_MAX, searchQuerySchema } from "@/lib/admin/search";
+import { POST_STATUSES, STATUS_LABELS } from "@/lib/posts/status";
+import { requireStaff } from "@/lib/auth/session";
 
 // Filters/sort/page live in the URL (server-rendered, no TanStack Query — see
 // ADR-0010): shareable, bookmarkable, no loading state. `.catch` makes every

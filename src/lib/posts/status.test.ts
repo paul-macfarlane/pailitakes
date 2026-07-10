@@ -9,7 +9,7 @@ import {
   isPubliclyVisible,
   POST_STATUSES,
   type PostStatus,
-} from "@/lib/post-status";
+} from "@/lib/posts/status";
 
 describe("POST_STATUSES", () => {
   it("matches the post_status pg enum exactly (no drift)", () => {

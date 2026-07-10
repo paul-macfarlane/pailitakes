@@ -5,7 +5,7 @@ import type { SQL } from "drizzle-orm";
 
 import { db } from "@/db";
 import { categories, posts, postTags, tags, user } from "@/db/schema";
-import { PUBLIC_STATUSES } from "@/lib/post-status";
+import { PUBLIC_STATUSES } from "@/lib/posts/status";
 
 // Tag list for a single post as a JSON array, ordered by name, empty when the
 // post has none. Shared so the public post detail and the ADM-7 preview

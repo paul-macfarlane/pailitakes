@@ -4,7 +4,7 @@ import { useRef, useState } from "react";
 
 import { PostCard } from "@/components/post-card";
 import { Button } from "@/components/ui/button";
-import type { HomeFeedCard } from "@/lib/home-feed";
+import type { HomeFeedCard } from "@/lib/posts/home-feed";
 
 // Load-more island for the home feed (POST-7): appends pages from
 // /api/posts. The first page is server-rendered; this only owns what came

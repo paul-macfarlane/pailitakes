@@ -8,9 +8,9 @@
 import { z } from "zod";
 
 import type { ActionResult } from "@/actions/posts";
-import { isStaff } from "@/lib/authz";
-import { renderMarkdown } from "@/lib/markdown";
-import { getSession } from "@/lib/session";
+import { isStaff } from "@/lib/auth/permissions";
+import { renderMarkdown } from "@/lib/content/markdown";
+import { getSession } from "@/lib/auth/session";
 
 const GENERIC_ERROR = "Something went wrong. Please try again.";
 

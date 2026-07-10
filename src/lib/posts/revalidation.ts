@@ -4,7 +4,7 @@ import { and, eq, gt, inArray, lte, or, sql } from "drizzle-orm";
 
 import { db } from "@/db";
 import { posts, revalidationState } from "@/db/schema";
-import { PUBLIC_STATUSES } from "@/lib/post-status";
+import { PUBLIC_STATUSES } from "@/lib/posts/status";
 
 // Distinct slugs of posts whose publish_at or archive_at crossed since the
 // cron's last run — i.e. posts that just became visible or hidden (design §4).

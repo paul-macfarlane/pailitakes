@@ -5,7 +5,7 @@ import { useCallback, useRef, useState } from "react";
 
 import { PostEditor } from "@/components/post-editor";
 import { Button } from "@/components/ui/button";
-import type { EditablePost } from "@/lib/admin-posts";
+import type { EditablePost } from "@/lib/posts/admin";
 import { cn } from "@/lib/utils";
 
 // Heading toolbar + editor for the new/edit post pages. The "Save now" action

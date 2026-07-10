@@ -4,8 +4,8 @@ import { and, desc, eq, ilike, or, type SQL } from "drizzle-orm";
 
 import { db } from "@/db";
 import { user } from "@/db/schema";
-import type { Role } from "@/lib/roles";
-import { escapeLike } from "@/lib/sql-like";
+import type { Role } from "@/lib/auth/roles";
+import { escapeLike } from "@/lib/shared/sql-like";
 
 // Re-export under the domain name; the single source is src/lib/roles.ts
 // (drift-guarded against the pg enum).

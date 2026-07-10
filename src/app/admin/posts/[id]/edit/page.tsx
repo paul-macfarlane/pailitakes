@@ -6,9 +6,9 @@ import { PostEditorSection } from "@/components/post-editor-section";
 import { PostPendingControls } from "@/components/post-pending-controls";
 import { PostScheduleControls } from "@/components/post-schedule-controls";
 import { PostStatusControls } from "@/components/post-status-controls";
-import { getEditablePost, listCategoryOptions } from "@/lib/admin-posts";
-import { requirePostIdParam } from "@/lib/admin-route";
-import { requireStaff } from "@/lib/session";
+import { getEditablePost, listCategoryOptions } from "@/lib/posts/admin";
+import { requirePostIdParam } from "@/lib/admin/route-params";
+import { requireStaff } from "@/lib/auth/session";
 
 export const metadata: Metadata = {
   title: "Edit post",

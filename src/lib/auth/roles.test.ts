@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { userRole } from "@/db/schema";
-import { ROLE_VALUES, roleLabel } from "@/lib/roles";
+import { ROLE_VALUES, roleLabel } from "@/lib/auth/roles";
 
 describe("ROLE_VALUES", () => {
   it("matches the user_role pg enum exactly (no drift)", () => {
