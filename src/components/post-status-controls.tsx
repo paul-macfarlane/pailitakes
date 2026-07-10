@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 
-import { transitionPostStatus } from "@/actions/posts";
+import { transitionPostStatus } from "@/actions/posts/lifecycle";
 import { Button } from "@/components/ui/button";
 import {
   allowedTransitions,

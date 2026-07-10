@@ -2,7 +2,7 @@
 
 import { useState, useSyncExternalStore, useTransition } from "react";
 
-import { discardPostChanges, publishPostChanges } from "@/actions/posts";
+import { discardPostChanges, publishPostChanges } from "@/actions/posts/draft";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 

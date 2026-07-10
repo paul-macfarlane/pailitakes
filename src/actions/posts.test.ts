@@ -33,17 +33,15 @@ vi.mock("@/lib/auth/session", () => ({
 
 vi.mock("next/cache", () => ({ revalidateTag: vi.fn() }));
 
+const { createPost, updatePost, deletePost } = await import("./posts/crud");
+const { publishPostChanges, discardPostChanges } =
+  await import("./posts/draft");
 const {
-  createPost,
-  updatePost,
-  publishPostChanges,
-  discardPostChanges,
-  deletePost,
   transitionPostStatus,
   schedulePublish,
   scheduleArchive,
   cancelScheduledArchive,
-} = await import("./posts");
+} = await import("./posts/lifecycle");
 const { revalidateTag } = await import("next/cache");
 
 const { categories, posts, postTags, tags, user } = schema;
