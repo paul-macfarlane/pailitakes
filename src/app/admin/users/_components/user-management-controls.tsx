@@ -5,6 +5,14 @@ import { useState, useTransition } from "react";
 
 import { setUserBanned, setUserRole } from "@/actions/users";
 import { Button } from "@/components/ui/button";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { ROLE_VALUES, roleLabel, type Role } from "@/lib/auth/roles";
 
 // Per-row role select + ban toggle (ADM-10). Calls the admin-only server
@@ -45,24 +53,28 @@ export function UserManagementControls({
   return (
     <div className="flex flex-col items-end gap-1">
       <div className="flex items-center gap-2">
-        <label className="sr-only" htmlFor={`role-${userId}`}>
+        <Label className="sr-only" htmlFor={`role-${userId}`}>
           Role
-        </label>
-        <select
-          id={`role-${userId}`}
+        </Label>
+        <Select
           value={role}
           disabled={isSelf || isPending}
-          onChange={(event) =>
-            run(() => setUserRole(userId, event.target.value))
-          }
-          className="h-8 rounded-lg border border-input bg-transparent px-2 text-sm disabled:opacity-50"
+          items={ROLE_VALUES.map((r) => ({ value: r, label: roleLabel(r) }))}
+          onValueChange={(value) => {
+            if (value) run(() => setUserRole(userId, value));
+          }}
         >
-          {ROLE_VALUES.map((r) => (
-            <option key={r} value={r}>
-              {roleLabel(r)}
-            </option>
-          ))}
-        </select>
+          <SelectTrigger id={`role-${userId}`} size="sm">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {ROLE_VALUES.map((r) => (
+              <SelectItem key={r} value={r}>
+                {roleLabel(r)}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
         <Button
           type="button"
           size="sm"

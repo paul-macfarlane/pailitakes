@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { Suspense } from "react";
 
-import { DisplayNameForm } from "@/components/display-name-form";
+import { DisplayNameForm } from "@/app/(public)/account/_components/display-name-form";
 import {
   Card,
   CardContent,

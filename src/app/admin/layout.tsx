@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { Suspense } from "react";
 
-import { AdminNav, AdminNavFallback } from "@/components/admin-nav";
+import { AdminNav, AdminNavFallback } from "@/app/admin/_components/admin-nav";
 import { HeaderAuth, HeaderAuthFallback } from "@/components/header-auth";
 import { HeaderShell } from "@/components/header-shell";
 import { ThemeToggle } from "@/components/theme-toggle";
