@@ -21,6 +21,8 @@ export const Action = {
   // View /admin pages, see the dashboard link.
   AccessAdmin: "admin.access",
   ManageUsers: "user.manage",
+  // Admin-managed fixed list (FR-2.1) — authors get nothing.
+  ManageCategories: "category.manage",
 } as const;
 export type Action = (typeof Action)[keyof typeof Action];
 
@@ -42,6 +44,7 @@ const ROLE_ACTIONS: Record<Role, readonly Action[]> = {
     Action.PreviewPost,
     Action.AccessAdmin,
     Action.ManageUsers,
+    Action.ManageCategories,
   ],
 };
 

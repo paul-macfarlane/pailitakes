@@ -64,6 +64,13 @@
       "when": 1783795881725,
       "tag": "0008_swift_scourge",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1783799989363,
+      "tag": "0009_seed_initial_categories",
+      "breakpoints": true
     }
   ]
 }

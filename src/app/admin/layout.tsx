@@ -78,15 +78,21 @@ async function AdminGate({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
-// Resolves the admin-only Users link server-side. UX only — requireAdmin() on
-// /admin/users is the real boundary — so a missing/non-admin session just
-// hides the link.
+// Resolves the admin-only Users/Categories links server-side. UX only —
+// requireAdmin() on /admin/users and requireCapability(ManageCategories) on
+// /admin/categories are the real boundaries — so a missing/non-admin session
+// just hides the links.
 async function AdminNavSection() {
   const session = await getSession();
   return (
     <AdminNav
       isAdmin={
         session ? canPerformAction(session.user, Action.ManageUsers) : false
+      }
+      canManageCategories={
+        session
+          ? canPerformAction(session.user, Action.ManageCategories)
+          : false
       }
     />
   );

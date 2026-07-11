@@ -23,9 +23,11 @@ describe("canPerformAction", () => {
     ["reader", reader, Action.PreviewPost, false],
     ["reader", reader, Action.AccessAdmin, false],
     ["reader", reader, Action.ManageUsers, false],
+    ["reader", reader, Action.ManageCategories, false],
 
     // Author: create/edit/publish/preview/access-admin, but not the
-    // admin-only ownership bypass, delete, or user management.
+    // admin-only ownership bypass, delete, user management, or category
+    // management (FR-2.1: categories are admin-managed).
     ["author", author, Action.CreatePost, true],
     ["author", author, Action.EditPost, true],
     ["author", author, Action.ManageAnyPost, false],
@@ -34,6 +36,7 @@ describe("canPerformAction", () => {
     ["author", author, Action.PreviewPost, true],
     ["author", author, Action.AccessAdmin, true],
     ["author", author, Action.ManageUsers, false],
+    ["author", author, Action.ManageCategories, false],
 
     // Admin: everything.
     ["admin", admin, Action.CreatePost, true],
@@ -44,6 +47,7 @@ describe("canPerformAction", () => {
     ["admin", admin, Action.PreviewPost, true],
     ["admin", admin, Action.AccessAdmin, true],
     ["admin", admin, Action.ManageUsers, true],
+    ["admin", admin, Action.ManageCategories, true],
 
     // Banned staff lose access immediately, regardless of role or action.
     ["banned author", bannedAuthor, Action.CreatePost, false],
@@ -81,5 +85,9 @@ describe("rolesWithAction", () => {
 
   it("returns only admin for ManageAnyPost", () => {
     expect(rolesWithAction(Action.ManageAnyPost)).toEqual(["admin"]);
+  });
+
+  it("returns only admin for ManageCategories", () => {
+    expect(rolesWithAction(Action.ManageCategories)).toEqual(["admin"]);
   });
 });

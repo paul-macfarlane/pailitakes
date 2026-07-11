@@ -7,7 +7,8 @@ import { PostDeleteControls } from "@/app/admin/posts/[id]/edit/_components/post
 import { PostPendingControls } from "@/app/admin/posts/[id]/edit/_components/post-pending-controls";
 import { PostScheduleControls } from "@/app/admin/posts/[id]/edit/_components/post-schedule-controls";
 import { PostStatusControls } from "@/app/admin/posts/[id]/edit/_components/post-status-controls";
-import { getEditablePost, listCategoryOptions } from "@/lib/posts/admin";
+import { getEditablePost } from "@/lib/posts/admin";
+import { listActiveCategories } from "@/lib/categories/data";
 import { requirePostIdParam } from "@/lib/admin/route-params";
 import { Action, canPerformAction } from "@/lib/auth/permissions";
 import { requireStaff } from "@/lib/auth/session";
@@ -28,7 +29,7 @@ export default async function EditPostPage({
 
   const [post, categories] = await Promise.all([
     getEditablePost(postId, session.user),
-    listCategoryOptions(),
+    listActiveCategories(),
   ]);
   if (!post) notFound();
 

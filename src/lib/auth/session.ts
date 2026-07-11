@@ -35,15 +35,22 @@ export async function requireStaff(next = "/admin") {
   return session;
 }
 
-// Admin-only page gate (ADM-10). Layers on requireStaff: a signed-out user
-// still gets the sign-in redirect and a non-staff user still goes home, but a
-// staff-but-non-admin author gets a 404 (the page simply doesn't exist for
-// them). For SERVER ACTIONS use an inline canPerformAction check instead —
-// notFound() is a page/render concern.
-export async function requireAdmin(next = "/admin") {
+// Capability-gated page gate, generalizing requireAdmin (ADM-10, SRCH-1).
+// Layers on requireStaff: a signed-out user still gets the sign-in redirect
+// and a non-staff user still goes home, but a staff user lacking `action`
+// gets a 404 (the page simply doesn't exist for them). For SERVER ACTIONS use
+// an inline canPerformAction check instead — notFound() is a page/render
+// concern.
+export async function requireCapability(action: Action, next: string) {
   const session = await requireStaff(next);
-  if (!canPerformAction(session.user, Action.ManageUsers)) {
+  if (!canPerformAction(session.user, action)) {
     notFound();
   }
   return session;
+}
+
+// Admin-only page gate (ADM-10). Thin delegate to requireCapability so every
+// existing /admin/users call site keeps its exact signature/behavior.
+export async function requireAdmin(next = "/admin") {
+  return requireCapability(Action.ManageUsers, next);
 }
