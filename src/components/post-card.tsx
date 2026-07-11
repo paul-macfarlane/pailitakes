@@ -3,16 +3,16 @@ import Link from "next/link";
 import { ExternalImage } from "@/components/external-image";
 import type { HomeFeedCard } from "@/lib/posts/home-feed";
 
-// UTC-pinned: this component renders on the server (first page) AND on the
-// client (load-more island); a viewer-local zone would show the same post
-// with different dates within one feed.
+// UTC-pinned: server-rendered results must show the same date regardless of
+// viewer timezone.
 const dateFormat = new Intl.DateTimeFormat("en-US", {
   dateStyle: "medium",
   timeZone: "UTC",
 });
 
-// Presentational card (FR-9.x home feed): plain serializable props so the
-// server-rendered feed and the load-more client island render identically.
+// Presentational card (FR-9.x home feed): shared by home's three modes,
+// category/tag browse, and /tags/[slug] — all server-rendered, paginated by
+// URL (`?page=`, FeedPagination) rather than client-appended.
 export function PostCard({ post }: { post: HomeFeedCard }) {
   return (
     <article className="flex gap-4">

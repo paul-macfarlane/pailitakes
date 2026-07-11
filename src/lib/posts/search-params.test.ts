@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import { searchParamsSchema, SEARCH_QUERY_MAX } from "./search-params";
+import {
+  pageParamsSchema,
+  searchParamsSchema,
+  SEARCH_QUERY_MAX,
+} from "./search-params";
 
 describe("searchParamsSchema", () => {
   describe("q", () => {
@@ -65,4 +69,21 @@ describe("searchParamsSchema", () => {
       },
     );
   });
+});
+
+// /tags/[slug]'s page-only schema shares searchParamsSchema's `page` field
+// definition (search-params.ts) — this pins that the shared behavior still
+// holds through the separate export, not a re-proof of every case above.
+describe("pageParamsSchema", () => {
+  it.each([
+    ["junk text falls back to 1", "abc", 1],
+    ["a value over the ceiling falls back to 1", "999999999", 1],
+    ["a positive integer string passes through", "3", 3],
+  ] satisfies [name: string, input: string | undefined, expected: number][])(
+    "%s",
+    (_name, input, expected) => {
+      const parsed = pageParamsSchema.parse({ page: input });
+      expect(parsed.page).toBe(expected);
+    },
+  );
 });
