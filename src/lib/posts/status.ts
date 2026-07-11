@@ -1,7 +1,8 @@
 // Pure post-status state machine (no "server-only"): the transition action in
-// src/actions/posts.ts enforces it server-side, and admin UI reuses it to
-// decide which buttons to show. FR-1.5 (the four statuses), FR-1.6 (archive is
-// recoverable), design §4 (visibility is a query over status + timestamps).
+// src/actions/posts/lifecycle.ts enforces it server-side, and admin UI reuses
+// it to decide which buttons to show. FR-1.5 (the four statuses), FR-1.6
+// (archive is recoverable), design §4 (visibility is a query over status +
+// timestamps).
 
 export const PostStatus = {
   Draft: "draft",
