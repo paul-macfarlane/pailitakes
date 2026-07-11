@@ -290,4 +290,46 @@ test.describe("authoring lifecycle", () => {
     expect(response?.status()).toBe(200);
     await expect(page.getByText(marker)).toBeVisible();
   });
+
+  test("publishing waits out an in-flight autosave, then persists later keystrokes (F1)", async ({
+    page,
+  }) => {
+    const title = `E2E FlushRace ${crypto.randomUUID().slice(0, 8)}`;
+    const { id, slug } = await createDraft(page, title);
+
+    // Real network timing can't reliably land Publish while an autosave
+    // tick's request is still in flight — a naive wait-then-click test would
+    // be flaky (or pass for the wrong reason if the tick already resolved).
+    // Delay the FIRST server-action POST on this edit page instead, so the
+    // autosave tick triggered below is deterministically still in flight
+    // when Publish is clicked — exercising F1's mid-flight explicit-save
+    // path rather than racing it.
+    let delayedOnce = false;
+    await page.route(`**/admin/posts/${id}/edit*`, async (route) => {
+      if (route.request().method() === "POST" && !delayedOnce) {
+        delayedOnce = true;
+        await new Promise((resolve) => setTimeout(resolve, 1500));
+      }
+      await route.continue();
+    });
+
+    const marker = `flush-race-marker-${crypto.randomUUID().slice(0, 8)}`;
+    await page.locator("#bodyMd").fill("First take, tick capture.");
+    // Past one autosave interval (5s) so the tick starts saving — its POST
+    // hits the delayed route above and stays in flight for 1.5s.
+    await page.waitForTimeout(5500);
+
+    // Type more content, then publish immediately, while the tick's save is
+    // still in flight. Before F1, the explicit publish flush piggybacked on
+    // that in-flight save and resolved without ever sending this text.
+    await page.locator("#bodyMd").fill(`First take, tick capture. ${marker}`);
+    await page.getByRole("button", { name: "Publish now" }).click();
+    await expect(page.getByText("Published", { exact: true })).toBeVisible({
+      timeout: 15000,
+    });
+
+    const response = await page.goto(`/posts/${slug}`);
+    expect(response?.status()).toBe(200);
+    await expect(page.getByText(marker)).toBeVisible();
+  });
 });

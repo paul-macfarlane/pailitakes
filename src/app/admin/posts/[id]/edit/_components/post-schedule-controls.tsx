@@ -100,7 +100,7 @@ export function PostScheduleControls({
         // Save the editor's in-progress edits first — the scheduling actions
         // only read the post row, so a schedule/cancel click that beats the
         // next autosave tick would otherwise act on stale content.
-        const flushed = (await flush?.()) ?? true;
+        const flushed = (await flush?.flush()) ?? true;
         if (!flushed) {
           setError(
             "Couldn't save your latest edits — fix any errors above and try again.",

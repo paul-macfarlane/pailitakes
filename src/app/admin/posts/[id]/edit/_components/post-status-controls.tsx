@@ -45,7 +45,7 @@ export function PostStatusControls({
         // Save the editor's in-progress edits first — transitionPostStatus
         // only reads the post row, so a "Publish now" click that beats the
         // next autosave tick would otherwise publish stale content.
-        const flushed = (await flush?.()) ?? true;
+        const flushed = (await flush?.flush()) ?? true;
         if (!flushed) {
           setError(
             "Couldn't save your latest edits — fix any errors above and try again.",

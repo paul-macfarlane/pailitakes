@@ -47,7 +47,7 @@ export function PostPendingControls({
     setError(null);
     startTransition(async () => {
       try {
-        const flushed = (await flush?.()) ?? true;
+        const flushed = (await flush?.flush()) ?? true;
         // Discard is throwing the staged edits away regardless of whether
         // they saved cleanly, so a flush failure (e.g. a validation error
         // left in the form) must not block it. Publish needs the latest
@@ -63,6 +63,12 @@ export function PostPendingControls({
           setError(result.error ?? "Something went wrong. Please try again.");
           return;
         }
+        // Both paths only reach here after an explicit publish/discard, and
+        // both reload immediately below — suppress the editor's beforeunload
+        // prompt so a still-dirty form (e.g. discard proceeding past a
+        // failed flush) doesn't trip a native "leave site?" prompt right
+        // after the user's own action.
+        flush?.allowUnloadOnce();
         window.location.reload();
       } catch {
         setError("Something went wrong. Please try again.");

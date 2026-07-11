@@ -121,6 +121,7 @@ export function PostEditor({
   categories,
   initialPost,
   registerSave,
+  registerAllowUnloadOnce,
   onStatus,
 }: {
   categories: { id: number; name: string }[];
@@ -129,6 +130,10 @@ export function PostEditor({
   // not in this form — so hand the current save fn up and bubble status changes.
   // All autosave logic (interval, diffing, CAS) stays here, untouched.
   registerSave: (save: () => Promise<boolean>) => void;
+  // Lets a sibling island (via PostEditorSection's flush context) suppress
+  // this editor's beforeunload prompt exactly once, for a reload it's about
+  // to trigger itself (see unloadSuppressedRef below).
+  registerAllowUnloadOnce: (allowUnloadOnce: () => void) => void;
   onStatus: (status: string, isError: boolean) => void;
 }) {
   const defaultValues: EditorFormValues = initialPost
@@ -186,6 +191,12 @@ export function PostEditor({
   // lifecycle island's flush() racing the autosave interval) piggybacks on
   // the same save instead of racing a second overlapping request.
   const savingPromiseRef = useRef<Promise<boolean> | null>(null);
+  // Set only while an EXPLICIT save has been scheduled to run immediately
+  // after whatever's currently in flight (see save() below). A second
+  // concurrent explicit call joins this instead of scheduling its own
+  // follow-up, so any number of overlapping explicit calls still trigger at
+  // most one fresh re-save.
+  const pendingExplicitRef = useRef<Promise<boolean> | null>(null);
   // Tracks whether the "unpublished changes" banner (a sibling server island)
   // is already showing, so the first staged save can reveal it via one
   // router.refresh — and no later save repeats it.
@@ -194,6 +205,15 @@ export function PostEditor({
   // against a server-resolved slug (post-creation derivation, collision
   // retry) silently overwriting a deliberate manual choice.
   const slugManualRef = useRef(false);
+  // One-shot suppression of the beforeunload prompt below (set via
+  // registerAllowUnloadOnce), for a reload a sibling lifecycle island is
+  // about to trigger itself after an explicit publish/discard — without it,
+  // that reload would immediately trip the guard (e.g. a failed flush left
+  // the form dirty) with a native "leave site?" prompt right after the
+  // user's own action. Never re-armed: the page is about to reload from the
+  // server regardless, so there's no later point where suppression would be
+  // wrong.
+  const unloadSuppressedRef = useRef(false);
 
   const [status, setStatus] = useState(
     initialPost ? "" : "Draft not saved yet",
@@ -317,14 +337,52 @@ export function PostEditor({
 
   // Public save entry point: the interval tick, "Save now", form submit, and
   // (via PostEditorSection's flush context) the lifecycle islands all go
-  // through here. A concurrent call while one is already in flight piggybacks
-  // on that save's promise rather than racing a second overlapping request.
+  // through here.
+  //
+  // Invariant: an EXPLICIT call's resolution guarantees the form state AS OF
+  // THAT CALL has been persisted (or it resolves false — blocked by
+  // validation, a server error, or a conflict). A non-explicit (interval)
+  // call has no such guarantee — it may simply piggyback on whatever save is
+  // already in flight, which snapshotted the form at some earlier point.
+  //
+  // Piggybacking an explicit call on an in-flight save isn't enough to keep
+  // that invariant: the in-flight save may have snapshotted the form BEFORE
+  // this call's keystrokes landed (e.g. an autosave tick captures state,
+  // the user types more, then hits Publish before the tick resolves — the
+  // tick's save would report success without ever sending the new text). So
+  // an explicit call that lands mid-flight instead waits for the in-flight
+  // save to settle, then runs a FRESH performSave, whose diff re-reads
+  // form.getValues() at that point — picking up anything typed during the
+  // flight (or resolving true immediately via the empty-diff short-circuit
+  // if nothing did). That fresh call necessarily starts only after the
+  // in-flight save's `finally` has cleared savingRef, so it never runs
+  // concurrently with it — no deadlock, just sequencing. pendingExplicitRef
+  // ensures a second concurrent explicit call joins that same follow-up
+  // rather than scheduling a second one (see its declaration above).
   const save = useCallback(
     (opts?: { explicit?: boolean }): Promise<boolean> => {
-      if (savingRef.current && savingPromiseRef.current) {
-        return savingPromiseRef.current;
+      const explicit = opts?.explicit ?? false;
+
+      if (pendingExplicitRef.current) {
+        return pendingExplicitRef.current;
       }
-      const promise = performSave(opts?.explicit ?? false);
+
+      if (savingRef.current && savingPromiseRef.current) {
+        if (!explicit) {
+          return savingPromiseRef.current;
+        }
+        const chained = savingPromiseRef.current.then(() => performSave(true));
+        pendingExplicitRef.current = chained;
+        savingPromiseRef.current = chained;
+        void chained.finally(() => {
+          if (pendingExplicitRef.current === chained) {
+            pendingExplicitRef.current = null;
+          }
+        });
+        return chained;
+      }
+
+      const promise = performSave(explicit);
       savingPromiseRef.current = promise;
       return promise;
     },
@@ -345,6 +403,11 @@ export function PostEditor({
     registerSave(() => save({ explicit: true }));
   }, [registerSave, save]);
   useEffect(() => {
+    registerAllowUnloadOnce(() => {
+      unloadSuppressedRef.current = true;
+    });
+  }, [registerAllowUnloadOnce]);
+  useEffect(() => {
     onStatus(status, statusIsError);
   }, [onStatus, status, statusIsError]);
 
@@ -356,6 +419,7 @@ export function PostEditor({
   // lifetime.
   useEffect(() => {
     function handleBeforeUnload(event: BeforeUnloadEvent) {
+      if (unloadSuppressedRef.current) return;
       const values = form.getValues();
       const dirty =
         postIdRef.current === null
