@@ -2,6 +2,8 @@ import Link from "next/link";
 import { z } from "zod";
 
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
   ADMIN_POST_SORTS,
   ADMIN_POSTS_PAGE_SIZE,
@@ -134,18 +136,22 @@ export default async function AdminPage({
         method="get"
         className="mb-6 flex flex-wrap items-end gap-3 rounded-lg border p-4"
       >
-        <label className="flex flex-col gap-1 text-sm">
+        <Label className="flex flex-col gap-1 text-sm font-normal">
           <span className="text-muted-foreground">Search</span>
-          <input
+          <Input
             type="search"
             name="q"
             defaultValue={filters.q ?? ""}
             placeholder="Title…"
             maxLength={SEARCH_QUERY_MAX}
-            className="h-8 rounded-lg border border-input bg-transparent px-2 text-sm"
+            className="w-auto"
           />
-        </label>
+        </Label>
 
+        {/* Native <select>s below: this is a server-rendered, zero-JS GET
+            filter form (soft nav rewrites the URL search params) — a shadcn
+            Select is a client-side control that would require converting the
+            whole form to a client island for no functional gain. */}
         <label className="flex flex-col gap-1 text-sm">
           <span className="text-muted-foreground">Status</span>
           <select

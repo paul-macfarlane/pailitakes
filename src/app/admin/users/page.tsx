@@ -4,6 +4,8 @@ import { z } from "zod";
 
 import { UserManagementControls } from "@/app/admin/users/_components/user-management-controls";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { SEARCH_QUERY_MAX, searchQuerySchema } from "@/lib/admin/search";
 import {
   ADMIN_USERS_PAGE_SIZE,
@@ -81,18 +83,22 @@ export default async function AdminUsersPage({
         method="get"
         className="mb-6 flex flex-wrap items-end gap-3 rounded-lg border p-4"
       >
-        <label className="flex flex-col gap-1 text-sm">
+        <Label className="flex flex-col gap-1 text-sm font-normal">
           <span className="text-muted-foreground">Search</span>
-          <input
+          <Input
             type="search"
             name="q"
             defaultValue={filters.q ?? ""}
             placeholder="Name or email…"
             maxLength={SEARCH_QUERY_MAX}
-            className="h-8 rounded-lg border border-input bg-transparent px-2 text-sm"
+            className="w-auto"
           />
-        </label>
+        </Label>
 
+        {/* Native <select>: this is a server-rendered, zero-JS GET filter
+            form (soft nav rewrites the URL search params) — a shadcn Select
+            is a client-side control that would require converting the whole
+            form to a client island for no functional gain. */}
         <label className="flex flex-col gap-1 text-sm">
           <span className="text-muted-foreground">Role</span>
           <select

@@ -15,7 +15,9 @@ import {
 } from "@/lib/shared/action-result";
 import { setUserBannedService, setUserRoleService } from "@/lib/users/service";
 
-const userIdSchema = z.string().min(1);
+// Better Auth ids are short opaque strings, not necessarily uuids — bound
+// the length without forcing a specific format.
+const userIdSchema = z.string().min(1).max(255);
 const roleSchema = z.enum(ROLE_VALUES);
 
 export async function setUserRole(

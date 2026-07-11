@@ -123,6 +123,12 @@ export const postDraftSchema = z.object({
   tags: basePostInputSchema.shape.tags,
 });
 
+// The public post page's [slug] route param: same rule as a post's own slug
+// (lowercase, hyphen-separated, capped at 80 — everything slugifyTitle/an
+// explicit author-supplied slug can produce), reused rather than
+// re-specified so the two schemas can't drift.
+export const slugParamSchema = basePostInputSchema.shape.slug.unwrap();
+
 export type PostInput = z.infer<typeof postInputSchema>;
 export type PostUpdate = z.infer<typeof postUpdateSchema>;
 export type PostDraft = z.infer<typeof postDraftSchema>;

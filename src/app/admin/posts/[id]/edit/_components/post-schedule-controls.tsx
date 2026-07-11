@@ -10,20 +10,13 @@ import {
 } from "@/actions/posts/lifecycle";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
   canScheduleArchive,
   canSchedulePublish,
   PostStatus,
 } from "@/lib/posts/status";
-
-// Formats a Date as the local "YYYY-MM-DDTHH:mm" a datetime-local input wants.
-function toDateTimeLocalValue(date: Date): string {
-  const pad = (n: number) => String(n).padStart(2, "0");
-  return (
-    `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}` +
-    `T${pad(date.getHours())}:${pad(date.getMinutes())}`
-  );
-}
+import { toDateTimeLocalValue } from "@/lib/shared/datetime";
 
 const subscribeNoop = () => () => {};
 
@@ -134,9 +127,9 @@ export function PostScheduleControls({
     <div className="flex flex-col gap-4 rounded-lg border p-4">
       {showPublish ? (
         <div className="flex flex-col gap-2">
-          <label htmlFor="schedule-publish" className="text-sm font-medium">
+          <Label htmlFor="schedule-publish" className="text-sm font-medium">
             Schedule publish
-          </label>
+          </Label>
           {mounted && status === PostStatus.Scheduled && publishAt ? (
             <p className="text-sm text-muted-foreground">
               Scheduled to publish {publishAt.toLocaleString()}.
@@ -167,9 +160,9 @@ export function PostScheduleControls({
 
       {showArchive ? (
         <div className="flex flex-col gap-2">
-          <label htmlFor="schedule-archive" className="text-sm font-medium">
+          <Label htmlFor="schedule-archive" className="text-sm font-medium">
             Schedule archive
-          </label>
+          </Label>
           {mounted && archiveAt ? (
             <p className="text-sm text-muted-foreground">
               Scheduled to archive {archiveAt.toLocaleString()}.

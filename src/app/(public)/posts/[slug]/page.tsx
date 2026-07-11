@@ -6,6 +6,7 @@ import { cacheLife, cacheTag } from "next/cache";
 import { PostArticle } from "@/components/post-article";
 import { deriveExcerpt } from "@/lib/content/excerpt";
 import { renderMarkdown } from "@/lib/content/markdown";
+import { slugParamSchema } from "@/lib/posts/input";
 import { getVisiblePostBySlug } from "@/lib/posts/posts";
 
 // Cached per slug (design §3): tag `post:{slug}` for on-demand invalidation
@@ -38,7 +39,10 @@ export async function generateMetadata({
   params: Promise<{ slug: string }>;
 }): Promise<Metadata> {
   const { slug } = await params;
-  const post = await getRenderedPost(slug);
+  const slugResult = slugParamSchema.safeParse(slug);
+  if (!slugResult.success) return {};
+
+  const post = await getRenderedPost(slugResult.data);
   if (!post) return {};
   return {
     title: post.title,
@@ -57,10 +61,13 @@ export default async function PostPage({
 }) {
   "use cache";
   const { slug } = await params;
-  cacheTag(`post:${slug}`);
+  const slugResult = slugParamSchema.safeParse(slug);
+  if (!slugResult.success) notFound();
+
+  cacheTag(`post:${slugResult.data}`);
   cacheLife({ stale: 60, revalidate: 60 });
 
-  const post = await getRenderedPost(slug);
+  const post = await getRenderedPost(slugResult.data);
   if (!post) notFound();
 
   return (
