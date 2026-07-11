@@ -24,3 +24,4 @@ Create one with `/adr <title>` whenever a choice is non-obvious, hard to reverse
 | [0014](0014-capability-map-authorization-const-object-value-sets.md) | Capability-map authorization, const-object value sets | Accepted |
 | [0015](0015-explicit-create-and-flush-before-lifecycle-actions.md)   | Explicit post creation + flush-before-lifecycle       | Accepted |
 | [0016](0016-content-updated-at-display-column.md)                    | `content_updated_at` drives the public "Updated" date | Accepted |
+| [0017](0017-category-management-semantics.md)                        | Category slugs stable; deactivate-not-delete; seed    | Accepted |
