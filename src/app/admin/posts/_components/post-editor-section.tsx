@@ -8,14 +8,11 @@ import { Button } from "@/components/ui/button";
 import type { EditablePost } from "@/lib/posts/admin";
 import { cn } from "@/lib/utils";
 
-// Heading toolbar + editor for the new/edit post pages. The "Save now" action
-// and the autosave status live up here in the heading row — visible on load,
-// next to the Preview link — rather than buried at the bottom of the form past
-// the long body field. The editor (a sibling below) owns all autosave logic and
-// hands its save fn + status up through registerSave/onStatus.
-//
-// `children` (the lifecycle controls: pending / status / schedule) render
-// between the heading and the editor, so the heading stays at the very top.
+// "Save now" and the autosave status live in the heading row — visible on
+// load, next to the Preview link — rather than buried at the bottom of the
+// form past the long body field. `children` (pending / status / schedule
+// controls) render between the heading and the editor, so the heading stays
+// at the very top.
 export function PostEditorSection({
   heading,
   previewHref,

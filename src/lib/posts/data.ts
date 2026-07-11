@@ -51,7 +51,6 @@ function uniqueViolationConstraint(err: unknown): string | null {
     : null;
 }
 
-// True iff a thrown error is a unique violation on the posts.slug column.
 // Exact constraint match — tags_slug_unique / categories_slug_unique must
 // not be misread as a post-slug collision. A 23505 with no constraint name
 // (helper returns "") is attributed to the post slug too: it's the only
@@ -425,13 +424,13 @@ function sameTimestamp(a: Date | null, b: Date | null): boolean {
   return a.getTime() === b.getTime();
 }
 
-// Locks the post row (SELECT ... FOR UPDATE) for the rest of the caller's
-// transaction, so every draft-buffer write for the same post (stage, clear,
-// promote) serializes against the others — the same guarantee the old single
-// `UPDATE posts SET draft = ...` CAS statement got for free from Postgres row
-// locking, now that the buffer lives in its own table (ADR-0012). Returns the
-// row's status (callers also need "is this post still publicly visible?"),
-// or undefined if the post no longer exists.
+// Held for the rest of the caller's transaction, so every draft-buffer write
+// for the same post (stage, clear, promote) serializes against the others —
+// the same guarantee the old single `UPDATE posts SET draft = ...` CAS
+// statement got for free from Postgres row locking, now that the buffer
+// lives in its own table (ADR-0012). Returns the row's status (callers also
+// need "is this post still publicly visible?"), or undefined if the post no
+// longer exists.
 async function lockPostRow(
   tx: Tx,
   id: string,
@@ -519,13 +518,12 @@ export async function writeStagedDraft(
 }
 
 // Promotes a staged snapshot to the live columns and clears the buffer, in
-// one transaction (ADR-0011): locks the post row (serializing against any
-// concurrent stage/clear/promote — ADR-0012), CAS-checks the draft's
-// updated_at, writes the live columns, deletes the post_drafts row, then
-// replaces the tag set. A concurrent autosave that re-staged newer edits
-// between the caller's read and here changes updated_at, matching nothing
-// here, so the transaction rolls back and the caller reports a conflict
-// instead of promoting a stale snapshot and discarding the newer one.
+// one transaction (ADR-0011), serializing against any concurrent
+// stage/clear/promote via the post row lock (ADR-0012). A concurrent
+// autosave that re-staged newer edits between the caller's read and here
+// changes updated_at, matching nothing here, so the transaction rolls back
+// and the caller reports a conflict instead of promoting a stale snapshot
+// and discarding the newer one.
 export async function promoteStagedDraft(
   id: string,
   draftUpdatedAt: Date | null,
@@ -570,13 +568,11 @@ export async function promoteStagedDraft(
   }
 }
 
-// Discards a post's staged edits (deletes its post_drafts row, if any)
-// without touching the live content, unconditionally (no CAS — a discard
-// never conflicts with a concurrent stage, only with a concurrent promote,
-// and it always wins that race). Still locks the post row first, matching
-// every other draft-buffer mutator (lockPostRow, then post_drafts): that
-// shared lock ordering is what actually serializes discard against
-// stage/promote, so the two can't interleave.
+// Unconditional (no CAS): a discard never conflicts with a concurrent stage,
+// only with a concurrent promote, and it always wins that race. Still locks
+// the post row first, matching every other draft-buffer mutator (lockPostRow,
+// then post_drafts): that shared lock ordering is what actually serializes
+// discard against stage/promote, so the two can't interleave.
 export async function clearPostDraftUnconditional(id: string): Promise<void> {
   await db.transaction(async (tx) => {
     await lockPostRow(tx, id);

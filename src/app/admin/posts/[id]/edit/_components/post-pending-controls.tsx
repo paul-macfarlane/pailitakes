@@ -8,17 +8,12 @@ import { cn } from "@/lib/utils";
 
 const subscribeNoop = () => () => {};
 
-// Publish / discard controls for a public post's staged edits (ADR-0011).
-// Rendered on the edit page only when the post has pending changes; the editor
-// island autosaves those edits into the draft buffer, and this promotes them to
-// the live post or throws them away.
-//
-// On success this does a FULL reload rather than router.refresh: publish and
-// discard change what the live/pending content is, and the sibling PostEditor
-// island initializes its form + refs from initialPost only on mount (a soft
-// refresh would leave it showing stale, now-discarded values and re-staging an
-// inconsistent buffer). A hard reload re-initializes the whole edit page from
-// the server — the correct state after a resolve.
+// ADR-0011. On success this does a FULL reload rather than router.refresh:
+// publish and discard change what the live/pending content is, and the
+// sibling PostEditor island initializes its form + refs from initialPost only
+// on mount (a soft refresh would leave it showing stale, now-discarded values
+// and re-staging an inconsistent buffer). A hard reload re-initializes the
+// whole edit page from the server — the correct state after a resolve.
 export function PostPendingControls({
   postId,
   draftUpdatedAt,

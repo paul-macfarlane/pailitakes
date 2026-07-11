@@ -27,14 +27,12 @@ function idFromPathPrefix(pathname: string, prefix: string): string | null {
   return YOUTUBE_ID_RE.test(rest) ? rest : null;
 }
 
-// Extracts the 11-char video id from any of the accepted YouTube URL forms,
-// or returns null (invalid URL, disallowed host, bad id). http is accepted
-// alongside https because remark-gfm autolinks a schemeless `www.youtube.com/
-// watch?v=...` paste with an http:// href — recognition never echoes the
-// original scheme; the embed we emit is always our own https nocookie URL.
-// Hosts are matched exactly by the switch (its default rejects everything
-// else) — never a `.endsWith("youtube.com")`-style suffix check, which a
-// lookalike host (e.g. `evilyoutube.com`) would pass.
+// http is accepted alongside https because remark-gfm autolinks a schemeless
+// `www.youtube.com/watch?v=...` paste with an http:// href — recognition
+// never echoes the original scheme; the embed we emit is always our own
+// https nocookie URL. Hosts are matched exactly by the switch (its default
+// rejects everything else) — never a `.endsWith("youtube.com")`-style suffix
+// check, which a lookalike host (e.g. `evilyoutube.com`) would pass.
 export function extractYouTubeId(url: string): string | null {
   let parsed: URL;
   try {
@@ -134,12 +132,11 @@ function youtubeEmbedNode(id: string): Element {
   };
 }
 
-// True when the element's ONLY child is a bare-URL autolink to a YouTube
-// video; returns the video id. remark-gfm turns a pasted bare URL into a
-// link whose text equals its href (an "autolink") — that equality is exactly
-// what distinguishes it from a labelled link (`[watch this](url)`, text !==
-// href) or a URL inline in a longer sentence (element has >1 child), both of
-// which are left as ordinary links.
+// remark-gfm turns a pasted bare URL into a link whose text equals its href
+// (an "autolink") — that equality is exactly what distinguishes it from a
+// labelled link (`[watch this](url)`, text !== href) or a URL inline in a
+// longer sentence (element has >1 child), both of which are left as
+// ordinary links.
 function bareYouTubeAutolinkId(node: Element): string | null {
   if (node.children.length !== 1) return null;
   const [link] = node.children;
@@ -164,9 +161,8 @@ function bareYouTubeAutolinkId(node: Element): string | null {
   return isAutolink ? id : null;
 }
 
-// Replaces bare-URL YouTube autolinks with a responsive embed in the two
-// shapes authors produce: a paragraph of its own (replace the whole <p> —
-// a div inside <p> is invalid HTML), and a tight list item (`- <url>`),
+// The two shapes authors produce: a paragraph of its own (replace the whole
+// <p> — a div inside <p> is invalid HTML), and a tight list item (`- <url>`),
 // where remark emits the autolink as a direct child of <li> with no <p>
 // wrapper (replace the link, keeping the <li>). Loose list items wrap the
 // autolink in a <p> inside the <li>, which the paragraph branch handles.

@@ -44,11 +44,9 @@ export async function getCrossedSlugs(now: Date): Promise<string[]> {
 // Normalizes stored post statuses to match reality (design §4): visibility is a
 // query predicate (visiblePostsWhere), so a scheduled post goes public the
 // instant its publish_at passes even though its stored status is still
-// 'scheduled' — leaving the admin badge stale. The cron catches the status up:
-// scheduled -> published once publish_at has passed, and published/scheduled ->
-// archived once archive_at has passed. Self-healing and idempotent: it targets
-// every currently-stale row (not just the last window), so a missed run simply
-// corrects on the next one.
+// 'scheduled' — leaving the admin badge stale. Self-healing and idempotent: it
+// targets every currently-stale row (not just the last window), so a missed
+// run simply corrects on the next one.
 // Returns how many rows it normalized — reported separately from the cron's
 // cache-revalidation count (they measure different things: this is status
 // bookkeeping, not cache invalidation).
