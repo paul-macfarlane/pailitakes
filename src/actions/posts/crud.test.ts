@@ -649,4 +649,48 @@ describe("deletePost", () => {
 
     expect(revalidateTag).toHaveBeenCalledWith("post-list", expect.anything());
   });
+
+  it("rejects an unauthenticated caller", async () => {
+    noSession();
+    const result = await deletePost(`${runId}-does-not-matter`);
+    expect(result).toEqual({ ok: false, error: "Not authorized." });
+  });
+
+  it("rejects a non-uuid id as an admin", async () => {
+    adminSession();
+    const result = await deletePost("not-a-uuid");
+    expect(result.ok).toBe(false);
+  });
+
+  it("returns 'Post not found.' for a nonexistent (but valid) uuid as an admin", async () => {
+    adminSession();
+    const result = await deletePost("00000000-0000-0000-0000-000000000000");
+    expect(result).toEqual({ ok: false, error: "Post not found." });
+  });
+
+  it("cascades to remove a staged post_drafts row when deleting a post with pending changes", async () => {
+    const post = await seedPostFixture(testDb, {
+      runId,
+      suffix: "delete-with-draft",
+      authorId: ids.authorId,
+      categoryId: ids.categoryId,
+      bodyMd: "Live body.",
+      thumbnailUrl: "https://img.example.com/live.jpg",
+      status: "published",
+      publishAt: new Date(Date.now() - 1000),
+    });
+
+    authorSession();
+    const staged = await updatePost(post.id, {
+      title: `${runId} staged for delete`,
+    });
+    expect(staged.ok).toBe(true);
+    expect(await loadDraftRow(post.id)).not.toBeUndefined();
+
+    adminSession();
+    const result = await deletePost(post.id);
+    expect(result).toEqual({ ok: true, data: { id: post.id } });
+
+    expect(await loadDraftRow(post.id)).toBeUndefined();
+  });
 });
