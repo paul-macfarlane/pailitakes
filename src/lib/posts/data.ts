@@ -21,7 +21,7 @@ import type { PgColumn } from "drizzle-orm/pg-core";
 import { db, type Db } from "@/db";
 import { categories, postDrafts, posts, postTags, tags } from "@/db/schema";
 import type { StaffSession } from "@/lib/auth/guards";
-import { Role } from "@/lib/auth/roles";
+import { Action, canPerformAction } from "@/lib/auth/permissions";
 import { tagToSlug, type PostDraft, type PostInput } from "@/lib/posts/input";
 import {
   PostStatus,
@@ -334,7 +334,7 @@ export async function loadOwnedDraft(
 
   if (!existing) return { ok: false, error: "Post not found." };
   if (
-    session.user.role !== Role.Admin &&
+    !canPerformAction(session.user, Action.ManageAnyPost) &&
     existing.authorId !== session.user.id
   ) {
     return { ok: false, error: NOT_AUTHORIZED_ERROR };
@@ -621,7 +621,7 @@ export async function loadOwnedLifecycle(
 
   if (!existing) return { ok: false, error: "Post not found." };
   if (
-    session.user.role !== Role.Admin &&
+    !canPerformAction(session.user, Action.ManageAnyPost) &&
     existing.authorId !== session.user.id
   ) {
     return { ok: false, error: NOT_AUTHORIZED_ERROR };

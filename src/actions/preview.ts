@@ -5,7 +5,8 @@
 
 import { z } from "zod";
 
-import { staffSession } from "@/lib/auth/guards";
+import { actionSession } from "@/lib/auth/guards";
+import { Action } from "@/lib/auth/permissions";
 import { renderMarkdown } from "@/lib/content/markdown";
 import {
   GENERIC_ERROR,
@@ -26,7 +27,7 @@ export async function renderPostPreview(
 ): Promise<ActionResult<{ html: string }>> {
   // Session/role checked before parsing input (engineering rules: session ->
   // role -> everything else).
-  const session = await staffSession();
+  const session = await actionSession(Action.PreviewPost);
   if (!session) {
     return { ok: false, error: NOT_AUTHORIZED_ERROR };
   }

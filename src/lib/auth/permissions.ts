@@ -1,29 +1,69 @@
-import "server-only";
+// Client-safe capability layer: ONE function (canPerformAction) driven by a
+// roles->actions map, used for both server action gates (src/lib/auth/
+// guards.ts) and page/UI gating (src/lib/auth/session.ts,
+// src/components/header-auth.tsx). No `server-only`/schema import here — the
+// pgEnum drift guard already lives in src/lib/auth/roles.test.ts, so
+// coupling this file to src/db/schema would be redundant and would also
+// block the client-side use in header-auth.tsx.
 
-import { userRole } from "@/db/schema";
+import { Role } from "@/lib/auth/roles";
 
-type Role = (typeof userRole.enumValues)[number];
+export const Action = {
+  CreatePost: "post.create",
+  EditPost: "post.edit",
+  // Ownership bypass: act on other authors' posts (admin-unscoped reads/
+  // writes vs. an author scoped to author_id = self; §5.7).
+  ManageAnyPost: "post.manage-any",
+  DeletePost: "post.delete",
+  // Draft promote/discard + lifecycle transitions + scheduling.
+  PublishPost: "post.publish",
+  PreviewPost: "post.preview",
+  // View /admin pages, see the dashboard link.
+  AccessAdmin: "admin.access",
+  ManageUsers: "user.manage",
+} as const;
+export type Action = (typeof Action)[keyof typeof Action];
 
-// Staff = can access /admin/**: authors and admins who aren't banned.
-// Single source of truth for the layout gate and per-action checks (ADM-3).
-// Typed against the schema enum so a role rename fails compilation here.
-const STAFF_ROLES: readonly Role[] = ["author", "admin"];
+const ROLE_ACTIONS: Record<Role, readonly Action[]> = {
+  [Role.Reader]: [],
+  [Role.Author]: [
+    Action.CreatePost,
+    Action.EditPost,
+    Action.PublishPost,
+    Action.PreviewPost,
+    Action.AccessAdmin,
+  ],
+  [Role.Admin]: [
+    Action.CreatePost,
+    Action.EditPost,
+    Action.ManageAnyPost,
+    Action.DeletePost,
+    Action.PublishPost,
+    Action.PreviewPost,
+    Action.AccessAdmin,
+    Action.ManageUsers,
+  ],
+};
 
 // `role` stays loose (string) because Better Auth's inferred session types
-// additional fields as string, not the pg enum.
-export function isStaff(user: {
-  role?: string | null;
-  bannedAt?: Date | null;
-}): boolean {
-  return STAFF_ROLES.some((role) => role === user.role) && !user.bannedAt;
+// it as string, not the pg enum.
+// Banned staff lose access immediately — a ban check gates every action
+// regardless of role, so a banned author/admin can't sneak in on a stale
+// session (ADM-10).
+export function canPerformAction(
+  user: { role?: string | null; bannedAt?: Date | null },
+  action: Action,
+): boolean {
+  if (user.bannedAt) return false;
+  const actions = ROLE_ACTIONS[user.role as Role];
+  return actions?.includes(action) ?? false;
 }
 
-// Admin = full control (user management, moderation, …). A banned admin is
-// not treated as admin — same as isStaff. Used to gate /admin/users and the
-// role/ban actions (ADM-10).
-export function isAdmin(user: {
-  role?: string | null;
-  bannedAt?: Date | null;
-}): boolean {
-  return user.role === "admin" && !user.bannedAt;
+// Roles that can perform `action`, derived from the same map so a new staff
+// role automatically shows up wherever this is used (e.g. the admin
+// dashboard's staff-author filter) without a second list to keep in sync.
+export function rolesWithAction(action: Action): Role[] {
+  return (Object.keys(ROLE_ACTIONS) as Role[]).filter((role) =>
+    ROLE_ACTIONS[role].includes(action),
+  );
 }

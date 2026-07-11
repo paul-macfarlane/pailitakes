@@ -7,7 +7,7 @@ import { HeaderAuth, HeaderAuthFallback } from "@/components/header-auth";
 import { HeaderShell } from "@/components/header-shell";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Skeleton } from "@/components/ui/skeleton";
-import { isAdmin } from "@/lib/auth/permissions";
+import { Action, canPerformAction } from "@/lib/auth/permissions";
 import { getSession, requireStaff } from "@/lib/auth/session";
 
 export const metadata: Metadata = {
@@ -83,5 +83,11 @@ async function AdminGate({ children }: { children: React.ReactNode }) {
 // hides the link.
 async function AdminNavSection() {
   const session = await getSession();
-  return <AdminNav isAdmin={session ? isAdmin(session.user) : false} />;
+  return (
+    <AdminNav
+      isAdmin={
+        session ? canPerformAction(session.user, Action.ManageUsers) : false
+      }
+    />
+  );
 }

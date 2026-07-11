@@ -9,7 +9,7 @@ import "server-only";
 import { revalidateTag } from "next/cache";
 
 import type { StaffSession } from "@/lib/auth/guards";
-import { Role } from "@/lib/auth/roles";
+import { Action, canPerformAction } from "@/lib/auth/permissions";
 import { isRenderableImageSrc } from "@/lib/content/image-src";
 import {
   categoryExists,
@@ -224,7 +224,7 @@ export async function updatePostService(
 
     // Authors are scoped to their own rows; admins are unscoped (§5.7).
     if (
-      session.user.role !== Role.Admin &&
+      !canPerformAction(session.user, Action.ManageAnyPost) &&
       existing.authorId !== session.user.id
     ) {
       return { ok: false, error: NOT_AUTHORIZED_ERROR };

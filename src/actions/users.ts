@@ -6,7 +6,8 @@
 
 import { z } from "zod";
 
-import { adminSession } from "@/lib/auth/guards";
+import { actionSession } from "@/lib/auth/guards";
+import { Action } from "@/lib/auth/permissions";
 import { ROLE_VALUES } from "@/lib/auth/roles";
 import {
   NOT_AUTHORIZED_ERROR,
@@ -21,7 +22,7 @@ export async function setUserRole(
   userId: unknown,
   role: unknown,
 ): Promise<ActionResult<{ id: string; role: string }>> {
-  if (!(await adminSession())) {
+  if (!(await actionSession(Action.ManageUsers))) {
     return { ok: false, error: NOT_AUTHORIZED_ERROR };
   }
 
@@ -41,7 +42,7 @@ export async function setUserBanned(
   userId: unknown,
   banned: unknown,
 ): Promise<ActionResult<{ id: string; banned: boolean }>> {
-  if (!(await adminSession())) {
+  if (!(await actionSession(Action.ManageUsers))) {
     return { ok: false, error: NOT_AUTHORIZED_ERROR };
   }
 

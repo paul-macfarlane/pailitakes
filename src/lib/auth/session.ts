@@ -5,7 +5,7 @@ import { notFound, redirect } from "next/navigation";
 import { cache } from "react";
 
 import { auth } from "@/lib/auth/auth";
-import { isAdmin, isStaff } from "@/lib/auth/permissions";
+import { Action, canPerformAction } from "@/lib/auth/permissions";
 
 // Request-scoped session read for Server Components and server actions.
 // cache() dedupes lookups within a single render pass.
@@ -29,7 +29,7 @@ export async function requireStaff(next = "/admin") {
     // /sign-in → / redirect, which would otherwise trap stale cookies.
     redirect(`/sign-in?next=${encodeURIComponent(next)}`);
   }
-  if (!isStaff(session.user)) {
+  if (!canPerformAction(session.user, Action.AccessAdmin)) {
     redirect("/");
   }
   return session;
@@ -38,11 +38,11 @@ export async function requireStaff(next = "/admin") {
 // Admin-only page gate (ADM-10). Layers on requireStaff: a signed-out user
 // still gets the sign-in redirect and a non-staff user still goes home, but a
 // staff-but-non-admin author gets a 404 (the page simply doesn't exist for
-// them). For SERVER ACTIONS use an inline isAdmin check instead — notFound()
-// is a page/render concern.
+// them). For SERVER ACTIONS use an inline canPerformAction check instead —
+// notFound() is a page/render concern.
 export async function requireAdmin(next = "/admin") {
   const session = await requireStaff(next);
-  if (!isAdmin(session.user)) {
+  if (!canPerformAction(session.user, Action.ManageUsers)) {
     notFound();
   }
   return session;
