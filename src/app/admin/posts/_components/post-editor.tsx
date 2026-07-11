@@ -128,7 +128,7 @@ export function PostEditor({
   // The Save action and autosave status render in the page heading (a sibling),
   // not in this form — so hand the current save fn up and bubble status changes.
   // All autosave logic (interval, diffing, CAS) stays here, untouched.
-  registerSave: (save: () => void) => void;
+  registerSave: (save: () => Promise<boolean>) => void;
   onStatus: (status: string, isError: boolean) => void;
 }) {
   const defaultValues: EditorFormValues = initialPost
@@ -182,6 +182,10 @@ export function PostEditor({
   const postIdRef = useRef<string | null>(initialPost?.id ?? null);
   const lastSavedRef = useRef<EditorValues>(defaultValues);
   const savingRef = useRef(false);
+  // Holds the in-flight save's promise so a concurrent caller (e.g. a
+  // lifecycle island's flush() racing the autosave interval) piggybacks on
+  // the same save instead of racing a second overlapping request.
+  const savingPromiseRef = useRef<Promise<boolean> | null>(null);
   // Tracks whether the "unpublished changes" banner (a sibling server island)
   // is already showing, so the first staged save can reveal it via one
   // router.refresh — and no later save repeats it.
@@ -205,92 +209,127 @@ export function PostEditor({
   // never re-calls the preview action.
   const previewedBodyMdRef = useRef<string | null>(null);
 
-  const save = useCallback(async () => {
-    if (savingRef.current) return;
+  // Does the actual save work and reports whether the form is now clean:
+  // true = nothing to save OR saved successfully; false = blocked by
+  // validation, a server error, or a conflict. `explicit` distinguishes a
+  // deliberate user action (Save now / form submit / a lifecycle island's
+  // flush()) from the passive interval tick — only an explicit call may
+  // CREATE a post, so typing alone on /new never auto-creates one.
+  const performSave = useCallback(
+    async (explicit: boolean): Promise<boolean> => {
+      const values = form.getValues();
+      const postId = postIdRef.current;
 
-    const values = form.getValues();
-    const postId = postIdRef.current;
-
-    let diff: Partial<ReturnType<typeof toActionInput>> | null = null;
-    if (postId === null) {
-      // Nothing worth persisting yet.
-      if (values.title.trim() === "") return;
-    } else {
-      diff = buildUpdateDiff(lastSavedRef.current, values);
-      if (Object.keys(diff).length === 0) return;
-    }
-
-    // Never save over unresolved validation errors. `formState.isValid` isn't
-    // read during render, so react-hook-form doesn't keep it current (it only
-    // recomputes subscribed state) — reading it here returns a stale `false`
-    // that silently skips the first save. trigger() validates now and surfaces
-    // any errors inline. Runs after the no-op checks so an untouched draft
-    // doesn't flash required-field errors on the autosave tick.
-    if (!(await form.trigger())) return;
-
-    savingRef.current = true;
-    setStatusIsError(false);
-    setStatus("Saving…");
-
-    try {
-      const result =
-        postId === null
-          ? await createPost(toActionInput(values))
-          : await updatePost(postId, diff!);
-
-      if (!result.ok) {
-        setStatusIsError(true);
-        setStatus(result.error);
-        return;
-      }
-
-      // The server may have adjusted the slug (title-derivation on create,
-      // collision retry) — reflect it back into the field only if the
-      // author hasn't manually set one themselves.
-      let savedSlug = values.slug;
-      if (!slugManualRef.current && result.data.slug !== values.slug) {
-        form.setValue("slug", result.data.slug);
-        savedSlug = result.data.slug;
-      }
-      lastSavedRef.current = { ...values, slug: savedSlug };
-
+      let diff: Partial<ReturnType<typeof toActionInput>> | null = null;
       if (postId === null) {
-        postIdRef.current = result.data.id;
-        // Swap the URL to the edit route without a navigation, so autosave
-        // doesn't interrupt whatever the author is typing.
-        window.history.replaceState(
-          null,
-          "",
-          `/admin/posts/${result.data.id}/edit`,
-        );
+        // Never auto-create: the interval tick calls this with
+        // explicit = false and must leave an untouched /new page alone.
+        if (!explicit) return true;
+        if (values.title.trim() === "") {
+          setStatusIsError(true);
+          setStatus("Add a title before saving.");
+          return false;
+        }
+      } else {
+        diff = buildUpdateDiff(lastSavedRef.current, values);
+        if (Object.keys(diff).length === 0) return true;
       }
 
+      // Never save over unresolved validation errors. `formState.isValid` isn't
+      // read during render, so react-hook-form doesn't keep it current (it only
+      // recomputes subscribed state) — reading it here returns a stale `false`
+      // that silently skips the first save. trigger() validates now and surfaces
+      // any errors inline. Runs after the no-op checks so an untouched draft
+      // doesn't flash required-field errors on the autosave tick.
+      if (!(await form.trigger())) {
+        setStatusIsError(true);
+        setStatus("Fix the highlighted field — changes aren't being saved.");
+        return false;
+      }
+
+      savingRef.current = true;
       setStatusIsError(false);
-      setStatus(
-        `Saved${stagesEdits ? " to draft" : ""} ${new Date().toLocaleTimeString()}`,
-      );
+      setStatus("Saving…");
 
-      // First staged edit on a public post created the draft buffer — reveal
-      // the "unpublished changes" banner (a sibling server island) without a
-      // manual reload. Once only; the soft refresh re-fetches the server tree
-      // but leaves this editor's in-progress form state intact.
-      if (stagesEdits && !stagedRef.current) {
-        stagedRef.current = true;
-        router.refresh();
+      try {
+        const result =
+          postId === null
+            ? await createPost(toActionInput(values))
+            : await updatePost(postId, diff!);
+
+        if (!result.ok) {
+          setStatusIsError(true);
+          setStatus(result.error);
+          return false;
+        }
+
+        // The server may have adjusted the slug (title-derivation on create,
+        // collision retry) — reflect it back into the field only if the
+        // author hasn't manually set one themselves.
+        let savedSlug = values.slug;
+        if (!slugManualRef.current && result.data.slug !== values.slug) {
+          form.setValue("slug", result.data.slug);
+          savedSlug = result.data.slug;
+        }
+        lastSavedRef.current = { ...values, slug: savedSlug };
+
+        if (postId === null) {
+          postIdRef.current = result.data.id;
+          // Route (rather than a raw history.replaceState) to the edit URL:
+          // create only ever happens on an explicit user action now (never
+          // from passive typing), so router.replace remounting the editor
+          // from the server-rendered edit page can't interrupt anything the
+          // author didn't just deliberately trigger.
+          router.replace(`/admin/posts/${result.data.id}/edit`);
+        }
+
+        setStatusIsError(false);
+        setStatus(
+          `Saved${stagesEdits ? " to draft" : ""} ${new Date().toLocaleTimeString()}`,
+        );
+
+        // First staged edit on a public post created the draft buffer — reveal
+        // the "unpublished changes" banner (a sibling server island) without a
+        // manual reload. Once only; the soft refresh re-fetches the server tree
+        // but leaves this editor's in-progress form state intact.
+        if (stagesEdits && !stagedRef.current) {
+          stagedRef.current = true;
+          router.refresh();
+        }
+
+        return true;
+      } catch {
+        // A rejected action call (network blip, server restart) must not
+        // escape as an unhandled rejection from the autosave interval — and
+        // the status line must not stay stuck on "Saving…".
+        setStatusIsError(true);
+        setStatus("Save failed — will retry.");
+        return false;
+      } finally {
+        savingRef.current = false;
       }
-    } catch {
-      // A rejected action call (network blip, server restart) must not
-      // escape as an unhandled rejection from the autosave interval — and
-      // the status line must not stay stuck on "Saving…".
-      setStatusIsError(true);
-      setStatus("Save failed — will retry.");
-    } finally {
-      savingRef.current = false;
-    }
-    // form is a stable object identity from useForm; everything else read
-    // inside is a ref or read fresh via form.getValues()/formState. router and
-    // stagesEdits are stable for the editor's lifetime.
-  }, [form, router, stagesEdits]);
+      // form is a stable object identity from useForm; everything else read
+      // inside is a ref or read fresh via form.getValues()/formState. router and
+      // stagesEdits are stable for the editor's lifetime.
+    },
+    [form, router, stagesEdits],
+  );
+
+  // Public save entry point: the interval tick, "Save now", form submit, and
+  // (via PostEditorSection's flush context) the lifecycle islands all go
+  // through here. A concurrent call while one is already in flight piggybacks
+  // on that save's promise rather than racing a second overlapping request.
+  const save = useCallback(
+    (opts?: { explicit?: boolean }): Promise<boolean> => {
+      if (savingRef.current && savingPromiseRef.current) {
+        return savingPromiseRef.current;
+      }
+      const promise = performSave(opts?.explicit ?? false);
+      savingPromiseRef.current = promise;
+      return promise;
+    },
+    [performSave],
+  );
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -299,13 +338,39 @@ export function PostEditor({
     return () => clearInterval(interval);
   }, [save]);
 
-  // Expose the save action + status to the heading toolbar (a sibling island).
+  // Expose the save action + status to the heading toolbar (a sibling island)
+  // and, via the flush context, to the lifecycle islands. This consumer is
+  // always an explicit user action, so it always saves explicitly.
   useEffect(() => {
-    registerSave(() => void save());
+    registerSave(() => save({ explicit: true }));
   }, [registerSave, save]);
   useEffect(() => {
     onStatus(status, statusIsError);
   }, [onStatus, status, statusIsError]);
+
+  // Warn before leaving the tab/page with unsaved changes. Reads the CURRENT
+  // form + refs at fire time (not a stale closure captured at effect-setup
+  // time), so it doesn't fire for the pending-controls' full reload after a
+  // successful flush — by then lastSavedRef matches the form and the diff is
+  // empty. Registered once; `form`'s identity is stable for the editor's
+  // lifetime.
+  useEffect(() => {
+    function handleBeforeUnload(event: BeforeUnloadEvent) {
+      const values = form.getValues();
+      const dirty =
+        postIdRef.current === null
+          ? values.title.trim() !== "" || values.bodyMd.trim() !== ""
+          : Object.keys(buildUpdateDiff(lastSavedRef.current, values)).length >
+            0;
+      if (!dirty) return;
+      event.preventDefault();
+      // Some browsers only show the native prompt when returnValue is also
+      // set, not just preventDefault().
+      event.returnValue = "";
+    }
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+  }, [form]);
 
   const handlePreviewToggle = useCallback(async () => {
     setMode("preview");
@@ -340,7 +405,7 @@ export function PostEditor({
   return (
     <form
       onSubmit={form.handleSubmit(() => {
-        void save();
+        void save({ explicit: true });
       })}
       className="flex flex-col gap-6"
     >
