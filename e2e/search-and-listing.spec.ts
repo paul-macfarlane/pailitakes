@@ -229,7 +229,10 @@ test.describe("category feed pagination", () => {
       page.getByRole("heading", { name: oldestPost.title }),
     ).toHaveCount(0);
 
-    const nextLink = page.getByRole("link", { name: "Next page" });
+    // The Base UI pagination primitives render Previous/Next as
+    // role="button" (Button underneath, nativeButton={false}) even though
+    // they're real anchors under the hood — see src/components/ui/pagination.tsx.
+    const nextLink = page.getByRole("button", { name: "Go to next page" });
     await expect(nextLink).toBeVisible();
     await nextLink.click();
     await page.waitForURL(
@@ -247,7 +250,7 @@ test.describe("category feed pagination", () => {
       page.getByRole("heading", { name: newestPost.title }),
     ).toHaveCount(0);
 
-    const prevLink = page.getByRole("link", { name: "Previous page" });
+    const prevLink = page.getByRole("button", { name: "Go to previous page" });
     await expect(prevLink).toBeVisible();
     await prevLink.click();
     await page.waitForURL(

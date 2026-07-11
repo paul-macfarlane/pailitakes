@@ -1,4 +1,11 @@
-import Link from "next/link";
+import {
+  Pagination,
+  PaginationContent,
+  PaginationItem,
+  PaginationLink,
+  PaginationNext,
+  PaginationPrevious,
+} from "@/components/ui/pagination";
 
 // Stateless URL pagination shared by home's three modes (search/category/
 // default) and /tags/[slug] — replaces the old LoadMorePosts client island,
@@ -34,34 +41,39 @@ export function FeedPagination({
     return qs ? `${pathname}?${qs}` : pathname;
   }
 
+  const isFirstPage = page <= 1;
+
   return (
-    <nav
-      aria-label="Pagination"
-      className="mt-8 flex items-center justify-between text-sm"
-    >
-      {page > 1 ? (
-        <Link
-          href={pageHref(page - 1)}
-          aria-label="Previous page"
-          className="hover:underline"
-        >
-          ← Previous
-        </Link>
-      ) : (
-        <span />
-      )}
-      <span className="text-muted-foreground">Page {page}</span>
-      {hasMore ? (
-        <Link
-          href={pageHref(page + 1)}
-          aria-label="Next page"
-          className="hover:underline"
-        >
-          Next →
-        </Link>
-      ) : (
-        <span />
-      )}
-    </nav>
+    <Pagination className="mt-8">
+      <PaginationContent>
+        <PaginationItem>
+          {/* Disabled bounds still link somewhere (self) rather than being
+              omitted — Base UI's own disabled handling (aria-disabled +
+              blocked click) is what actually stops navigation. */}
+          <PaginationPrevious
+            href={pageHref(isFirstPage ? page : page - 1)}
+            disabled={isFirstPage}
+          />
+        </PaginationItem>
+        <PaginationItem>
+          {/* size="default" (not the fixed icon square) + min-w-8 so 3-4
+              digit page numbers (cap 1000) don't overflow a fixed box. */}
+          <PaginationLink
+            href={pageHref(page)}
+            isActive
+            size="default"
+            className="min-w-8"
+          >
+            {page}
+          </PaginationLink>
+        </PaginationItem>
+        <PaginationItem>
+          <PaginationNext
+            href={pageHref(hasMore ? page + 1 : page)}
+            disabled={!hasMore}
+          />
+        </PaginationItem>
+      </PaginationContent>
+    </Pagination>
   );
 }
