@@ -11,7 +11,7 @@ import {
   type AdminPostRow,
 } from "@/lib/posts/admin";
 import { SEARCH_QUERY_MAX, searchQuerySchema } from "@/lib/admin/search";
-import { Role } from "@/lib/auth/roles";
+import { Action, canPerformAction } from "@/lib/auth/permissions";
 import { POST_STATUSES, STATUS_LABELS } from "@/lib/posts/status";
 import { requireStaff } from "@/lib/auth/session";
 
@@ -49,7 +49,7 @@ export default async function AdminPage({
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const session = await requireStaff();
-  const isAdmin = session.user.role === Role.Admin;
+  const isAdmin = canPerformAction(session.user, Action.ManageAnyPost);
   const filters = filterSchema.parse(await searchParams);
 
   const [categories, authors] = await Promise.all([

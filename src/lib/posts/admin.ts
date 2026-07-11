@@ -11,7 +11,11 @@ import {
   tags,
   user,
 } from "@/db/schema";
-import { Role } from "@/lib/auth/roles";
+import {
+  Action,
+  canPerformAction,
+  rolesWithAction,
+} from "@/lib/auth/permissions";
 import { draftFromJoinRow, draftJoinColumns } from "@/lib/posts/data";
 import { tagToSlug } from "@/lib/posts/input";
 import { PostStatus, usesDraftBuffer } from "@/lib/posts/status";
@@ -49,7 +53,7 @@ export type EditablePost = {
 export async function getEditablePost(
   id: string,
   // `role` stays loose (string) because Better Auth's inferred session types
-  // it as string, not the pg enum — same as src/lib/authz.ts's isStaff.
+  // it as string, not the pg enum — same as canPerformAction's user shape.
   user: { id: string; role?: string | null },
 ): Promise<EditablePost | null> {
   const rows = await db
@@ -78,7 +82,12 @@ export async function getEditablePost(
 
   const [first] = rows;
   if (!first) return null;
-  if (user.role !== Role.Admin && first.authorId !== user.id) return null;
+  if (
+    !canPerformAction(user, Action.ManageAnyPost) &&
+    first.authorId !== user.id
+  ) {
+    return null;
+  }
 
   // On a public post, edits are staged (ADR-0011): show the pending snapshot so
   // the author edits their in-progress copy, not the live content. On any other
@@ -168,7 +177,12 @@ export async function getPostForPreview(
 
   const [row] = rows;
   if (!row) return null;
-  if (user_.role !== Role.Admin && row.authorId !== user_.id) return null;
+  if (
+    !canPerformAction(user_, Action.ManageAnyPost) &&
+    row.authorId !== user_.id
+  ) {
+    return null;
+  }
 
   // On a public post, preview the STAGED snapshot (what will go live), not the
   // current live content (ADR-0011). Category and tags come from the live join
@@ -256,7 +270,7 @@ export async function listAdminPosts(params: {
   const offset = Math.max(params.offset ?? 0, 0);
 
   const conditions: SQL[] = [];
-  if (params.user.role !== Role.Admin) {
+  if (!canPerformAction(params.user, Action.ManageAnyPost)) {
     // Non-admins see only their own posts, regardless of any authorId filter.
     conditions.push(eq(posts.authorId, params.user.id));
   } else if (params.authorId) {
@@ -307,7 +321,7 @@ export async function listAuthorOptions(): Promise<
   return db
     .select({ id: user.id, name: user.name })
     .from(user)
-    .where(inArray(user.role, [Role.Author, Role.Admin]))
+    .where(inArray(user.role, rolesWithAction(Action.AccessAdmin)))
     .orderBy(asc(user.name));
 }
 

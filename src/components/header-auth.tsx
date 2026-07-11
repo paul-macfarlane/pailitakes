@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 import { buttonVariants } from "@/components/ui/button";
 import { UserMenu } from "@/components/user-menu";
 import { authClient } from "@/lib/auth/client";
+import { Action, canPerformAction } from "@/lib/auth/permissions";
 
 // Static, request-data-free placeholder matching the avatar footprint. Used
 // both while the session is pending and as the Suspense fallback — the latter
@@ -32,9 +33,9 @@ export function HeaderAuth() {
     // Staff get an "Admin dashboard" shortcut into /admin from the main app
     // (feedback: admin should be reachable from the normal nav). This is UX
     // only — requireStaff() on every /admin page is the real boundary — so a
-    // client-side role/ban check here is fine; authz.isStaff is server-only.
-    const { role, bannedAt } = session.user;
-    const isStaff = (role === "author" || role === "admin") && !bannedAt;
+    // client-side capability check here is fine; permissions.ts is
+    // client-safe (no server-only import).
+    const isStaff = canPerformAction(session.user, Action.AccessAdmin);
     return (
       <UserMenu
         name={session.user.name}

@@ -6,7 +6,8 @@
 
 import { z } from "zod";
 
-import { staffSession } from "@/lib/auth/guards";
+import { actionSession } from "@/lib/auth/guards";
+import { Action } from "@/lib/auth/permissions";
 import {
   discardPostChangesService,
   publishPostChangesService,
@@ -19,7 +20,7 @@ import {
 export async function publishPostChanges(
   id: string,
 ): Promise<ActionResult<{ id: string; slug: string }>> {
-  const session = await staffSession();
+  const session = await actionSession(Action.PublishPost);
   if (!session) {
     return { ok: false, error: NOT_AUTHORIZED_ERROR };
   }
@@ -35,7 +36,7 @@ export async function publishPostChanges(
 export async function discardPostChanges(
   id: string,
 ): Promise<ActionResult<{ id: string }>> {
-  const session = await staffSession();
+  const session = await actionSession(Action.PublishPost);
   if (!session) {
     return { ok: false, error: NOT_AUTHORIZED_ERROR };
   }

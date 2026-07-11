@@ -6,7 +6,8 @@
 
 import { z } from "zod";
 
-import { staffSession } from "@/lib/auth/guards";
+import { actionSession } from "@/lib/auth/guards";
+import { Action } from "@/lib/auth/permissions";
 import {
   cancelScheduledArchiveService,
   scheduleArchiveService,
@@ -25,7 +26,7 @@ export async function transitionPostStatus(
 ): Promise<ActionResult<{ id: string; status: PostStatus }>> {
   // Session/role before parsing anything (engineering rules: session -> role
   // -> everything else).
-  const session = await staffSession();
+  const session = await actionSession(Action.PublishPost);
   if (!session) {
     return { ok: false, error: NOT_AUTHORIZED_ERROR };
   }
@@ -47,7 +48,7 @@ export async function schedulePublish(
   id: string,
   publishAtInput: unknown,
 ): Promise<ActionResult<{ id: string; publishAt: string }>> {
-  const session = await staffSession();
+  const session = await actionSession(Action.PublishPost);
   if (!session) {
     return { ok: false, error: NOT_AUTHORIZED_ERROR };
   }
@@ -69,7 +70,7 @@ export async function scheduleArchive(
   id: string,
   archiveAtInput: unknown,
 ): Promise<ActionResult<{ id: string; archiveAt: string }>> {
-  const session = await staffSession();
+  const session = await actionSession(Action.PublishPost);
   if (!session) {
     return { ok: false, error: NOT_AUTHORIZED_ERROR };
   }
@@ -90,7 +91,7 @@ export async function scheduleArchive(
 export async function cancelScheduledArchive(
   id: string,
 ): Promise<ActionResult<{ id: string }>> {
-  const session = await staffSession();
+  const session = await actionSession(Action.PublishPost);
   if (!session) {
     return { ok: false, error: NOT_AUTHORIZED_ERROR };
   }

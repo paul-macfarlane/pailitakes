@@ -6,8 +6,8 @@
 
 import { z } from "zod";
 
-import { staffSession } from "@/lib/auth/guards";
-import { Role } from "@/lib/auth/roles";
+import { actionSession } from "@/lib/auth/guards";
+import { Action } from "@/lib/auth/permissions";
 import { postInputSchema, postUpdateSchema } from "@/lib/posts/input";
 import {
   createPostService,
@@ -27,7 +27,7 @@ export async function createPost(
   // validation feedback (or a 100KB body parsed) for input it was never
   // entitled to submit (engineering rules: session -> role -> everything
   // else).
-  const session = await staffSession();
+  const session = await actionSession(Action.CreatePost);
   if (!session) {
     return { ok: false, error: NOT_AUTHORIZED_ERROR };
   }
@@ -48,7 +48,7 @@ export async function updatePost(
   // unauthorized caller gets only "Not authorized.", never field-level
   // validation feedback (engineering rules: session -> role -> everything
   // else).
-  const session = await staffSession();
+  const session = await actionSession(Action.EditPost);
   if (!session) {
     return { ok: false, error: NOT_AUTHORIZED_ERROR };
   }
@@ -72,10 +72,10 @@ export async function deletePost(
   // Session/role checked before parsing the id (engineering rules: session
   // -> role -> everything else) — an unauthenticated or unauthorized caller
   // gets only "Not authorized.", never id-format validation feedback.
-  const session = await staffSession();
   // Hard delete is admin-only; authors archive instead, which is
   // recoverable (ADM-4/FR-7.6) — deletion is not.
-  if (!session || session.user.role !== Role.Admin) {
+  const session = await actionSession(Action.DeletePost);
+  if (!session) {
     return { ok: false, error: NOT_AUTHORIZED_ERROR };
   }
 
