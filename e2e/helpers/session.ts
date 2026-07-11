@@ -114,6 +114,58 @@ export async function createTestUser(
   };
 }
 
+export interface TestPost {
+  id: string;
+  slug: string;
+  title: string;
+  cleanup: () => Promise<void>;
+}
+
+// Seeds a post row directly (bypassing the editor UI) for specs that only
+// need an existing post to act on — e.g. post-delete.spec.ts drives the
+// delete dialog, not the authoring flow that creates the row. Defaults to
+// "published" with a past publishAt so it's immediately publicly visible
+// (visiblePostsWhere, src/lib/posts/posts.ts).
+export async function createTestPost(options: {
+  authorId: string;
+  categoryId: number;
+  title?: string;
+  status?: "draft" | "published";
+}): Promise<TestPost> {
+  const { databaseUrl } = requireEnv();
+  const title = options.title ?? `E2E Post ${crypto.randomUUID().slice(0, 8)}`;
+  const status = options.status ?? "published";
+  const slug = `e2e-post-${crypto.randomUUID()}`;
+
+  const pool = new Pool({ connectionString: databaseUrl, max: 1 });
+  const { rows } = await pool.query<{ id: string }>(
+    `insert into posts (author_id, title, slug, body_md, thumbnail_url, category_id, status, publish_at)
+     values ($1, $2, $3, $4, $5, $6, $7, $8)
+     returning id`,
+    [
+      options.authorId,
+      title,
+      slug,
+      "Seeded body for e2e.",
+      "https://example.com/e2e-thumb.png",
+      options.categoryId,
+      status,
+      status === "published" ? new Date(Date.now() - 1000) : null,
+    ],
+  );
+  const id = rows[0]!.id;
+
+  return {
+    id,
+    slug,
+    title,
+    cleanup: async () => {
+      await pool.query(`delete from posts where id = $1`, [id]);
+      await pool.end();
+    },
+  };
+}
+
 export interface TestCategory {
   id: number;
   name: string;

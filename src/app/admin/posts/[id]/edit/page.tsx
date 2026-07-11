@@ -3,11 +3,13 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { PostEditorSection } from "@/app/admin/posts/_components/post-editor-section";
+import { PostDeleteControls } from "@/app/admin/posts/[id]/edit/_components/post-delete-controls";
 import { PostPendingControls } from "@/app/admin/posts/[id]/edit/_components/post-pending-controls";
 import { PostScheduleControls } from "@/app/admin/posts/[id]/edit/_components/post-schedule-controls";
 import { PostStatusControls } from "@/app/admin/posts/[id]/edit/_components/post-status-controls";
 import { getEditablePost, listCategoryOptions } from "@/lib/posts/admin";
 import { requirePostIdParam } from "@/lib/admin/route-params";
+import { Action, canPerformAction } from "@/lib/auth/permissions";
 import { requireStaff } from "@/lib/auth/session";
 
 export const metadata: Metadata = {
@@ -63,6 +65,11 @@ export default async function EditPostPage({
             archiveAt={post.archiveAt}
             pendingChanges={post.hasPendingChanges}
           />
+          {canPerformAction(session.user, Action.DeletePost) ? (
+            <div className="border-t pt-4">
+              <PostDeleteControls postId={post.id} postTitle={post.title} />
+            </div>
+          ) : null}
         </div>
       </PostEditorSection>
     </>
