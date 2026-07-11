@@ -7,9 +7,9 @@ import { EXCERPT_SOURCE_CHARS, listVisiblePosts } from "@/lib/posts/posts";
 
 export const HOME_PAGE_SIZE = 10;
 
-// Serializable card data shared by the home page (RSC) and /api/posts
-// (load-more fetches) — dates as ISO strings so the client island can render
-// the same PostCard component.
+// Shared card shape for the home page, category/tag browse, and /tags/[slug]
+// — dates as ISO strings (kept even though there's no longer a JSON API
+// consuming this shape, PostCard just renders the field as-is).
 export type HomeFeedCard = {
   slug: string;
   title: string;

@@ -1,6 +1,6 @@
 # Paulitakes — Technical Design
 
-**Version:** 0.3 (Locked; amended by ADR-0004; §6 project layout updated per ADR-0013; §5.7 authorization vocabulary per ADR-0014; §5.7 editor create/flush semantics per ADR-0015; posts data model `content_updated_at` per ADR-0016; §2/§3/§5.5 unified home browse/search per ADR-0018)
+**Version:** 0.3 (Locked; amended by ADR-0004; §6 project layout updated per ADR-0013; §5.7 authorization vocabulary per ADR-0014; §5.7 editor create/flush semantics per ADR-0015; posts data model `content_updated_at` per ADR-0016; §2/§3/§5.5 unified home browse/search per ADR-0018; §2 page-link pagination per ADR-0019)
 **Owner:** Paul
 **Last updated:** July 11, 2026
 **Companion doc:** Paulitakes Product Doc v0.2
@@ -57,13 +57,13 @@
 
 ### Rendering strategy per route
 
-| Route                        | Strategy                                                                                                                                                                                              |
-| ---------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `/` (home = browse + search) | PPR: static shell + streamed section reading `?q`/`?category` (ADR-0018). Browse feeds are `use cache` data, `revalidate: 60`, tags `post-list`, `announcements`; `?q=` search reads are never cached |
-| `/posts/[slug]`              | ISR per-slug, cache tag `post:{slug}`; comments + likes hydrate client-side                                                                                                                           |
-| `/tags/[slug]`               | ISR, `revalidate: 60`, tag `post-list`                                                                                                                                                                |
-| `/admin/**`                  | Fully dynamic, `noindex`, `requireStaff()` in layout + every page (ADR-0009)                                                                                                                          |
-| `/sitemap.xml`               | Route handler, tag `post-list`                                                                                                                                                                        |
+| Route                        | Strategy                                                                                                                                                                                                                |
+| ---------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `/` (home = browse + search) | PPR: static shell + streamed section reading `?q`/`?category`/`?page` (ADR-0018, ADR-0019). Browse feeds are `use cache` data, `revalidate: 60`, tags `post-list`, `announcements`; `?q=` search reads are never cached |
+| `/posts/[slug]`              | ISR per-slug, cache tag `post:{slug}`; comments + likes hydrate client-side                                                                                                                                             |
+| `/tags/[slug]`               | PPR: shell + streamed section reading `?page` (ADR-0019); feed data `use cache`, `revalidate: 60`, tag `post-list`                                                                                                      |
+| `/admin/**`                  | Fully dynamic, `noindex`, `requireStaff()` in layout + every page (ADR-0009)                                                                                                                                            |
+| `/sitemap.xml`               | Route handler, tag `post-list`                                                                                                                                                                                          |
 
 **Key pattern:** post pages are cached static shells; user-specific or fast-changing data (comment tree, like state, view beacon) lives in small client components. Public pages stay fast and cheap, and a new comment never triggers a page rebuild.
 

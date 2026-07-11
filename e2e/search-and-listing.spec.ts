@@ -161,3 +161,100 @@ test.describe("search and listing", () => {
     await expect(page.getByRole("heading", { name: post.title })).toBeVisible();
   });
 });
+
+// Own describe/fixtures (rather than folding into the block above): needs 11
+// posts in a dedicated category, isolated from the single-post fixture the
+// other scenarios share. Also pins the fix for the load-more-island bug this
+// epic replaced: LoadMorePosts kept its appended-posts React state across
+// searchParams navigations, so switching `?category=` mid-scroll left the
+// previous category's posts appended underneath the new category's first
+// page. Stateless URL pagination (FeedPagination) makes that impossible —
+// the URL is the only state, so a fresh navigation always starts clean.
+test.describe("category feed pagination", () => {
+  let author: TestSession;
+  let category: TestCategory;
+  let posts: TestPost[];
+
+  test.beforeEach(async () => {
+    author = await createTestSession({
+      role: "author",
+      userName: "E2E Pagination Author",
+    });
+    category = await createTestCategory();
+
+    posts = [];
+    const runId = crypto.randomUUID().slice(0, 8);
+    // Sequential (not Promise.all): each call's publishAt is `Date.now() -
+    // 1s` at insert time, so awaiting in order gives strictly increasing
+    // publishAt across the 11 rows — the feed's tiebreaker order (posts.ts)
+    // falls back to a random-per-row uuid, which would make page boundaries
+    // flaky if any two rows tied on publishAt.
+    for (let i = 0; i < 11; i++) {
+      posts.push(
+        await createTestPost({
+          authorId: author.userId,
+          categoryId: category.id,
+          title: `E2E Pagination Post ${runId} ${String(i).padStart(2, "0")}`,
+        }),
+      );
+    }
+  });
+
+  test.afterEach(async () => {
+    for (const seededPost of posts) {
+      await seededPost.cleanup();
+    }
+    await category.cleanup();
+    await author.cleanup();
+  });
+
+  test("category feed pages by 10 with URL-only pagination", async ({
+    page,
+  }) => {
+    // Insertion order 0..10 means index 10 (last created) has the latest
+    // publishAt, so it's first in feed order (page 1); index 0 (first
+    // created) is oldest, so it's the sole overflow post on page 2.
+    const newestPost = posts[10]!;
+    const oldestPost = posts[0]!;
+
+    const response = await page.goto(`/?category=${category.slug}`);
+    expect(response?.status()).toBe(200);
+
+    const cards = page.getByRole("article");
+    await expect(cards).toHaveCount(10);
+    await expect(
+      page.getByRole("heading", { name: newestPost.title }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("heading", { name: oldestPost.title }),
+    ).toHaveCount(0);
+
+    const nextLink = page.getByRole("link", { name: "Next page" });
+    await expect(nextLink).toBeVisible();
+    await nextLink.click();
+    await page.waitForURL(
+      (url) =>
+        new URL(url).searchParams.get("page") === "2" &&
+        new URL(url).searchParams.get("category") === category.slug,
+    );
+
+    await expect(cards).toHaveCount(1);
+    await expect(
+      page.getByRole("heading", { name: oldestPost.title }),
+    ).toBeVisible();
+    // Pins the leak fix: page 1's post must not still be appended on page 2.
+    await expect(
+      page.getByRole("heading", { name: newestPost.title }),
+    ).toHaveCount(0);
+
+    const prevLink = page.getByRole("link", { name: "Previous page" });
+    await expect(prevLink).toBeVisible();
+    await prevLink.click();
+    await page.waitForURL(
+      (url) =>
+        new URL(url).searchParams.get("page") === null &&
+        new URL(url).searchParams.get("category") === category.slug,
+    );
+    await expect(cards).toHaveCount(10);
+  });
+});

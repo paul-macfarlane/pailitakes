@@ -122,7 +122,7 @@ export async function listVisiblePosts({
       ),
     )
     // id tiebreaker: ties on publishAt would otherwise reorder arbitrarily
-    // between offset pages, duplicating/dropping posts across load-more.
+    // between offset pages, duplicating/dropping posts across pagination.
     .orderBy(desc(posts.publishAt), desc(posts.id))
     .limit(clampedLimit + 1)
     .offset(clampedOffset);

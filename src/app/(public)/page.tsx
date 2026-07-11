@@ -2,13 +2,17 @@ import Link from "next/link";
 import { Suspense } from "react";
 
 import { CategoryPills } from "@/app/(public)/_components/category-pills";
-import { LoadMorePosts } from "@/app/(public)/_components/load-more-posts";
+import { FeedPagination } from "@/app/(public)/_components/feed-pagination";
 import { SearchBox } from "@/app/(public)/_components/search-box";
 import { ExternalImage } from "@/components/external-image";
 import { PostCard } from "@/components/post-card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { listActiveCategories } from "@/lib/categories/data";
-import { getCategoryFeed, getHomeFeed } from "@/lib/posts/home-feed";
+import {
+  getCategoryFeed,
+  getHomeFeed,
+  HOME_PAGE_SIZE,
+} from "@/lib/posts/home-feed";
 import {
   searchVisiblePosts,
   SNIPPET_END,
@@ -19,8 +23,6 @@ import {
   searchParamsSchema,
   type SearchPageParams,
 } from "@/lib/posts/search-params";
-
-const SEARCH_PAGE_SIZE = 20;
 
 // UTC-pinned, same rationale as PostCard (src/components/post-card.tsx):
 // server-rendered results must show the same date regardless of viewer
@@ -90,31 +92,34 @@ async function HomeSection({
       {params.q ? (
         <SearchMode q={params.q} params={params} />
       ) : params.category ? (
-        <CategoryMode category={params.category} />
+        <CategoryMode category={params.category} params={params} />
       ) : (
-        <DefaultMode />
+        <DefaultMode params={params} />
       )}
     </>
   );
 }
 
-async function DefaultMode() {
-  const { posts, hasMore } = await getHomeFeed(0);
+async function DefaultMode({ params }: { params: SearchPageParams }) {
+  const offset = (params.page - 1) * HOME_PAGE_SIZE;
+  const { posts, hasMore } = await getHomeFeed(offset);
   return (
     <div className="mt-8 flex flex-col gap-6">
       {posts.length === 0 ? (
-        <p className="text-muted-foreground">No posts yet. Check back soon.</p>
+        <p className="text-muted-foreground">
+          {params.page > 1
+            ? "No more posts."
+            : "No posts yet. Check back soon."}
+        </p>
       ) : (
-        <>
-          {posts.map((post) => (
-            <PostCard key={post.slug} post={post} />
-          ))}
-          <LoadMorePosts
-            initialSlugs={posts.map((post) => post.slug)}
-            initialHasMore={hasMore}
-          />
-        </>
+        posts.map((post) => <PostCard key={post.slug} post={post} />)
       )}
+      <FeedPagination
+        pathname="/"
+        query={{ q: params.q, category: params.category }}
+        page={params.page}
+        hasMore={hasMore}
+      />
     </div>
   );
 }
@@ -125,24 +130,32 @@ async function DefaultMode() {
 // category stays reachable and keeps rendering its posts": deactivation only
 // hides the category from listActiveCategories (the pills above), never from
 // a direct `?category=` deep link.
-async function CategoryMode({ category }: { category: string }) {
-  const { posts, hasMore } = await getCategoryFeed(category, 0);
+async function CategoryMode({
+  category,
+  params,
+}: {
+  category: string;
+  params: SearchPageParams;
+}) {
+  const offset = (params.page - 1) * HOME_PAGE_SIZE;
+  const { posts, hasMore } = await getCategoryFeed(category, offset);
   return (
     <div className="mt-8 flex flex-col gap-6">
       {posts.length === 0 ? (
-        <p className="text-muted-foreground">No posts in this category yet.</p>
+        <p className="text-muted-foreground">
+          {params.page > 1
+            ? "No more posts."
+            : "No posts in this category yet."}
+        </p>
       ) : (
-        <>
-          {posts.map((post) => (
-            <PostCard key={post.slug} post={post} />
-          ))}
-          <LoadMorePosts
-            initialSlugs={posts.map((post) => post.slug)}
-            initialHasMore={hasMore}
-            filter={{ kind: "category", slug: category }}
-          />
-        </>
+        posts.map((post) => <PostCard key={post.slug} post={post} />)
       )}
+      <FeedPagination
+        pathname="/"
+        query={{ q: params.q, category: params.category }}
+        page={params.page}
+        hasMore={hasMore}
+      />
     </div>
   );
 }
@@ -157,14 +170,19 @@ async function SearchMode({
   const { results, hasMore } = await searchVisiblePosts({
     q,
     categorySlug: params.category,
-    limit: SEARCH_PAGE_SIZE,
-    offset: (params.page - 1) * SEARCH_PAGE_SIZE,
+    limit: HOME_PAGE_SIZE,
+    offset: (params.page - 1) * HOME_PAGE_SIZE,
   });
 
   return (
     <>
       <ResultsList q={q} results={results} />
-      <SearchPagination params={params} hasMore={hasMore} />
+      <FeedPagination
+        pathname="/"
+        query={{ q: params.q, category: params.category }}
+        page={params.page}
+        hasMore={hasMore}
+      />
     </>
   );
 }
@@ -246,44 +264,6 @@ function SnippetText({ snippet }: { snippet: string }) {
         );
       })}
     </>
-  );
-}
-
-function SearchPagination({
-  params,
-  hasMore,
-}: {
-  params: SearchPageParams;
-  hasMore: boolean;
-}) {
-  if (params.page <= 1 && !hasMore) return null;
-
-  function pageHref(page: number) {
-    const search = new URLSearchParams();
-    if (params.q) search.set("q", params.q);
-    if (params.category) search.set("category", params.category);
-    if (page > 1) search.set("page", String(page));
-    const query = search.toString();
-    return query ? `/?${query}` : "/";
-  }
-
-  return (
-    <nav className="mt-8 flex items-center justify-between text-sm">
-      {params.page > 1 ? (
-        <Link href={pageHref(params.page - 1)} className="hover:underline">
-          ← Previous
-        </Link>
-      ) : (
-        <span />
-      )}
-      {hasMore ? (
-        <Link href={pageHref(params.page + 1)} className="hover:underline">
-          Next →
-        </Link>
-      ) : (
-        <span />
-      )}
-    </nav>
   );
 }
 
