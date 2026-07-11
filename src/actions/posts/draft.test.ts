@@ -1,13 +1,13 @@
-import { eq, like } from "drizzle-orm";
-import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+import { eq } from "drizzle-orm";
+import { describe, expect, it, vi } from "vitest";
 
 import * as schema from "@/db/schema";
 import {
-  clearStaffFixtures,
   draftRowLoader,
-  seedStaffFixtures,
+  registerPostSuiteLifecycle,
+  seedPost as seedPostFixture,
+  sessionSetters,
   sessionUser,
-  sweepStalePostFixtures,
   type StaffFixtureIds,
 } from "@/test/helpers";
 
@@ -39,45 +39,34 @@ const { updatePost } = await import("./crud");
 const { publishPostChanges, discardPostChanges } = await import("./draft");
 const { revalidateTag } = await import("next/cache");
 
-const { posts, tags } = schema;
+const { posts } = schema;
 const loadDraftRow = draftRowLoader(testDb);
 
 const SEED_PREFIX = "t-adm3b-";
-const runId = `${SEED_PREFIX}${crypto.randomUUID().slice(0, 8)}`;
 
 let ids: StaffFixtureIds;
+const { authorSession } = sessionSetters(sessionMock, () => ids);
 
-function authorSession() {
-  sessionMock.current = sessionUser(ids.authorId, "author");
-}
-
-beforeAll(async () => {
-  await sweepStalePostFixtures(testDb, { seedPrefix: SEED_PREFIX });
-  ids = await seedStaffFixtures(testDb, runId);
+const { runId } = registerPostSuiteLifecycle({
+  testDb,
+  pool,
+  prefix: SEED_PREFIX,
+  onSeeded: (seededIds) => {
+    ids = seededIds;
+  },
 });
 
-afterAll(async () => {
-  await testDb.delete(posts).where(like(posts.slug, `${runId}%`));
-  await testDb.delete(tags).where(like(tags.slug, `${runId}%`));
-  await clearStaffFixtures(testDb, ids);
-  await pool.end();
-});
-
-async function seedPublished(suffix: string) {
-  const [row] = await testDb
-    .insert(posts)
-    .values({
-      authorId: ids.authorId,
-      title: `${runId} ${suffix}`,
-      slug: `${runId}-${suffix}`,
-      bodyMd: "Live body.",
-      thumbnailUrl: "https://img.example.com/live.jpg",
-      categoryId: ids.categoryId,
-      status: "published",
-      publishAt: new Date(Date.now() - 1000),
-    })
-    .returning({ id: posts.id, slug: posts.slug });
-  return row!;
+function seedPublished(suffix: string) {
+  return seedPostFixture(testDb, {
+    runId,
+    suffix,
+    authorId: ids.authorId,
+    categoryId: ids.categoryId,
+    bodyMd: "Live body.",
+    thumbnailUrl: "https://img.example.com/live.jpg",
+    status: "published",
+    publishAt: new Date(Date.now() - 1000),
+  });
 }
 
 // Promoting/discarding a public post's staged edits (its post_drafts row,

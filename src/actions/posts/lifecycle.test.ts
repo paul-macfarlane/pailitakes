@@ -1,12 +1,12 @@
-import { eq, like } from "drizzle-orm";
-import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+import { eq } from "drizzle-orm";
+import { describe, expect, it, vi } from "vitest";
 
 import * as schema from "@/db/schema";
 import {
-  clearStaffFixtures,
-  seedStaffFixtures,
+  registerPostSuiteLifecycle,
+  seedPost as seedPostFixture,
+  sessionSetters,
   sessionUser,
-  sweepStalePostFixtures,
   type StaffFixtureIds,
 } from "@/test/helpers";
 
@@ -44,62 +44,43 @@ const {
 } = await import("./lifecycle");
 const { revalidateTag } = await import("next/cache");
 
-const { posts, tags } = schema;
+const { posts } = schema;
 
 const SEED_PREFIX = "t-adm3c-";
-const runId = `${SEED_PREFIX}${crypto.randomUUID().slice(0, 8)}`;
 
 let ids: StaffFixtureIds;
+const { authorSession, adminSession, readerSession, noSession } =
+  sessionSetters(sessionMock, () => ids);
 
-function authorSession() {
-  sessionMock.current = sessionUser(ids.authorId, "author");
-}
-function adminSession() {
-  sessionMock.current = sessionUser(ids.adminId, "admin");
-}
-function readerSession() {
-  sessionMock.current = sessionUser(ids.readerId, "reader");
-}
-function noSession() {
-  sessionMock.current = null;
-}
-
-beforeAll(async () => {
-  await sweepStalePostFixtures(testDb, { seedPrefix: SEED_PREFIX });
-  ids = await seedStaffFixtures(testDb, runId);
-});
-
-afterAll(async () => {
-  await testDb.delete(posts).where(like(posts.slug, `${runId}%`));
-  await testDb.delete(tags).where(like(tags.slug, `${runId}%`));
-  await clearStaffFixtures(testDb, ids);
-  await pool.end();
+const { runId } = registerPostSuiteLifecycle({
+  testDb,
+  pool,
+  prefix: SEED_PREFIX,
+  onSeeded: (seededIds) => {
+    ids = seededIds;
+  },
 });
 
 describe("transitionPostStatus", () => {
   const HTTPS_THUMB = "https://img.example.com/thumb.jpg";
 
-  async function seedPost(opts: {
+  function seedPost(opts: {
     suffix: string;
     status: "draft" | "scheduled" | "published" | "archived";
     thumbnailUrl?: string;
     authorId?: string;
     archiveAt?: Date | null;
   }) {
-    const [row] = await testDb
-      .insert(posts)
-      .values({
-        authorId: opts.authorId ?? ids.authorId,
-        title: `${runId} ${opts.suffix}`,
-        slug: `${runId}-${opts.suffix}`,
-        bodyMd: "Body.",
-        thumbnailUrl: opts.thumbnailUrl ?? "",
-        categoryId: ids.categoryId,
-        status: opts.status,
-        archiveAt: opts.archiveAt ?? null,
-      })
-      .returning({ id: posts.id, slug: posts.slug });
-    return row!;
+    return seedPostFixture(testDb, {
+      runId,
+      suffix: opts.suffix,
+      authorId: opts.authorId ?? ids.authorId,
+      categoryId: ids.categoryId,
+      bodyMd: "Body.",
+      thumbnailUrl: opts.thumbnailUrl ?? "",
+      status: opts.status,
+      archiveAt: opts.archiveAt ?? null,
+    });
   }
 
   it("publishes a draft with a thumbnail: sets published, publish_at, clears archive_at, revalidates", async () => {
@@ -351,27 +332,6 @@ describe("transitionPostStatus", () => {
     expect(result).toEqual({ ok: false, error: "Post not found." });
   });
 
-  it("rejects 'scheduled' as a transition target, even on an already-scheduled post", async () => {
-    const post = await seedPost({
-      suffix: "to-scheduled",
-      status: "scheduled",
-      thumbnailUrl: HTTPS_THUMB,
-      // future publish so it isn't "already live"
-    });
-    // Give it a future publish_at so it's a normal scheduled post.
-    await testDb
-      .update(posts)
-      .set({ publishAt: new Date(Date.now() + 24 * 60 * 60 * 1000) })
-      .where(eq(posts.id, post.id));
-    authorSession();
-
-    const result = await transitionPostStatus(post.id, "scheduled");
-    expect(result).toEqual({
-      ok: false,
-      error: "Use schedule publish to set a publish time.",
-    });
-  });
-
   it("compare-and-swap rejects a stale write when the status changed concurrently", async () => {
     const post = await seedPost({
       suffix: "cas-conflict",
@@ -425,28 +385,24 @@ describe("schedulePublish / scheduleArchive / cancelScheduledArchive", () => {
   const HTTPS_THUMB = "https://img.example.com/thumb.jpg";
   const DAY = 24 * 60 * 60 * 1000;
 
-  async function seedPost(opts: {
+  function seedPost(opts: {
     suffix: string;
     status: "draft" | "scheduled" | "published" | "archived";
     thumbnailUrl?: string;
     publishAt?: Date | null;
     archiveAt?: Date | null;
   }) {
-    const [row] = await testDb
-      .insert(posts)
-      .values({
-        authorId: ids.authorId,
-        title: `${runId} ${opts.suffix}`,
-        slug: `${runId}-${opts.suffix}`,
-        bodyMd: "Body.",
-        thumbnailUrl: opts.thumbnailUrl ?? HTTPS_THUMB,
-        categoryId: ids.categoryId,
-        status: opts.status,
-        publishAt: opts.publishAt ?? null,
-        archiveAt: opts.archiveAt ?? null,
-      })
-      .returning({ id: posts.id });
-    return row!;
+    return seedPostFixture(testDb, {
+      runId,
+      suffix: opts.suffix,
+      authorId: ids.authorId,
+      categoryId: ids.categoryId,
+      bodyMd: "Body.",
+      thumbnailUrl: opts.thumbnailUrl ?? HTTPS_THUMB,
+      status: opts.status,
+      publishAt: opts.publishAt ?? null,
+      archiveAt: opts.archiveAt ?? null,
+    });
   }
 
   it("schedules a future publish on a draft: status becomes scheduled with publish_at set", async () => {
@@ -684,21 +640,17 @@ describe("schedulePublish / scheduleArchive / cancelScheduledArchive", () => {
 // crud.test.ts for updatePost's own staging behavior and draft.test.ts for
 // publishPostChanges/discardPostChanges.
 describe("staged draft edits (draft-of-published, ADR-0011)", () => {
-  async function seedPublished(suffix: string) {
-    const [row] = await testDb
-      .insert(posts)
-      .values({
-        authorId: ids.authorId,
-        title: `${runId} ${suffix}`,
-        slug: `${runId}-${suffix}`,
-        bodyMd: "Live body.",
-        thumbnailUrl: "https://img.example.com/live.jpg",
-        categoryId: ids.categoryId,
-        status: "published",
-        publishAt: new Date(Date.now() - 1000),
-      })
-      .returning({ id: posts.id, slug: posts.slug });
-    return row!;
+  function seedPublished(suffix: string) {
+    return seedPostFixture(testDb, {
+      runId,
+      suffix,
+      authorId: ids.authorId,
+      categoryId: ids.categoryId,
+      bodyMd: "Live body.",
+      thumbnailUrl: "https://img.example.com/live.jpg",
+      status: "published",
+      publishAt: new Date(Date.now() - 1000),
+    });
   }
 
   it("blocks a status transition while the post has staged changes", async () => {

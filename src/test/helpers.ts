@@ -4,6 +4,7 @@
 
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import { and, eq, inArray, like, lt, notExists, sql } from "drizzle-orm";
+import { afterAll, beforeAll } from "vitest";
 
 import * as schema from "@/db/schema";
 
@@ -168,4 +169,122 @@ export function draftRowLoader(testDb: TestDb) {
       .where(eq(postDrafts.postId, postId));
     return row;
   };
+}
+
+// NOTE on what can (and can't) move here: `vi.hoisted`/`vi.mock` calls stay
+// in each test file — Vitest hoists them above that file's own imports, not
+// above an imported helper's, so a shared "bootstrap" wrapping them would
+// silently stop being hoisted and break the mock. What CAN live here is
+// anything vi.hoisted/vi.mock *reference* or call afterward: pool/db wiring
+// (createTestDb), fixture seeding, and — below — the beforeAll/afterAll
+// lifecycle plumbing itself (Vitest hooks are ordinary function calls, not
+// hoisted, so calling them from inside a helper works fine).
+
+type SessionIds = Pick<StaffFixtureIds, "authorId" | "adminId" | "readerId">;
+
+// Builds the four settable-session helpers (`authorSession`/`adminSession`/
+// `readerSession`/`noSession`) that action tests flip per case. `getIds` is
+// a thunk, not a plain value, because callers declare `let ids` and only
+// populate it once seeding finishes in `beforeAll` — resolving lazily means
+// these functions work whether they're wired up before or after that
+// assignment. Preview has no DB fixtures, so its ids default to a static
+// "user-1".
+export function sessionSetters(
+  sessionMock: { current: unknown },
+  getIds: () => SessionIds = () => ({
+    authorId: "user-1",
+    adminId: "user-1",
+    readerId: "user-1",
+  }),
+) {
+  return {
+    authorSession() {
+      sessionMock.current = sessionUser(getIds().authorId, "author");
+    },
+    adminSession() {
+      sessionMock.current = sessionUser(getIds().adminId, "admin");
+    },
+    readerSession() {
+      sessionMock.current = sessionUser(getIds().readerId, "reader");
+    },
+    noSession() {
+      sessionMock.current = null;
+    },
+  };
+}
+
+// Dedupes the SEED_PREFIX+runId / beforeAll(sweep+seed) / afterAll(delete
+// posts+tags by slug prefix, clear staff fixtures, pool.end) wiring shared
+// by the posts-action test trio (crud/draft/lifecycle). `runId` is returned
+// synchronously (it needs no DB round trip); `ids` is only known once
+// seeding finishes, so it's handed back through `onSeeded` instead — call
+// sites keep their own `let ids: StaffFixtureIds` (as before extraction) and
+// assign it there, so every existing `ids.xxx` reference elsewhere in the
+// file keeps working unchanged.
+export function registerPostSuiteLifecycle(opts: {
+  testDb: TestDb;
+  pool: import("pg").Pool;
+  prefix: string;
+  onSeeded?: (ids: StaffFixtureIds) => void;
+}): { runId: string } {
+  const { testDb, pool, prefix } = opts;
+  const runId = `${prefix}${crypto.randomUUID().slice(0, 8)}`;
+  let ids: StaffFixtureIds;
+
+  beforeAll(async () => {
+    await sweepStalePostFixtures(testDb, { seedPrefix: prefix });
+    ids = await seedStaffFixtures(testDb, runId);
+    opts.onSeeded?.(ids);
+  });
+
+  afterAll(async () => {
+    const { posts, tags } = schema;
+    await testDb.delete(posts).where(like(posts.slug, `${runId}%`));
+    await testDb.delete(tags).where(like(tags.slug, `${runId}%`));
+    await clearStaffFixtures(testDb, ids);
+    await pool.end();
+  });
+
+  return { runId };
+}
+
+export interface SeedPostOptions {
+  runId: string;
+  suffix: string;
+  authorId: string;
+  categoryId: number;
+  bodyMd?: string;
+  thumbnailUrl?: string;
+  status?: (typeof schema.posts.$inferInsert)["status"];
+  publishAt?: Date | null;
+  archiveAt?: Date | null;
+}
+
+// One shared post-row factory for the posts-action test trio. Columns are
+// only included in the insert when the caller passes them explicitly (same
+// as each file's old bespoke seeder), so an omitted `status`/`publishAt`/
+// `archiveAt` still falls through to the schema default instead of an
+// explicit value.
+export async function seedPost(
+  testDb: TestDb,
+  opts: SeedPostOptions,
+): Promise<{ id: string; slug: string }> {
+  const { posts } = schema;
+  const values: typeof posts.$inferInsert = {
+    authorId: opts.authorId,
+    title: `${opts.runId} ${opts.suffix}`,
+    slug: `${opts.runId}-${opts.suffix}`,
+    bodyMd: opts.bodyMd ?? "Body.",
+    thumbnailUrl: opts.thumbnailUrl ?? "",
+    categoryId: opts.categoryId,
+  };
+  if (opts.status !== undefined) values.status = opts.status;
+  if (opts.publishAt !== undefined) values.publishAt = opts.publishAt;
+  if (opts.archiveAt !== undefined) values.archiveAt = opts.archiveAt;
+
+  const [row] = await testDb
+    .insert(posts)
+    .values(values)
+    .returning({ id: posts.id, slug: posts.slug });
+  return row!;
 }

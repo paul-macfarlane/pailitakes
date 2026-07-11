@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { sessionUser } from "@/test/helpers";
+import { sessionSetters } from "@/test/helpers";
 
 // preview.ts imports only markdown + session (no @/db), so — unlike the
 // posts action test files — this file needs no DB harness, just the same
@@ -12,15 +12,10 @@ vi.mock("@/lib/auth/session", () => ({
 
 const { renderPostPreview } = await import("./preview");
 
-function staffSession(role: "author" | "admin" = "author") {
-  sessionMock.current = sessionUser("user-1", role);
-}
-function readerSession() {
-  sessionMock.current = sessionUser("user-1", "reader");
-}
-function noSession() {
-  sessionMock.current = null;
-}
+// No DB fixtures here, so sessionSetters falls back to its default static
+// "user-1" ids for all three roles.
+const { authorSession, adminSession, readerSession, noSession } =
+  sessionSetters(sessionMock);
 
 describe("renderPostPreview", () => {
   it("rejects an unauthenticated caller", async () => {
@@ -36,7 +31,7 @@ describe("renderPostPreview", () => {
   });
 
   it("renders markdown through the production pipeline for staff", async () => {
-    staffSession("author");
+    authorSession();
     const result = await renderPostPreview({
       bodyMd: "# Hi\n\nSome paragraph.",
     });
@@ -47,7 +42,7 @@ describe("renderPostPreview", () => {
   });
 
   it("sanitizes script tags", async () => {
-    staffSession("admin");
+    adminSession();
     const result = await renderPostPreview({
       bodyMd: "<script>alert(1)</script>\n\nHello",
     });
@@ -58,7 +53,7 @@ describe("renderPostPreview", () => {
   });
 
   it("embeds a bare YouTube link as the lite-youtube facade", async () => {
-    staffSession("author");
+    authorSession();
     const result = await renderPostPreview({
       bodyMd: "https://youtu.be/dQw4w9WgXcQ",
     });
@@ -70,7 +65,7 @@ describe("renderPostPreview", () => {
   });
 
   it("rejects an oversized body", async () => {
-    staffSession("author");
+    authorSession();
     const result = await renderPostPreview({ bodyMd: "a".repeat(100_001) });
     expect(result.ok).toBe(false);
   });
