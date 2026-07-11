@@ -1,6 +1,6 @@
 # Paulitakes — Technical Design
 
-**Version:** 0.3 (Locked; amended by ADR-0004; §6 project layout updated per ADR-0013; §5.7 authorization vocabulary per ADR-0014)
+**Version:** 0.3 (Locked; amended by ADR-0004; §6 project layout updated per ADR-0013; §5.7 authorization vocabulary per ADR-0014; §5.7 editor create/flush semantics per ADR-0015)
 **Owner:** Paul
 **Last updated:** July 5, 2026
 **Companion doc:** Paulitakes Product Doc v0.2
@@ -284,9 +284,10 @@ ORDER BY rank DESC, publish_at DESC
 ### 5.7 Admin & authoring
 
 - **Access:** middleware redirects cookieless requests from `/admin/**` (UX only); `requireStaff()` gates the admin layout and every admin page (layouts and pages render in parallel, so a layout-only gate can't protect page content — ADR-0009); every server action re-checks role (action checks are the security boundary). Authors scoped to `author_id = self`; admin unscoped.
-- **Editor:** Markdown textarea + toggleable preview pane running the _same_ rendering pipeline as production (server action returns rendered HTML) — guarantees preview fidelity (FR-7.2). Autosave drafts on interval.
+- **Editor:** Markdown textarea + toggleable preview pane running the _same_ rendering pipeline as production (server action returns rendered HTML) — guarantees preview fidelity (FR-7.2). The post row is created only on an explicit save; interval autosave then keeps an existing post current, and the publish/status/schedule controls flush unsaved edits (and abort on failure) before acting (ADR-0015).
 - **Staged edits on public posts (ADR-0011, normalized in ADR-0012):** editing a post that is publicly visible right now (`isPubliclyVisible()`, not status alone) autosaves into the `post_drafts` table (a complete pending snapshot, one row per post) instead of the live columns, so the public keeps seeing the current content until the author hits "Publish changes" (promotes + revalidates) or "Discard changes". Anything not yet public — drafts, archived, and a scheduled post still awaiting its `publish_at` — writes through immediately. Buffer writes and the promote CAS-guard on `post_drafts.updated_at` (no silent lost updates); the lifecycle actions guard "no `post_drafts` row for this post" so a pending snapshot can't be stranded by a racing status/schedule change, and a post with pending changes can't change status or (re)schedule until it's published or discarded. Editor/preview read the snapshot when present via a LEFT JOIN.
 - **Thumbnails:** a URL field. Rendered with `next/image` + `unoptimized` + explicit dimensions (avoids maintaining a `remotePatterns` allowlist / open-proxy risk while keeping lazy loading and layout stability). Known tradeoffs: link rot and hotlink-blocking hosts. Revisit with Vercel Blob if uploads are ever wanted.
+- **Hard delete (admin-only):** authors archive (recoverable, FR-1.6); admins may permanently delete from the edit page behind an `AlertDialog` confirmation. Cascades remove the pending snapshot and tag joins; revalidates the list + post tags.
 - **Moderation log, announcements, categories, users (roles/bans):** simple CRUD screens.
 - **Preview:** `/admin/preview/[id]` renders any draft/scheduled post with the public layout, auth-gated.
 
