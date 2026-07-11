@@ -59,7 +59,7 @@ export async function getHomeFeed(offset: number): Promise<HomeFeed> {
 
 // /categories/[slug] (SRCH-2, FR-2.4). An inactive category's page stays
 // reachable and keeps rendering its posts — deactivation only hides the
-// category from pickers and the /categories index (locked decision, see the
+// category from pickers and the pill bars (locked decision, see the
 // page component). Cache key includes categorySlug/offset automatically.
 export async function getCategoryFeed(
   categorySlug: string,

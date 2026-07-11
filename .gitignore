@@ -44,3 +44,6 @@ next-env.d.ts
 # playwright
 /test-results/
 /playwright-report/
+
+# human review feedback scratch files (see /feedback command)
+/feedback.md
