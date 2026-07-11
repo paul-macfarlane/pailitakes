@@ -77,6 +77,23 @@ test.describe("search and listing", () => {
     await expect(page.getByRole("heading", { name: post.title })).toBeVisible();
   });
 
+  test("home search form navigates to /search with the seeded post visible", async ({
+    page,
+  }) => {
+    // Home is cached 60s (design §3), but the search form itself is static
+    // markup independent of any seeded row, so no flake risk here.
+    await page.goto("/");
+    const searchInput = page.getByRole("searchbox", { name: "Search posts" });
+    await searchInput.fill(bodyWord);
+    await searchInput.press("Enter");
+    await page.waitForURL(
+      (url) =>
+        new URL(url).pathname === "/search" &&
+        new URL(url).searchParams.get("q") === bodyWord,
+    );
+    await expect(page.getByRole("heading", { name: post.title })).toBeVisible();
+  });
+
   test("category filter: a non-matching category hides the result, the matching one keeps it", async ({
     page,
   }) => {
@@ -97,13 +114,26 @@ test.describe("search and listing", () => {
     await expect(page.getByRole("heading", { name: post.title })).toBeVisible();
   });
 
-  test("category page shows the post", async ({ page }) => {
+  test("category page shows the post and its category pill marked active", async ({
+    page,
+  }) => {
     const response = await page.goto(`/categories/${category.slug}`);
     expect(response?.status()).toBe(200);
     await expect(
       page.getByRole("heading", { name: category.name }),
     ).toBeVisible();
     await expect(page.getByRole("heading", { name: post.title })).toBeVisible();
+
+    // Pills nav is part of this page's own fresh cache entry (unlike home,
+    // which is cached 60s and would flake against a just-seeded category —
+    // see file header). Asserting here instead.
+    const categoriesNav = page.getByRole("navigation", { name: "Categories" });
+    await expect(
+      categoriesNav.getByRole("link", { name: category.name }),
+    ).toHaveAttribute("aria-current", "page");
+    await expect(
+      categoriesNav.getByRole("link", { name: otherCategory.name }),
+    ).not.toHaveAttribute("aria-current", "page");
   });
 
   test("unknown category slug 404s", async ({ page }) => {

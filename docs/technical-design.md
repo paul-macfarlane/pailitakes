@@ -316,7 +316,6 @@ src/
     (public)/
       page.tsx                    # home: announcements + recent posts
       posts/[slug]/page.tsx
-      categories/page.tsx         # active-category index
       categories/[slug]/page.tsx
       tags/[slug]/page.tsx
       search/page.tsx
