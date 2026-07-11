@@ -158,8 +158,7 @@ export function PostEditor({
   // lifetime — a status change happens via the sibling controls + a full
   // router.refresh, which is fine to reflect only on the next load.
   const requiresThumbnail =
-    initialPost !== null &&
-    (initialPost.status === "published" || initialPost.status === "scheduled");
+    initialPost !== null && usesDraftBuffer(initialPost.status);
   // On a public post, saves are STAGED into a draft buffer, not written live
   // (ADR-0011) — the server routes them there; the editor only reflects this in
   // its status label and by surfacing the "unpublished changes" banner.

@@ -15,9 +15,12 @@ import {
   promoteStagedDraft,
 } from "@/lib/posts/data";
 import { postDraftSchema } from "@/lib/posts/input";
-import { CONFLICT_ERROR, GENERIC_ERROR } from "@/lib/posts/service/shared";
+import {
+  CONFLICT_ERROR,
+  GENERIC_ERROR,
+  type ActionResult,
+} from "@/lib/shared/action-result";
 import { IMMEDIATE } from "@/lib/shared/cache";
-import type { ActionResult } from "@/lib/shared/action-result";
 
 // Promotes a public post's staged edits (its post_drafts row) to the live
 // columns and clears the buffer, in one transaction (ADR-0011). This is the

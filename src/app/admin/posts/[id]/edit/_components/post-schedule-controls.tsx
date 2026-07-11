@@ -13,7 +13,7 @@ import { Input } from "@/components/ui/input";
 import {
   canScheduleArchive,
   canSchedulePublish,
-  type PostStatus,
+  PostStatus,
 } from "@/lib/posts/status";
 
 // Formats a Date as the local "YYYY-MM-DDTHH:mm" a datetime-local input wants.
@@ -71,7 +71,7 @@ export function PostScheduleControls({
   // client-only.) Its archive control still applies.
   const scheduledLive =
     mounted &&
-    status === "scheduled" &&
+    status === PostStatus.Scheduled &&
     publishAt !== null &&
     publishAt <= new Date();
   const showPublish = canSchedulePublish(status) && !scheduledLive;
@@ -81,7 +81,7 @@ export function PostScheduleControls({
   const minValue = mounted ? toDateTimeLocalValue(new Date()) : undefined;
   const publishValue =
     publishEdit ??
-    (mounted && status === "scheduled" && publishAt
+    (mounted && status === PostStatus.Scheduled && publishAt
       ? toDateTimeLocalValue(publishAt)
       : "");
   const archiveValue =
@@ -137,7 +137,7 @@ export function PostScheduleControls({
           <label htmlFor="schedule-publish" className="text-sm font-medium">
             Schedule publish
           </label>
-          {mounted && status === "scheduled" && publishAt ? (
+          {mounted && status === PostStatus.Scheduled && publishAt ? (
             <p className="text-sm text-muted-foreground">
               Scheduled to publish {publishAt.toLocaleString()}.
             </p>
@@ -159,7 +159,7 @@ export function PostScheduleControls({
               disabled={busy}
               onClick={submitPublish}
             >
-              {status === "scheduled" ? "Reschedule" : "Schedule"}
+              {status === PostStatus.Scheduled ? "Reschedule" : "Schedule"}
             </Button>
           </div>
         </div>

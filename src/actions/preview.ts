@@ -7,9 +7,11 @@ import { z } from "zod";
 
 import { staffSession } from "@/lib/auth/guards";
 import { renderMarkdown } from "@/lib/content/markdown";
-import type { ActionResult } from "@/lib/shared/action-result";
-
-const GENERIC_ERROR = "Something went wrong. Please try again.";
+import {
+  GENERIC_ERROR,
+  NOT_AUTHORIZED_ERROR,
+  type ActionResult,
+} from "@/lib/shared/action-result";
 
 // Same cap as post-input's bodyMd.
 const previewInputSchema = z.object({
@@ -26,7 +28,7 @@ export async function renderPostPreview(
   // role -> everything else).
   const session = await staffSession();
   if (!session) {
-    return { ok: false, error: "Not authorized." };
+    return { ok: false, error: NOT_AUTHORIZED_ERROR };
   }
 
   const parsed = previewInputSchema.safeParse(input);

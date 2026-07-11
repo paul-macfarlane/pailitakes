@@ -14,7 +14,10 @@ import {
   transitionPostStatusService,
 } from "@/lib/posts/service/lifecycle";
 import { POST_STATUSES, type PostStatus } from "@/lib/posts/status";
-import type { ActionResult } from "@/lib/shared/action-result";
+import {
+  NOT_AUTHORIZED_ERROR,
+  type ActionResult,
+} from "@/lib/shared/action-result";
 
 export async function transitionPostStatus(
   id: string,
@@ -24,7 +27,7 @@ export async function transitionPostStatus(
   // -> everything else).
   const session = await staffSession();
   if (!session) {
-    return { ok: false, error: "Not authorized." };
+    return { ok: false, error: NOT_AUTHORIZED_ERROR };
   }
 
   const idResult = z.uuid().safeParse(id);
@@ -46,7 +49,7 @@ export async function schedulePublish(
 ): Promise<ActionResult<{ id: string; publishAt: string }>> {
   const session = await staffSession();
   if (!session) {
-    return { ok: false, error: "Not authorized." };
+    return { ok: false, error: NOT_AUTHORIZED_ERROR };
   }
 
   const idResult = z.uuid().safeParse(id);
@@ -68,7 +71,7 @@ export async function scheduleArchive(
 ): Promise<ActionResult<{ id: string; archiveAt: string }>> {
   const session = await staffSession();
   if (!session) {
-    return { ok: false, error: "Not authorized." };
+    return { ok: false, error: NOT_AUTHORIZED_ERROR };
   }
 
   const idResult = z.uuid().safeParse(id);
@@ -89,7 +92,7 @@ export async function cancelScheduledArchive(
 ): Promise<ActionResult<{ id: string }>> {
   const session = await staffSession();
   if (!session) {
-    return { ok: false, error: "Not authorized." };
+    return { ok: false, error: NOT_AUTHORIZED_ERROR };
   }
 
   const idResult = z.uuid().safeParse(id);

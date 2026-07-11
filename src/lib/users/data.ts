@@ -8,7 +8,7 @@ import { and, eq, isNull } from "drizzle-orm";
 
 import { db, type Db } from "@/db";
 import { user } from "@/db/schema";
-import type { Role } from "@/lib/auth/roles";
+import { Role } from "@/lib/auth/roles";
 
 export type Tx = Parameters<Parameters<Db["transaction"]>[0]>[0];
 
@@ -33,7 +33,7 @@ export async function withLockedUserMutation<T>(
       await tx
         .select({ id: user.id })
         .from(user)
-        .where(and(eq(user.role, "admin"), isNull(user.bannedAt)))
+        .where(and(eq(user.role, Role.Admin), isNull(user.bannedAt)))
         .orderBy(user.id)
         .for("update")
     ).map((row) => row.id);

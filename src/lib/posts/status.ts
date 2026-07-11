@@ -3,21 +3,30 @@
 // decide which buttons to show. FR-1.5 (the four statuses), FR-1.6 (archive is
 // recoverable), design §4 (visibility is a query over status + timestamps).
 
+export const PostStatus = {
+  Draft: "draft",
+  Scheduled: "scheduled",
+  Published: "published",
+  Archived: "archived",
+} as const;
+export type PostStatus = (typeof PostStatus)[keyof typeof PostStatus];
+
 // Keep in sync with the `post_status` pg enum (src/db/schema.ts); a test
 // asserts the two match so drift fails CI rather than shipping.
 export const POST_STATUSES = [
-  "draft",
-  "scheduled",
-  "published",
-  "archived",
+  PostStatus.Draft,
+  PostStatus.Scheduled,
+  PostStatus.Published,
+  PostStatus.Archived,
 ] as const;
-
-export type PostStatus = (typeof POST_STATUSES)[number];
 
 // Statuses that can be publicly visible (subject to the publish/archive
 // timestamps). Single source of truth for visiblePostsWhere(), isPublicly-
 // Visible(), and the ADM-9 revalidation crossing scan — they must agree.
-export const PUBLIC_STATUSES = ["published", "scheduled"] as const;
+export const PUBLIC_STATUSES = [
+  PostStatus.Published,
+  PostStatus.Scheduled,
+] as const;
 
 // Manual, immediate transitions an author/admin can trigger. Moving a post
 // INTO `scheduled` needs a future publish_at and is ADM-5's schedule action,

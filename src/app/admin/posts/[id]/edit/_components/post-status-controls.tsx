@@ -7,9 +7,9 @@ import { transitionPostStatus } from "@/actions/posts/lifecycle";
 import { Button } from "@/components/ui/button";
 import {
   allowedTransitions,
+  PostStatus,
   STATUS_LABELS,
   TRANSITION_LABELS,
-  type PostStatus,
 } from "@/lib/posts/status";
 import { cn } from "@/lib/utils";
 
@@ -73,7 +73,7 @@ export function PostStatusControls({
             key={target}
             type="button"
             size="sm"
-            variant={target === "published" ? "default" : "outline"}
+            variant={target === PostStatus.Published ? "default" : "outline"}
             disabled={busy}
             onClick={() => handle(target)}
           >

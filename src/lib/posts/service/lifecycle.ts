@@ -21,11 +21,14 @@ import {
   canScheduleArchive,
   canSchedulePublish,
   canTransition,
-  type PostStatus,
+  PostStatus,
 } from "@/lib/posts/status";
-import { CONFLICT_ERROR, GENERIC_ERROR } from "@/lib/posts/service/shared";
+import {
+  CONFLICT_ERROR,
+  GENERIC_ERROR,
+  type ActionResult,
+} from "@/lib/shared/action-result";
 import { IMMEDIATE } from "@/lib/shared/cache";
-import type { ActionResult } from "@/lib/shared/action-result";
 
 // A public post with staged edits (its post_drafts row) must have them
 // promoted or discarded before any lifecycle change — keeps the buffer from
@@ -61,7 +64,7 @@ export async function transitionPostStatusService(
     // check (so a non-owner still gets the authz result) but before the
     // idempotent-no-op below, which would otherwise return ok for an
     // already-scheduled post.
-    if (target === "scheduled") {
+    if (target === PostStatus.Scheduled) {
       return {
         ok: false,
         error: "Use schedule publish to set a publish time.",
@@ -86,7 +89,7 @@ export async function transitionPostStatusService(
     // thumbnail field itself arrives in ADM-6; until then editor-created
     // posts must have a thumbnail set before they can be published.
     if (
-      target === "published" &&
+      target === PostStatus.Published &&
       !isRenderableImageSrc(existing.thumbnailUrl)
     ) {
       return {
@@ -97,7 +100,7 @@ export async function transitionPostStatusService(
 
     const now = new Date();
     const updates: PostColumnUpdate = { status: target };
-    if (target === "published") {
+    if (target === PostStatus.Published) {
       // Restoring an archived post that was genuinely published before keeps
       // its original date and feed position (FR-1.6). Every other path is a
       // real "publish now" and stamps now() — including publish->draft->
@@ -105,7 +108,7 @@ export async function transitionPostStatusService(
       // NOT be treated as the original (that would backdate the republish).
       // Key on the source status, not just the timestamp.
       const restoringPublished =
-        existing.status === "archived" &&
+        existing.status === PostStatus.Archived &&
         existing.publishAt !== null &&
         existing.publishAt <= now;
       updates.publishAt = restoringPublished ? existing.publishAt : now;
@@ -164,7 +167,7 @@ export async function schedulePublishService(
     // would silently retract a public post — treat it as published: archive
     // it first to take it down.
     if (
-      post.status === "scheduled" &&
+      post.status === PostStatus.Scheduled &&
       post.publishAt !== null &&
       post.publishAt <= now
     ) {

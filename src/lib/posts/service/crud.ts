@@ -9,6 +9,7 @@ import "server-only";
 import { revalidateTag } from "next/cache";
 
 import type { StaffSession } from "@/lib/auth/guards";
+import { Role } from "@/lib/auth/roles";
 import { isRenderableImageSrc } from "@/lib/content/image-src";
 import {
   categoryExists,
@@ -33,9 +34,13 @@ import {
   type PostUpdate,
 } from "@/lib/posts/input";
 import { isPubliclyVisible } from "@/lib/posts/status";
-import { CONFLICT_ERROR, GENERIC_ERROR } from "@/lib/posts/service/shared";
+import {
+  CONFLICT_ERROR,
+  GENERIC_ERROR,
+  NOT_AUTHORIZED_ERROR,
+  type ActionResult,
+} from "@/lib/shared/action-result";
 import { IMMEDIATE } from "@/lib/shared/cache";
-import type { ActionResult } from "@/lib/shared/action-result";
 
 export async function createPostService(
   data: PostInput,
@@ -219,10 +224,10 @@ export async function updatePostService(
 
     // Authors are scoped to their own rows; admins are unscoped (§5.7).
     if (
-      session.user.role !== "admin" &&
+      session.user.role !== Role.Admin &&
       existing.authorId !== session.user.id
     ) {
-      return { ok: false, error: "Not authorized." };
+      return { ok: false, error: NOT_AUTHORIZED_ERROR };
     }
 
     if (!categoryOk) {

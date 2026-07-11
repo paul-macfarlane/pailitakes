@@ -7,13 +7,17 @@
 import { z } from "zod";
 
 import { staffSession } from "@/lib/auth/guards";
+import { Role } from "@/lib/auth/roles";
 import { postInputSchema, postUpdateSchema } from "@/lib/posts/input";
 import {
   createPostService,
   deletePostService,
   updatePostService,
 } from "@/lib/posts/service/crud";
-import type { ActionResult } from "@/lib/shared/action-result";
+import {
+  NOT_AUTHORIZED_ERROR,
+  type ActionResult,
+} from "@/lib/shared/action-result";
 
 export async function createPost(
   input: unknown,
@@ -25,7 +29,7 @@ export async function createPost(
   // else).
   const session = await staffSession();
   if (!session) {
-    return { ok: false, error: "Not authorized." };
+    return { ok: false, error: NOT_AUTHORIZED_ERROR };
   }
 
   const parsed = postInputSchema.safeParse(input);
@@ -46,7 +50,7 @@ export async function updatePost(
   // else).
   const session = await staffSession();
   if (!session) {
-    return { ok: false, error: "Not authorized." };
+    return { ok: false, error: NOT_AUTHORIZED_ERROR };
   }
 
   const idResult = z.uuid().safeParse(id);
@@ -71,8 +75,8 @@ export async function deletePost(
   const session = await staffSession();
   // Hard delete is admin-only; authors archive instead, which is
   // recoverable (ADM-4/FR-7.6) — deletion is not.
-  if (!session || session.user.role !== "admin") {
-    return { ok: false, error: "Not authorized." };
+  if (!session || session.user.role !== Role.Admin) {
+    return { ok: false, error: NOT_AUTHORIZED_ERROR };
   }
 
   const idResult = z.uuid().safeParse(id);

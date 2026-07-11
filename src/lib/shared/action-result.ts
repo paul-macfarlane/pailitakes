@@ -3,3 +3,13 @@
 // client bundle.
 export type ActionResult<T> =
   { ok: true; data: T } | { ok: false; error: string };
+
+// Common error copy shared across domains (posts, users, preview) so every
+// caller shows identical wording rather than each redeclaring its own
+// string.
+export const GENERIC_ERROR = "Something went wrong. Please try again.";
+
+export const CONFLICT_ERROR =
+  "This post was changed elsewhere. Reload and try again.";
+
+export const NOT_AUTHORIZED_ERROR = "Not authorized.";

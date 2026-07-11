@@ -8,7 +8,10 @@ import { z } from "zod";
 
 import { adminSession } from "@/lib/auth/guards";
 import { ROLE_VALUES } from "@/lib/auth/roles";
-import type { ActionResult } from "@/lib/shared/action-result";
+import {
+  NOT_AUTHORIZED_ERROR,
+  type ActionResult,
+} from "@/lib/shared/action-result";
 import { setUserBannedService, setUserRoleService } from "@/lib/users/service";
 
 const userIdSchema = z.string().min(1);
@@ -19,7 +22,7 @@ export async function setUserRole(
   role: unknown,
 ): Promise<ActionResult<{ id: string; role: string }>> {
   if (!(await adminSession())) {
-    return { ok: false, error: "Not authorized." };
+    return { ok: false, error: NOT_AUTHORIZED_ERROR };
   }
 
   const idResult = userIdSchema.safeParse(userId);
@@ -39,7 +42,7 @@ export async function setUserBanned(
   banned: unknown,
 ): Promise<ActionResult<{ id: string; banned: boolean }>> {
   if (!(await adminSession())) {
-    return { ok: false, error: "Not authorized." };
+    return { ok: false, error: NOT_AUTHORIZED_ERROR };
   }
 
   const idResult = userIdSchema.safeParse(userId);
