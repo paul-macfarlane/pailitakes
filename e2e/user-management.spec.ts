@@ -109,3 +109,64 @@ test.describe("admin user management", () => {
     await expect(selfRow.getByRole("button", { name: "Ban" })).toBeDisabled();
   });
 });
+
+// Banning a staff user must lock them out immediately (canPerformAction:
+// bannedAt overrides role — ADM-10), not just hide the row on the users
+// screen. Uses its own dedicated author session (not the describe-level
+// `subject`, which has no cookie/session to sign in with) so this spec is
+// isolated from the others in the file; cleanup drops the whole user row, so
+// there's nothing to unban afterwards.
+test.describe("banned staff lockout", () => {
+  let admin: TestSession;
+  let author: TestSession;
+
+  test.beforeEach(async ({ context }) => {
+    admin = await createTestSession({ role: "admin", userName: "E2E Admin" });
+    author = await createTestSession({
+      role: "author",
+      userName: "E2E Banned Author",
+    });
+    await context.addCookies([admin.cookie]);
+  });
+
+  test.afterEach(async () => {
+    await author.cleanup();
+    await admin.cleanup();
+  });
+
+  test("bars a banned staff user from /admin and hides the admin menu entry", async ({
+    page,
+    browser,
+  }) => {
+    await page.goto("/admin/users");
+    const row = page.locator("li", { hasText: `${author.userId}@e2e.test` });
+    const badge = row.locator("span:not([data-slot])");
+
+    await clickUntil(row.getByRole("button", { name: "Ban" }), () =>
+      expect(badge).toContainText("Banned"),
+    );
+
+    // A separate browser context carries the author's own signed-in session
+    // (the admin's page above must stay signed in as the admin throughout).
+    const authorContext = await browser.newContext();
+    await authorContext.addCookies([author.cookie]);
+    const authorPage = await authorContext.newPage();
+
+    // requireStaff's canPerformAction check sends a banned staff user home,
+    // same as a plain reader (admin-gate.spec.ts).
+    await authorPage.goto("/admin");
+    await authorPage.waitForURL((url) => new URL(url).pathname === "/");
+    await expect(
+      authorPage.getByRole("heading", { name: "Paulitakes" }),
+    ).toBeVisible();
+
+    // The account menu's "Admin" shortcut is gated the same way (isStaff in
+    // header-auth.tsx) — a banned author no longer sees it either.
+    await authorPage.getByRole("button", { name: "Account menu" }).click();
+    await expect(
+      authorPage.getByRole("menuitem", { name: "Admin", exact: true }),
+    ).toHaveCount(0);
+
+    await authorContext.close();
+  });
+});

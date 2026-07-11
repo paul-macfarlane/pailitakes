@@ -172,6 +172,47 @@ test.describe("authoring lifecycle", () => {
     }).toPass();
   });
 
+  test("discards staged edits and restores the live values", async ({
+    page,
+  }) => {
+    const title = `E2E Discard ${crypto.randomUUID().slice(0, 8)}`;
+    const { id, slug } = await createDraft(page, title);
+
+    // Publish the post first.
+    await clickUntil(page.getByRole("button", { name: "Publish now" }), () =>
+      expect(page.getByText("Published")).toBeVisible(),
+    );
+
+    // Stage an edit (same setup as the "stays staged" spec above).
+    const newTitle = `${title} EDITED`;
+    await page.locator("#title").fill(newTitle);
+    await clickUntil(page.getByRole("button", { name: "Save now" }), () =>
+      expect(page.getByText("Unpublished changes")).toBeVisible(),
+    );
+
+    // Discard throws the staged draft away. Like "Publish changes", this does
+    // a full reload (see PostPendingControls) — the editor re-initializes
+    // from the server's now-unstaged post, so the title field must show the
+    // ORIGINAL value again, not the discarded edit.
+    await clickUntil(
+      page.getByRole("button", { name: "Discard changes" }),
+      () => expect(page.getByText("Unpublished changes")).toHaveCount(0),
+    );
+    await expect(page.locator("#title")).toHaveValue(title);
+
+    // The editor's own re-render already reflects the live post now — reload
+    // the edit page fresh to also confirm the server-rendered controls agree
+    // (no pending-changes banner, Publish/Archive available again).
+    await page.goto(`/admin/posts/${id}/edit`);
+    await expect(page.getByText("Unpublished changes")).toHaveCount(0);
+    await expect(page.locator("#title")).toHaveValue(title);
+
+    // The public post was never touched by the discarded edit either.
+    await page.goto(`/posts/${slug}`);
+    await expect(page.getByRole("heading", { name: title })).toBeVisible();
+    await expect(page.getByRole("heading", { name: newTitle })).toHaveCount(0);
+  });
+
   test("shows a draft in the private preview", async ({ page }) => {
     const title = `E2E Preview ${crypto.randomUUID().slice(0, 8)}`;
     const { id } = await createDraft(page, title);
