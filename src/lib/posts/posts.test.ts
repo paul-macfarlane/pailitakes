@@ -17,7 +17,8 @@ const { pool, testDb } = await vi.hoisted(async () => {
 
 vi.mock("@/db", () => ({ db: testDb }));
 
-const { getVisiblePostBySlug, listVisiblePosts } = await import("./posts");
+const { getTagBySlug, getVisiblePostBySlug, listVisiblePosts } =
+  await import("./posts");
 
 const { categories, postTags, posts, tags, user } = schema;
 
@@ -44,8 +45,15 @@ const t2Minutes = (n: number) => new Date(T2.getTime() + n * 60_000);
 const userId = `user-${runId}`;
 
 let categoryId: number;
+// A second category so the categorySlug filter test can distinguish "in this
+// category" from "visible at all" (every other fixture post uses categoryId).
+let categoryOtherId: number;
 let tagAlphaId: number;
 let tagBetaId: number;
+// Dedicated to the tagSlug filter test, kept separate from tagAlpha/tagBeta
+// (already exercised by the aggregation-order assertion) so the filter
+// assertion isn't muddied by an unrelated tagged post.
+let tagFilterId: number;
 
 const slugs = {
   publishedVisible: `${runId}-published-visible`,
@@ -62,6 +70,9 @@ const slugs = {
   list4: `${runId}-list-4`,
   list5: `${runId}-list-5`,
   unknown: `${runId}-does-not-exist`,
+  categoryOther: `${runId}-category-other`,
+  tagged: `${runId}-tagged`,
+  taggedInvisible: `${runId}-tagged-invisible`,
 };
 
 function basePost(overrides: {
@@ -69,6 +80,7 @@ function basePost(overrides: {
   status: "draft" | "scheduled" | "published" | "archived";
   publishAt: Date | null;
   archiveAt?: Date | null;
+  categoryId?: number;
 }) {
   return {
     authorId: userId,
@@ -103,6 +115,12 @@ beforeAll(async () => {
     .returning({ id: categories.id });
   categoryId = category!.id;
 
+  const [categoryOther] = await testDb
+    .insert(categories)
+    .values({ slug: `cat-other-${runId}`, name: `Category Other ${runId}` })
+    .returning({ id: categories.id });
+  categoryOtherId = categoryOther!.id;
+
   const [tagAlpha] = await testDb
     .insert(tags)
     .values({ slug: `tag-alpha-${runId}`, name: `Alpha Tag ${runId}` })
@@ -114,6 +132,12 @@ beforeAll(async () => {
     .values({ slug: `tag-beta-${runId}`, name: `Beta Tag ${runId}` })
     .returning({ id: tags.id });
   tagBetaId = tagBeta!.id;
+
+  const [tagFilter] = await testDb
+    .insert(tags)
+    .values({ slug: `tag-filter-${runId}`, name: `Filter Tag ${runId}` })
+    .returning({ id: tags.id });
+  tagFilterId = tagFilter!.id;
 
   const [detailTagged] = await testDb
     .insert(posts)
@@ -197,15 +221,45 @@ beforeAll(async () => {
       status: "published",
       publishAt: t2Minutes(-50),
     }),
+    basePost({
+      slug: slugs.categoryOther,
+      status: "published",
+      publishAt: minutes(-7),
+      categoryId: categoryOtherId,
+    }),
+    basePost({
+      slug: slugs.tagged,
+      status: "published",
+      publishAt: minutes(-8),
+    }),
+    // Same tag as `tagged`, but a draft — proves the tagSlug filter still
+    // composes with visiblePostsWhere rather than bypassing it.
+    basePost({
+      slug: slugs.taggedInvisible,
+      status: "draft",
+      publishAt: minutes(-8),
+    }),
   ]);
+
+  const taggedRows = await testDb
+    .select({ id: posts.id, slug: posts.slug })
+    .from(posts)
+    .where(inArray(posts.slug, [slugs.tagged, slugs.taggedInvisible]));
+  await testDb
+    .insert(postTags)
+    .values(taggedRows.map((row) => ({ postId: row.id, tagId: tagFilterId })));
 });
 
 afterAll(async () => {
   // This run's rows only (runId is unique per run) — concurrent-run safe.
   // posts -> postTags cascades on delete; delete the rest in FK order.
   await testDb.delete(posts).where(like(posts.slug, `${runId}%`));
-  await testDb.delete(tags).where(inArray(tags.id, [tagAlphaId, tagBetaId]));
-  await testDb.delete(categories).where(inArray(categories.id, [categoryId]));
+  await testDb
+    .delete(tags)
+    .where(inArray(tags.id, [tagAlphaId, tagBetaId, tagFilterId]));
+  await testDb
+    .delete(categories)
+    .where(inArray(categories.id, [categoryId, categoryOtherId]));
   await testDb.delete(user).where(inArray(user.id, [userId]));
   await pool.end();
 });
@@ -311,5 +365,38 @@ describe("listVisiblePosts", () => {
     expect(card?.author.name).toBe(`Test Author ${runId}`);
     expect(card?.excerptSource).toBe("Body text.");
     expect(card?.publishAt).toBeInstanceOf(Date);
+  });
+
+  it("categorySlug filters to only that category's visible posts (SRCH-2)", async () => {
+    const { posts: filtered } = await listVisiblePosts({
+      now: T,
+      categorySlug: `cat-other-${runId}`,
+    });
+    expect(filtered.map((p) => p.slug)).toEqual([slugs.categoryOther]);
+  });
+
+  it("tagSlug filters to only tagged posts, still respecting visibility (SRCH-2)", async () => {
+    const { posts: filtered } = await listVisiblePosts({
+      now: T,
+      tagSlug: `tag-filter-${runId}`,
+    });
+    // taggedInvisible carries the same tag but is a draft — visiblePostsWhere
+    // still excludes it, proving the filter composes rather than bypasses.
+    expect(filtered.map((p) => p.slug)).toEqual([slugs.tagged]);
+  });
+});
+
+describe("getTagBySlug", () => {
+  it("returns the tag for a known slug", async () => {
+    const tag = await getTagBySlug(`tag-alpha-${runId}`);
+    expect(tag).toEqual({
+      slug: `tag-alpha-${runId}`,
+      name: `Alpha Tag ${runId}`,
+    });
+  });
+
+  it("returns undefined for an unknown slug", async () => {
+    const tag = await getTagBySlug(`${runId}-does-not-exist`);
+    expect(tag).toBeUndefined();
   });
 });

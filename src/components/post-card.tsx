@@ -29,7 +29,12 @@ export function PostCard({ post }: { post: HomeFeedCard }) {
       </Link>
       <div className="min-w-0">
         <p className="text-xs font-medium text-muted-foreground">
-          {post.category.name}
+          <Link
+            href={`/categories/${post.category.slug}`}
+            className="hover:underline"
+          >
+            {post.category.name}
+          </Link>
         </p>
         <h2 className="mt-0.5 font-semibold leading-snug">
           <Link href={`/posts/${post.slug}`} className="hover:underline">
