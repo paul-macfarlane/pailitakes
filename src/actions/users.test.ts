@@ -10,7 +10,7 @@ import {
 } from "vitest";
 
 import * as schema from "@/db/schema";
-import { sessionUser } from "@/test/helpers";
+import { sessionSetters, sessionUser } from "@/test/helpers";
 
 // vi.hoisted lifts this above the mock factories below (TDZ otherwise) —
 // one pool/db serves both the mocked "@/db" (used by the actions under
@@ -50,9 +50,7 @@ function asAdmin() {
 function asAuthor() {
   sessionMock.current = sessionUser(authorId, "author");
 }
-function noSession() {
-  sessionMock.current = null;
-}
+const { noSession } = sessionSetters(sessionMock);
 
 async function roleOf(id: string) {
   const [row] = await testDb

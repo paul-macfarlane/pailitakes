@@ -1,14 +1,14 @@
 import { eq, like } from "drizzle-orm";
-import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import * as schema from "@/db/schema";
 import { slugifyTitle } from "@/lib/posts/input";
 import {
-  clearStaffFixtures,
   draftRowLoader,
-  seedStaffFixtures,
+  registerPostSuiteLifecycle,
+  seedPost as seedPostFixture,
+  sessionSetters,
   sessionUser,
-  sweepStalePostFixtures,
   type StaffFixtureIds,
 } from "@/test/helpers";
 
@@ -44,33 +44,18 @@ const { posts, postTags, tags } = schema;
 const loadDraftRow = draftRowLoader(testDb);
 
 const SEED_PREFIX = "t-adm3a-";
-const runId = `${SEED_PREFIX}${crypto.randomUUID().slice(0, 8)}`;
 
 let ids: StaffFixtureIds;
+const { authorSession, adminSession, readerSession, noSession } =
+  sessionSetters(sessionMock, () => ids);
 
-function authorSession() {
-  sessionMock.current = sessionUser(ids.authorId, "author");
-}
-function adminSession() {
-  sessionMock.current = sessionUser(ids.adminId, "admin");
-}
-function readerSession() {
-  sessionMock.current = sessionUser(ids.readerId, "reader");
-}
-function noSession() {
-  sessionMock.current = null;
-}
-
-beforeAll(async () => {
-  await sweepStalePostFixtures(testDb, { seedPrefix: SEED_PREFIX });
-  ids = await seedStaffFixtures(testDb, runId);
-});
-
-afterAll(async () => {
-  await testDb.delete(posts).where(like(posts.slug, `${runId}%`));
-  await testDb.delete(tags).where(like(tags.slug, `${runId}%`));
-  await clearStaffFixtures(testDb, ids);
-  await pool.end();
+const { runId } = registerPostSuiteLifecycle({
+  testDb,
+  pool,
+  prefix: SEED_PREFIX,
+  onSeeded: (seededIds) => {
+    ids = seededIds;
+  },
 });
 
 describe("createPost", () => {
@@ -232,19 +217,15 @@ describe("createPost", () => {
 });
 
 describe("updatePost", () => {
-  async function seedPost(slugSuffix: string) {
-    const [row] = await testDb
-      .insert(posts)
-      .values({
-        authorId: ids.authorId,
-        title: `${runId} ${slugSuffix}`,
-        slug: `${runId}-${slugSuffix}`,
-        bodyMd: "Original body.",
-        thumbnailUrl: "",
-        categoryId: ids.categoryId,
-      })
-      .returning({ id: posts.id, slug: posts.slug });
-    return row!;
+  function seedPost(slugSuffix: string) {
+    return seedPostFixture(testDb, {
+      runId,
+      suffix: slugSuffix,
+      authorId: ids.authorId,
+      categoryId: ids.categoryId,
+      bodyMd: "Original body.",
+      thumbnailUrl: "",
+    });
   }
 
   it("rejects a non-owner author but allows an admin", async () => {
@@ -500,21 +481,17 @@ describe("updatePost", () => {
 // src/actions/posts/lifecycle.test.ts for the pending-changes lifecycle
 // guard. These cases only ever call updatePost itself, so they stay here.
 describe("staged draft edits (draft-of-published, ADR-0011)", () => {
-  async function seedPublished(suffix: string) {
-    const [row] = await testDb
-      .insert(posts)
-      .values({
-        authorId: ids.authorId,
-        title: `${runId} ${suffix}`,
-        slug: `${runId}-${suffix}`,
-        bodyMd: "Live body.",
-        thumbnailUrl: "https://img.example.com/live.jpg",
-        categoryId: ids.categoryId,
-        status: "published",
-        publishAt: new Date(Date.now() - 1000),
-      })
-      .returning({ id: posts.id, slug: posts.slug });
-    return row!;
+  function seedPublished(suffix: string) {
+    return seedPostFixture(testDb, {
+      runId,
+      suffix,
+      authorId: ids.authorId,
+      categoryId: ids.categoryId,
+      bodyMd: "Live body.",
+      thumbnailUrl: "https://img.example.com/live.jpg",
+      status: "published",
+      publishAt: new Date(Date.now() - 1000),
+    });
   }
 
   it("stages an edit to a published post into the buffer, leaving live and the cache untouched", async () => {
