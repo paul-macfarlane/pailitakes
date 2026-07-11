@@ -57,6 +57,13 @@
       "when": 1783657309550,
       "tag": "0007_sad_luke_cage",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1783795881725,
+      "tag": "0008_swift_scourge",
+      "breakpoints": true
     }
   ]
 }

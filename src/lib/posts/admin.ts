@@ -129,6 +129,9 @@ export type PreviewPost = {
   videoUrl: string | null;
   publishAt: Date | null;
   archiveAt: Date | null;
+  // Feeds PostArticle's showsUpdatedDate guard (POST-10) so the preview stays
+  // pixel-identical to the public page.
+  contentUpdatedAt: Date | null;
   category: { slug: string; name: string };
   author: { name: string; image: string | null };
   tags: { slug: string; name: string }[];
@@ -158,6 +161,7 @@ export async function getPostForPreview(
       videoUrl: posts.videoUrl,
       publishAt: posts.publishAt,
       archiveAt: posts.archiveAt,
+      contentUpdatedAt: posts.contentUpdatedAt,
       authorId: posts.authorId,
       categoryId: posts.categoryId,
       category: { slug: categories.slug, name: categories.name },
@@ -224,6 +228,7 @@ export async function getPostForPreview(
     videoUrl: draft ? draft.videoUrl : row.videoUrl,
     publishAt: row.publishAt,
     archiveAt: row.archiveAt,
+    contentUpdatedAt: row.contentUpdatedAt,
     category,
     author: row.author,
     tags: previewTags,

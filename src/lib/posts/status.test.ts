@@ -9,6 +9,7 @@ import {
   isPubliclyVisible,
   POST_STATUSES,
   type PostStatus,
+  showsUpdatedDate,
 } from "@/lib/posts/status";
 
 describe("POST_STATUSES", () => {
@@ -142,6 +143,48 @@ describe("isPubliclyVisible", () => {
     expect(isPubliclyVisible({ status, publishAt, archiveAt }, now)).toBe(
       expected,
     );
+  });
+});
+
+describe("showsUpdatedDate", () => {
+  const publishAt = new Date("2026-06-01T00:00:00Z");
+  const earlier = new Date("2026-05-01T00:00:00Z");
+  const later = new Date("2026-07-01T00:00:00Z");
+
+  it.each([
+    ["both null (never-published, never-edited preview)", null, null, false],
+    ["publishAt null (never-published preview)", null, later, false],
+    [
+      "contentUpdatedAt null (never edited since publish)",
+      publishAt,
+      null,
+      false,
+    ],
+    [
+      "equal timestamps (edit landed exactly at publish, not an update)",
+      publishAt,
+      publishAt,
+      false,
+    ],
+    [
+      "contentUpdatedAt earlier than publishAt (stale, e.g. post-republish)",
+      publishAt,
+      earlier,
+      false,
+    ],
+    [
+      "contentUpdatedAt later than publishAt (a real post-publish edit)",
+      publishAt,
+      later,
+      true,
+    ],
+  ] satisfies [
+    name: string,
+    publishAt: Date | null,
+    contentUpdatedAt: Date | null,
+    expected: boolean,
+  ][])("%s", (_name, publishAtArg, contentUpdatedAtArg, expected) => {
+    expect(showsUpdatedDate(publishAtArg, contentUpdatedAtArg)).toBe(expected);
   });
 });
 

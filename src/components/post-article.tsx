@@ -6,6 +6,7 @@ import { PostBody } from "@/components/post-body";
 import { YouTubeEmbed } from "@/components/youtube-embed";
 import { postHeroSrc } from "@/lib/content/image-src";
 import { extractYouTubeId } from "@/lib/content/markdown";
+import { showsUpdatedDate } from "@/lib/posts/status";
 
 // One source of truth for how a rendered post looks (hero, byline, video,
 // body, tags) — the public post page and the ADM-7 admin preview both use it,
@@ -19,6 +20,9 @@ export type PostArticleData = {
   // Null for a draft that has never had a publish date (preview only); the
   // byline date is simply omitted then.
   publishAt: Date | null;
+  // Null unless the post's staged edits have been promoted since publishAt
+  // (POST-10); see showsUpdatedDate for when this actually renders.
+  contentUpdatedAt: Date | null;
   thumbnailUrl: string;
   bannerUrl: string | null;
   category: { name: string };
@@ -50,6 +54,12 @@ export function PostArticle({ post }: { post: PostArticleData }) {
   }
   const bodyHasEmbeds = post.bodyHtml.includes("<lite-youtube");
   const heroSrc = postHeroSrc(post);
+  // showsUpdatedDate doesn't narrow post.contentUpdatedAt for the compiler
+  // (it's a plain boolean predicate, not an inline null check) — a local
+  // const lets the truthy check below narrow it instead of a `!` assertion.
+  const updatedAt = showsUpdatedDate(post.publishAt, post.contentUpdatedAt)
+    ? post.contentUpdatedAt
+    : null;
 
   return (
     <>
@@ -75,6 +85,14 @@ export function PostArticle({ post }: { post: PostArticleData }) {
                 {" · "}
                 <time dateTime={post.publishAt.toISOString()}>
                   {dateFormat.format(post.publishAt)}
+                </time>
+              </>
+            )}
+            {updatedAt && (
+              <>
+                {" · Updated "}
+                <time dateTime={updatedAt.toISOString()}>
+                  {dateFormat.format(updatedAt)}
                 </time>
               </>
             )}

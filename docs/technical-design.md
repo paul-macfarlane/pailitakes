@@ -1,8 +1,8 @@
 # Paulitakes — Technical Design
 
-**Version:** 0.3 (Locked; amended by ADR-0004; §6 project layout updated per ADR-0013; §5.7 authorization vocabulary per ADR-0014; §5.7 editor create/flush semantics per ADR-0015)
+**Version:** 0.3 (Locked; amended by ADR-0004; §6 project layout updated per ADR-0013; §5.7 authorization vocabulary per ADR-0014; §5.7 editor create/flush semantics per ADR-0015; posts data model `content_updated_at` per ADR-0016)
 **Owner:** Paul
-**Last updated:** July 5, 2026
+**Last updated:** July 11, 2026
 **Companion doc:** Paulitakes Product Doc v0.2
 
 ---
@@ -111,6 +111,12 @@ posts
   comments_locked boolean not null default false  -- admin lock (FR-4.4); ADR-0004
   publish_at    timestamptz null
   archive_at    timestamptz null
+  content_updated_at timestamptz null   -- stamped ONLY by staged-draft
+                                        -- promote (readers saw new content);
+                                        -- drives the public "Updated" byline
+                                        -- when it exceeds publish_at (added
+                                        -- 2026-07-11, owner request;
+                                        -- ADR-0016, POST-10)
   created_at    timestamptz
   updated_at    timestamptz
   search        tsvector GENERATED ALWAYS AS (

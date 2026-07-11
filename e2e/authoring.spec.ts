@@ -153,10 +153,12 @@ test.describe("authoring lifecycle", () => {
     );
 
     // The public post still shows the ORIGINAL title — staging never touches
-    // the live content or its cache.
+    // the live content or its cache. No "Updated" byline yet either: the
+    // content_updated_at stamp lands on promote, not on stage (ADR-0016).
     await page.goto(`/posts/${slug}`);
     await expect(page.getByRole("heading", { name: title })).toBeVisible();
     await expect(page.getByRole("heading", { name: newTitle })).toHaveCount(0);
+    await expect(page.getByText(/Updated/)).toHaveCount(0);
 
     // Promote the staged changes from the editor.
     await page.goto(`/admin/posts/${id}/edit`);
@@ -165,11 +167,14 @@ test.describe("authoring lifecycle", () => {
       () => expect(page.getByText("Unpublished changes")).toHaveCount(0),
     );
 
-    // Now the public post reflects the edit.
+    // Now the public post reflects the edit, and the byline gains the
+    // "Updated" date (POST-10): promote stamped content_updated_at after
+    // publish_at, so the showsUpdatedDate guard renders it.
     await expect(async () => {
       await page.goto(`/posts/${slug}`);
       await expect(page.getByRole("heading", { name: newTitle })).toBeVisible();
     }).toPass();
+    await expect(page.getByText(/Updated \w+ \d/)).toBeVisible();
   });
 
   test("discards staged edits and restores the live values", async ({

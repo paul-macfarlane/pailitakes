@@ -1,4 +1,5 @@
-// Pure post-status state machine (no "server-only"): the transition action in
+// Pure post-status state machine (no "server-only"), plus a few pure
+// post-domain predicates that live beside it: the transition action in
 // src/actions/posts/lifecycle.ts enforces it server-side, and admin UI reuses
 // it to decide which buttons to show. FR-1.5 (the four statuses), FR-1.6
 // (archive is recoverable), design §4 (visibility is a query over status +
@@ -78,6 +79,25 @@ export function isPubliclyVisible(
     post.publishAt !== null &&
     post.publishAt <= now &&
     (post.archiveAt === null || post.archiveAt > now)
+  );
+}
+
+// Pure display rule for the public "Updated {date}" byline (POST-10).
+//
+// A publish -> draft -> republish stamps publishAt = now (lifecycle.ts), so an
+// older contentUpdatedAt from before that republish must not render as
+// "Updated" — the reader would see a stale-looking date pointing before the
+// post even went live. An archived -> published restore instead reuses the
+// ORIGINAL publishAt, so a content edit made before the archive still counts
+// as an update relative to that original publish time.
+export function showsUpdatedDate(
+  publishAt: Date | null,
+  contentUpdatedAt: Date | null,
+): boolean {
+  return (
+    publishAt !== null &&
+    contentUpdatedAt !== null &&
+    contentUpdatedAt > publishAt
   );
 }
 

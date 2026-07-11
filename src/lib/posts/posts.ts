@@ -104,6 +104,7 @@ export type PostDetail = {
   videoUrl: string | null;
   publishAt: Date;
   updatedAt: Date;
+  contentUpdatedAt: Date | null;
   commentsLocked: boolean;
   category: { slug: string; name: string };
   author: { name: string; image: string | null };
@@ -125,6 +126,7 @@ export async function getVisiblePostBySlug(
       videoUrl: posts.videoUrl,
       publishAt: posts.publishAt,
       updatedAt: posts.updatedAt,
+      contentUpdatedAt: posts.contentUpdatedAt,
       commentsLocked: posts.commentsLocked,
       category: { slug: categories.slug, name: categories.name },
       author: { name: user.name, image: user.image },

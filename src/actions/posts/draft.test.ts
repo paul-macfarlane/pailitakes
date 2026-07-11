@@ -92,6 +92,11 @@ describe("publishPostChanges / discardPostChanges (ADR-0011)", () => {
       .where(eq(posts.id, post.id));
     expect(row!.title).toBe(`${runId} promoted title`);
     expect(row!.bodyMd).toBe("Promoted body.");
+    // Stamped by promoteStagedDraft so the public byline can show "Updated"
+    // (POST-10) — this is the only writer of the column.
+    expect(row!.contentUpdatedAt).not.toBeNull();
+    // Strictly later than publishAt — the relation the byline guard renders on.
+    expect(row!.contentUpdatedAt! > row!.publishAt!).toBe(true);
     expect(await loadDraftRow(post.id)).toBeUndefined();
     expect(revalidateTag).toHaveBeenCalledWith("post-list", expect.anything());
     expect(revalidateTag).toHaveBeenCalledWith(

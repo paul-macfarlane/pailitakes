@@ -189,7 +189,13 @@ export type WritePostColumnsResult =
   | { ok: false; reason: "thumbnail-invariant" }
   | { ok: false; reason: "slug-collision" };
 
-export type PostColumnUpdate = Partial<typeof posts.$inferInsert>;
+// contentUpdatedAt is excluded so the "exactly one writer" invariant
+// (ADR-0016) is compiler-enforced: only promoteStagedDraft's inline .set()
+// may stamp it — never a direct column write or lifecycle transition.
+export type PostColumnUpdate = Omit<
+  Partial<typeof posts.$inferInsert>,
+  "contentUpdatedAt"
+>;
 
 // Applies a direct (non-staged) column update to a post, optionally guarded
 // against the public-thumbnail invariant, and replaces its tag set in the
@@ -547,6 +553,9 @@ export async function promoteStagedDraft(
           thumbnailUrl: draft.thumbnailUrl,
           bannerUrl: draft.bannerUrl,
           videoUrl: draft.videoUrl,
+          // Readers see new content starting now — the only writer of this
+          // column (POST-10).
+          contentUpdatedAt: new Date(),
         })
         .where(eq(posts.id, id))
         .returning({ id: posts.id });

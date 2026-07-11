@@ -117,7 +117,7 @@ The homepage features recent posts alongside a dedicated announcements section f
 ### 3.9 Public Site
 
 - **FR-9.1** — Homepage: announcements section + recent published posts (thumbnail, title, category, author, date, short excerpt), with pagination or "load more."
-- **FR-9.2** — Post page: title, author, date, category, tags, associated video (if any), rendered Markdown body, like button, comment thread.
+- **FR-9.2** — Post page: title, author, date, category, tags, associated video (if any), rendered Markdown body, like button, comment thread. Shows an "Updated" date when content changed after publish (staged-edit promote only; added 2026-07-11, ADR-0016, POST-10). Cards/feed stay publish-date-only.
 - **FR-9.3** — Global navigation: home, categories, search.
 - **FR-9.4** — **Mobile-first responsive design:** layouts, typography, embedded video players, comment threads, and the like/comment interactions must all be designed for phone screens first and scale up to desktop.
 - **FR-9.5** — SEO basics: per-post meta titles/descriptions, Open Graph tags, sitemap, clean URLs (e.g., `/posts/my-hot-take`).

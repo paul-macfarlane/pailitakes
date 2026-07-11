@@ -147,6 +147,11 @@ export const posts = pgTable(
     commentsLocked: boolean("comments_locked").notNull().default(false),
     publishAt: timestamp("publish_at", { withTimezone: true }),
     archiveAt: timestamp("archive_at", { withTimezone: true }),
+    // Stamped ONLY when staged edits are promoted to a publicly-visible post
+    // (promoteStagedDraft) — drives the public "Updated" byline. Deliberately
+    // not $onUpdate: updatedAt bumps on every row write, including status
+    // transitions that re-stamp publishAt with no content change (ADR-0016).
+    contentUpdatedAt: timestamp("content_updated_at", { withTimezone: true }),
     // Staged content edits for an already-public post (draft-of-published,
     // ADR-0011) live in the normalized post_drafts table below, not a column
     // here — see ADR-0012 for why the jsonb buffer was normalized.
