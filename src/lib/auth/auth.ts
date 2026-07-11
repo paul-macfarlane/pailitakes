@@ -7,11 +7,12 @@ import { nextCookies } from "better-auth/next-js";
 
 import { db } from "@/db";
 import * as schema from "@/db/schema";
+import { Role } from "@/lib/auth/roles";
+import { env } from "@/lib/shared/env";
 import {
   MAX_DISPLAY_NAME_LENGTH,
   normalizeDisplayName,
 } from "@/lib/users/display-name";
-import { env } from "@/lib/shared/env";
 
 export const auth = betterAuth({
   baseURL: env.BETTER_AUTH_URL,
@@ -68,7 +69,7 @@ export const auth = betterAuth({
       role: {
         type: "string",
         required: false,
-        defaultValue: "reader",
+        defaultValue: Role.Reader,
         input: false,
       },
       bannedAt: {

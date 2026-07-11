@@ -3,6 +3,7 @@ import { z } from "zod";
 
 import { Button } from "@/components/ui/button";
 import {
+  ADMIN_POST_SORTS,
   ADMIN_POSTS_PAGE_SIZE,
   listAdminPosts,
   listAuthorOptions,
@@ -10,8 +11,11 @@ import {
   type AdminPostRow,
 } from "@/lib/posts/admin";
 import { SEARCH_QUERY_MAX, searchQuerySchema } from "@/lib/admin/search";
+import { Role } from "@/lib/auth/roles";
 import { POST_STATUSES, STATUS_LABELS } from "@/lib/posts/status";
 import { requireStaff } from "@/lib/auth/session";
+
+const [SORT_UPDATED, SORT_PUBLISHED] = ADMIN_POST_SORTS;
 
 // Filters/sort/page live in the URL (server-rendered, no TanStack Query — see
 // ADR-0010): shareable, bookmarkable, no loading state. `.catch` makes every
@@ -21,7 +25,7 @@ const filterSchema = z.object({
   category: z.coerce.number().int().positive().optional().catch(undefined),
   author: z.uuid().optional().catch(undefined),
   q: searchQuerySchema,
-  sort: z.enum(["updated", "published"]).catch("updated"),
+  sort: z.enum(ADMIN_POST_SORTS).catch(SORT_UPDATED),
   page: z.coerce.number().int().min(1).catch(1),
 });
 
@@ -45,7 +49,7 @@ export default async function AdminPage({
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const session = await requireStaff();
-  const isAdmin = session.user.role === "admin";
+  const isAdmin = session.user.role === Role.Admin;
   const filters = filterSchema.parse(await searchParams);
 
   const [categories, authors] = await Promise.all([
@@ -84,7 +88,7 @@ export default async function AdminPage({
     Boolean(categoryId) ||
     Boolean(authorId) ||
     Boolean(filters.q) ||
-    filters.sort !== "updated";
+    filters.sort !== SORT_UPDATED;
 
   // Remount the form whenever the applied filters change (Apply, Reset;
   // pagination keeps it stable). A soft navigation reconciles the existing
@@ -108,7 +112,7 @@ export default async function AdminPage({
     if (categoryId) params.set("category", String(categoryId));
     if (authorId) params.set("author", authorId);
     if (filters.q) params.set("q", filters.q);
-    if (filters.sort !== "updated") params.set("sort", filters.sort);
+    if (filters.sort !== SORT_UPDATED) params.set("sort", filters.sort);
     if (page > 1) params.set("page", String(page));
     const query = params.toString();
     return query ? `/admin?${query}` : "/admin";
@@ -199,8 +203,8 @@ export default async function AdminPage({
             defaultValue={filters.sort}
             className="h-8 rounded-lg border border-input bg-transparent px-2 text-sm"
           >
-            <option value="updated">Last updated</option>
-            <option value="published">Published date</option>
+            <option value={SORT_UPDATED}>Last updated</option>
+            <option value={SORT_PUBLISHED}>Published date</option>
           </select>
         </label>
 

@@ -11,14 +11,17 @@ import {
   discardPostChangesService,
   publishPostChangesService,
 } from "@/lib/posts/service/draft";
-import type { ActionResult } from "@/lib/shared/action-result";
+import {
+  NOT_AUTHORIZED_ERROR,
+  type ActionResult,
+} from "@/lib/shared/action-result";
 
 export async function publishPostChanges(
   id: string,
 ): Promise<ActionResult<{ id: string; slug: string }>> {
   const session = await staffSession();
   if (!session) {
-    return { ok: false, error: "Not authorized." };
+    return { ok: false, error: NOT_AUTHORIZED_ERROR };
   }
 
   const idResult = z.uuid().safeParse(id);
@@ -34,7 +37,7 @@ export async function discardPostChanges(
 ): Promise<ActionResult<{ id: string }>> {
   const session = await staffSession();
   if (!session) {
-    return { ok: false, error: "Not authorized." };
+    return { ok: false, error: NOT_AUTHORIZED_ERROR };
   }
 
   const idResult = z.uuid().safeParse(id);

@@ -4,7 +4,7 @@ import { and, eq, gt, inArray, lte, or, sql } from "drizzle-orm";
 
 import { db } from "@/db";
 import { postDrafts, posts, revalidationState } from "@/db/schema";
-import { PUBLIC_STATUSES } from "@/lib/posts/status";
+import { PostStatus, PUBLIC_STATUSES } from "@/lib/posts/status";
 
 // Distinct slugs of posts whose publish_at or archive_at crossed since the
 // cron's last run — i.e. posts that just became visible or hidden (design §4).
@@ -56,8 +56,10 @@ export async function normalizePostStatuses(now: Date): Promise<number> {
   // Publish first: a scheduled post past its publish time is live.
   const published = await db
     .update(posts)
-    .set({ status: "published" })
-    .where(and(eq(posts.status, "scheduled"), lte(posts.publishAt, now)))
+    .set({ status: PostStatus.Published })
+    .where(
+      and(eq(posts.status, PostStatus.Scheduled), lte(posts.publishAt, now)),
+    )
     .returning({ id: posts.id });
 
   // Then archive: a public post past its archive time is hidden. Clear any
@@ -67,10 +69,10 @@ export async function normalizePostStatuses(now: Date): Promise<number> {
   const archived = await db.transaction(async (tx) => {
     const rows = await tx
       .update(posts)
-      .set({ status: "archived" })
+      .set({ status: PostStatus.Archived })
       .where(
         and(
-          inArray(posts.status, ["scheduled", "published"]),
+          inArray(posts.status, [...PUBLIC_STATUSES]),
           lte(posts.archiveAt, now),
         ),
       )

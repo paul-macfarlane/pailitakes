@@ -21,8 +21,14 @@ import type { PgColumn } from "drizzle-orm/pg-core";
 import { db, type Db } from "@/db";
 import { categories, postDrafts, posts, postTags, tags } from "@/db/schema";
 import type { StaffSession } from "@/lib/auth/guards";
+import { Role } from "@/lib/auth/roles";
 import { tagToSlug, type PostDraft, type PostInput } from "@/lib/posts/input";
-import { usesDraftBuffer, type PostStatus } from "@/lib/posts/status";
+import {
+  PostStatus,
+  PUBLIC_STATUSES,
+  usesDraftBuffer,
+} from "@/lib/posts/status";
+import { NOT_AUTHORIZED_ERROR } from "@/lib/shared/action-result";
 
 // node-postgres surfaces Postgres error codes (and the violated constraint
 // name) as `.code`/`.constraint` on the thrown error; drizzle's
@@ -208,7 +214,7 @@ export async function writePostColumns(
           opts.guardThumbnailInvariant
             ? and(
                 eq(posts.id, id),
-                notInArray(posts.status, ["published", "scheduled"]),
+                notInArray(posts.status, [...PUBLIC_STATUSES]),
               )
             : eq(posts.id, id),
         )
@@ -327,8 +333,11 @@ export async function loadOwnedDraft(
     .limit(1);
 
   if (!existing) return { ok: false, error: "Post not found." };
-  if (session.user.role !== "admin" && existing.authorId !== session.user.id) {
-    return { ok: false, error: "Not authorized." };
+  if (
+    session.user.role !== Role.Admin &&
+    existing.authorId !== session.user.id
+  ) {
+    return { ok: false, error: NOT_AUTHORIZED_ERROR };
   }
   return {
     ok: true,
@@ -611,8 +620,11 @@ export async function loadOwnedLifecycle(
     .limit(1);
 
   if (!existing) return { ok: false, error: "Post not found." };
-  if (session.user.role !== "admin" && existing.authorId !== session.user.id) {
-    return { ok: false, error: "Not authorized." };
+  if (
+    session.user.role !== Role.Admin &&
+    existing.authorId !== session.user.id
+  ) {
+    return { ok: false, error: NOT_AUTHORIZED_ERROR };
   }
   return { ok: true, post: existing };
 }
@@ -672,10 +684,12 @@ export async function casSchedulePublish(
   publishAt: Date,
   currentArchiveAt: Date | null,
 ): Promise<boolean> {
-  return casUpdate(id, fromStatus, { status: "scheduled", publishAt }, [
-    unchanged(posts.archiveAt, currentArchiveAt),
-    noPendingDraftGuard(),
-  ]);
+  return casUpdate(
+    id,
+    fromStatus,
+    { status: PostStatus.Scheduled, publishAt },
+    [unchanged(posts.archiveAt, currentArchiveAt), noPendingDraftGuard()],
+  );
 }
 
 // scheduleArchive's write: CAS also guards publish_at unchanged (mirror of

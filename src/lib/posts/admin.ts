@@ -11,9 +11,10 @@ import {
   tags,
   user,
 } from "@/db/schema";
+import { Role } from "@/lib/auth/roles";
 import { draftFromJoinRow, draftJoinColumns } from "@/lib/posts/data";
 import { tagToSlug } from "@/lib/posts/input";
-import { usesDraftBuffer, type PostStatus } from "@/lib/posts/status";
+import { PostStatus, usesDraftBuffer } from "@/lib/posts/status";
 import { postTagsAgg } from "@/lib/posts/posts";
 import { escapeLike } from "@/lib/shared/sql-like";
 
@@ -25,7 +26,7 @@ export type EditablePost = {
   title: string;
   slug: string;
   bodyMd: string;
-  status: "draft" | "scheduled" | "published" | "archived";
+  status: PostStatus;
   categoryId: number;
   thumbnailUrl: string;
   bannerUrl: string | null;
@@ -77,7 +78,7 @@ export async function getEditablePost(
 
   const [first] = rows;
   if (!first) return null;
-  if (user.role !== "admin" && first.authorId !== user.id) return null;
+  if (user.role !== Role.Admin && first.authorId !== user.id) return null;
 
   // On a public post, edits are staged (ADR-0011): show the pending snapshot so
   // the author edits their in-progress copy, not the live content. On any other
@@ -113,7 +114,7 @@ export type PreviewPost = {
   slug: string;
   title: string;
   bodyMd: string;
-  status: "draft" | "scheduled" | "published" | "archived";
+  status: PostStatus;
   thumbnailUrl: string;
   bannerUrl: string | null;
   videoUrl: string | null;
@@ -167,7 +168,7 @@ export async function getPostForPreview(
 
   const [row] = rows;
   if (!row) return null;
-  if (user_.role !== "admin" && row.authorId !== user_.id) return null;
+  if (user_.role !== Role.Admin && row.authorId !== user_.id) return null;
 
   // On a public post, preview the STAGED snapshot (what will go live), not the
   // current live content (ADR-0011). Category and tags come from the live join
@@ -228,7 +229,9 @@ export type AdminPostRow = {
   author: { name: string };
 };
 
-export type AdminPostSort = "updated" | "published";
+export const ADMIN_POST_SORTS = ["updated", "published"] as const;
+export type AdminPostSort = (typeof ADMIN_POST_SORTS)[number];
+const [, SORT_PUBLISHED] = ADMIN_POST_SORTS;
 
 export const ADMIN_POSTS_PAGE_SIZE = 25;
 
@@ -253,7 +256,7 @@ export async function listAdminPosts(params: {
   const offset = Math.max(params.offset ?? 0, 0);
 
   const conditions: SQL[] = [];
-  if (params.user.role !== "admin") {
+  if (params.user.role !== Role.Admin) {
     // Non-admins see only their own posts, regardless of any authorId filter.
     conditions.push(eq(posts.authorId, params.user.id));
   } else if (params.authorId) {
@@ -272,7 +275,7 @@ export async function listAdminPosts(params: {
   // Drafts have a null publish_at — keep them last when sorting by publish
   // date. A secondary id sort keeps pagination stable across ties.
   const orderBy =
-    params.sort === "published"
+    params.sort === SORT_PUBLISHED
       ? [sql`${posts.publishAt} desc nulls last`, desc(posts.id)]
       : [desc(posts.updatedAt), desc(posts.id)];
 
@@ -304,7 +307,7 @@ export async function listAuthorOptions(): Promise<
   return db
     .select({ id: user.id, name: user.name })
     .from(user)
-    .where(inArray(user.role, ["author", "admin"]))
+    .where(inArray(user.role, [Role.Author, Role.Admin]))
     .orderBy(asc(user.name));
 }
 

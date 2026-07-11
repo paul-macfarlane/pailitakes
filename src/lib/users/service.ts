@@ -7,8 +7,8 @@ import "server-only";
 // the UI disables the self-row controls). DB access lives in
 // src/lib/users/data.ts.
 
-import type { Role } from "@/lib/auth/roles";
-import type { ActionResult } from "@/lib/shared/action-result";
+import { Role } from "@/lib/auth/roles";
+import { GENERIC_ERROR, type ActionResult } from "@/lib/shared/action-result";
 import { wouldOrphanAdmins } from "@/lib/users/admin";
 import {
   type TargetUserState,
@@ -17,8 +17,6 @@ import {
   updateUserRole,
   withLockedUserMutation,
 } from "@/lib/users/data";
-
-const GENERIC_ERROR = "Something went wrong. Please try again.";
 
 // Applies an admin-only change to one user under the last-admin invariant.
 // Locks + reads the active-admin set and the target row (withLockedUserMutation),
@@ -69,7 +67,7 @@ export async function setUserRoleService(
     data: { id, role: newRole },
     isNoOp: (target) => target.role === newRole,
     removesActiveAdmin: (target) =>
-      target.role === "admin" && newRole !== "admin",
+      target.role === Role.Admin && newRole !== Role.Admin,
     lastAdminError: "You can't remove the last admin.",
     apply: (tx) => updateUserRole(tx, id, newRole),
   });
@@ -86,7 +84,7 @@ export async function setUserBannedService(
       isBanning ? target.bannedAt !== null : target.bannedAt === null,
     // Banning removes the user from the active-admin set, so it faces the same
     // guard as demotion; unbanning never removes an admin.
-    removesActiveAdmin: (target) => isBanning && target.role === "admin",
+    removesActiveAdmin: (target) => isBanning && target.role === Role.Admin,
     lastAdminError: "You can't ban the last admin.",
     apply: (tx) => updateUserBanned(tx, id, isBanning ? new Date() : null),
   });
