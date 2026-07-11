@@ -1,6 +1,6 @@
 # Paulitakes — Technical Design
 
-**Version:** 0.3 (Locked; amended by ADR-0004; §6 project layout updated per ADR-0013)
+**Version:** 0.3 (Locked; amended by ADR-0004; §6 project layout updated per ADR-0013; §5.7 authorization vocabulary per ADR-0014)
 **Owner:** Paul
 **Last updated:** July 5, 2026
 **Companion doc:** Paulitakes Product Doc v0.2
