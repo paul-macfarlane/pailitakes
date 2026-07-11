@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 
 import { PostEditorSection } from "@/app/admin/posts/_components/post-editor-section";
-import { listCategoryOptions } from "@/lib/posts/admin";
+import { listActiveCategories } from "@/lib/categories/data";
 import { requireStaff } from "@/lib/auth/session";
 
 export const metadata: Metadata = {
@@ -12,7 +12,7 @@ export const metadata: Metadata = {
 
 export default async function NewPostPage() {
   await requireStaff("/admin/posts/new");
-  const categories = await listCategoryOptions();
+  const categories = await listActiveCategories();
 
   return (
     <>

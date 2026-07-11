@@ -5,22 +5,36 @@ import { usePathname } from "next/navigation";
 
 import { cn } from "@/lib/utils";
 
-// In-shell admin navigation (Posts | Users). Client-side only for active-route
-// highlighting (usePathname). `isAdmin` is resolved on the server and passed
-// in, so the Users link is present in the initial HTML (no post-hydration
-// pop-in); requireAdmin() on /admin/users is still the real boundary.
-export function AdminNav({ isAdmin }: { isAdmin: boolean }) {
+// In-shell admin navigation (Posts | Categories | Users). Client-side only
+// for active-route highlighting (usePathname). `isAdmin`/`canManageCategories`
+// are resolved on the server and passed in, so the admin-only links are
+// present in the initial HTML (no post-hydration pop-in); requireAdmin() on
+// /admin/users and requireCapability(ManageCategories) on /admin/categories
+// are still the real boundaries.
+export function AdminNav({
+  isAdmin,
+  canManageCategories,
+}: {
+  isAdmin: boolean;
+  canManageCategories: boolean;
+}) {
   const pathname = usePathname();
 
-  // Users owns /admin/users; everything else under /admin (dashboard, post
-  // editor, preview) belongs to Posts.
+  // Users owns /admin/users, Categories owns /admin/categories; everything
+  // else under /admin (dashboard, post editor, preview) belongs to Posts.
   const onUsers = pathname.startsWith("/admin/users");
+  const onCategories = pathname.startsWith("/admin/categories");
 
   return (
     <nav aria-label="Admin" className="flex items-center gap-4 text-sm">
-      <AdminNavLink href="/admin" active={!onUsers}>
+      <AdminNavLink href="/admin" active={!onUsers && !onCategories}>
         Posts
       </AdminNavLink>
+      {canManageCategories ? (
+        <AdminNavLink href="/admin/categories" active={onCategories}>
+          Categories
+        </AdminNavLink>
+      ) : null}
       {isAdmin ? (
         <AdminNavLink href="/admin/users" active={onUsers}>
           Users

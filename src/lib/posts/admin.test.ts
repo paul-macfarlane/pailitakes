@@ -20,7 +20,6 @@ const {
   getPostForPreview,
   listAdminPosts,
   listAuthorOptions,
-  listCategoryOptions,
 } = await import("./admin");
 
 const { categories, postDrafts, posts, postTags, tags, user } = schema;
@@ -33,7 +32,6 @@ const otherAuthorId = `user-${runId}-other`;
 const adminId = `user-${runId}-admin`;
 
 let activeCategoryId: number;
-let inactiveCategoryId: number;
 let sortedFirstId: number;
 let sortedSecondId: number;
 
@@ -69,19 +67,8 @@ beforeAll(async () => {
     .returning({ id: categories.id });
   activeCategoryId = active!.id;
 
-  const [inactive] = await testDb
-    .insert(categories)
-    .values({
-      slug: `cat-${runId}-inactive`,
-      name: `Inactive ${runId}`,
-      active: false,
-    })
-    .returning({ id: categories.id });
-  inactiveCategoryId = inactive!.id;
-
-  // Sort order is the primary key for listCategoryOptions' ordering; give
-  // the "second" one a lower sortOrder so name-only ordering would fail the
-  // assertion below.
+  // Distinct sortOrder values so the two categories are unambiguously
+  // orderable for the listAdminPosts category-filter tests below.
   const [sortedSecond] = await testDb
     .insert(categories)
     .values({
@@ -109,12 +96,7 @@ afterAll(async () => {
   await testDb
     .delete(categories)
     .where(
-      inArray(categories.id, [
-        activeCategoryId,
-        inactiveCategoryId,
-        sortedFirstId,
-        sortedSecondId,
-      ]),
+      inArray(categories.id, [activeCategoryId, sortedFirstId, sortedSecondId]),
     );
   await testDb
     .delete(user)
@@ -605,20 +587,5 @@ describe("listAuthorOptions", () => {
       .filter((o) => [authorId, otherAuthorId, adminId].includes(o.id))
       .map((o) => o.name);
     expect(seededNames).toEqual([...seededNames].sort());
-  });
-});
-
-describe("listCategoryOptions", () => {
-  it("excludes inactive categories and orders by sortOrder then name", async () => {
-    const options = await listCategoryOptions();
-    const ids = options.map((c) => c.id);
-
-    expect(ids).not.toContain(inactiveCategoryId);
-
-    const firstIndex = ids.indexOf(sortedFirstId);
-    const secondIndex = ids.indexOf(sortedSecondId);
-    expect(firstIndex).toBeGreaterThanOrEqual(0);
-    expect(secondIndex).toBeGreaterThanOrEqual(0);
-    expect(firstIndex).toBeLessThan(secondIndex);
   });
 });

@@ -329,14 +329,3 @@ export async function listAuthorOptions(): Promise<
     .where(inArray(user.role, rolesWithAction(Action.AccessAdmin)))
     .orderBy(asc(user.name));
 }
-
-export type CategoryOption = { id: number; name: string };
-
-// Active categories for the editor's category select, ordered for display.
-export async function listCategoryOptions(): Promise<CategoryOption[]> {
-  return db
-    .select({ id: categories.id, name: categories.name })
-    .from(categories)
-    .where(eq(categories.active, true))
-    .orderBy(asc(categories.sortOrder), asc(categories.name));
-}

@@ -9,9 +9,9 @@ import {
   ADMIN_POSTS_PAGE_SIZE,
   listAdminPosts,
   listAuthorOptions,
-  listCategoryOptions,
   type AdminPostRow,
 } from "@/lib/posts/admin";
+import { listActiveCategories } from "@/lib/categories/data";
 import { SEARCH_QUERY_MAX, searchQuerySchema } from "@/lib/admin/search";
 import { Action, canPerformAction } from "@/lib/auth/permissions";
 import { POST_STATUSES, STATUS_LABELS } from "@/lib/posts/status";
@@ -55,7 +55,7 @@ export default async function AdminPage({
   const filters = filterSchema.parse(await searchParams);
 
   const [categories, authors] = await Promise.all([
-    listCategoryOptions(),
+    listActiveCategories(),
     isAdmin ? listAuthorOptions() : Promise.resolve([]),
   ]);
 
