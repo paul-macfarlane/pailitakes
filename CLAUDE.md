@@ -22,7 +22,7 @@ Next.js App Router · TypeScript · Vercel · Neon Postgres (Docker locally) · 
 
 - **Git flow:** feature branches branch off **`staging`** and PRs target `staging`; `staging` → `main` promotes to prod (design §7). Pushing feature branches needs no confirmation; anything touching `staging`/`main` prompts (FND-9 hook).
 - **Backlog-driven.** Use `/task` to run a task through the implementation pipeline (plan → implement → review → test → document → done). `/backlog` shows status. `/feedback` applies a round of human review feedback through the same machinery.
-- **Model routing — three tiers.** The session model orchestrates (plans, dispatches, reconciles), the `implementer` subagent (Sonnet) executes self-contained mechanical coding, and the `evaluator` subagent (Opus) adversarially reviews the result; the orchestrator adjudicates disagreements between the two. Details in `/task` and `/feedback`.
+- **Model routing — three tiers.** The session model orchestrates (plans, dispatches, reconciles), the `implementer` subagent (Sonnet) executes self-contained mechanical coding, and the `evaluator` subagent (Opus) adversarially reviews the result; the orchestrator adjudicates disagreements between the two. Plans are fed by read-only `scout` subagents (Sonnet) that gather current-state facts. Details in `/task` and `/feedback`.
 - **Decisions get recorded.** Any non-obvious architectural choice → `/adr`. If a choice contradicts `docs/technical-design.md`, update the design doc too.
 - The design doc is _locked at v0.3_ — deviate only with a recorded reason.
 
