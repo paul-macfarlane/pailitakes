@@ -22,8 +22,8 @@ const querySchema = z
       .max(HOME_PAGE_SIZE * 100)
       .multipleOf(HOME_PAGE_SIZE)
       .default(0),
-    // Load-more for /categories/[slug] and /tags/[slug] (SRCH-2) — mutually
-    // exclusive, no page needs both.
+    // Load-more for home's `?category=` browse mode and /tags/[slug]
+    // (SRCH-2) — mutually exclusive, no page needs both.
     category: slugParamSchema.optional(),
     tag: slugParamSchema.optional(),
   })

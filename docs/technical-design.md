@@ -1,6 +1,6 @@
 # Paulitakes — Technical Design
 
-**Version:** 0.3 (Locked; amended by ADR-0004; §6 project layout updated per ADR-0013; §5.7 authorization vocabulary per ADR-0014; §5.7 editor create/flush semantics per ADR-0015; posts data model `content_updated_at` per ADR-0016)
+**Version:** 0.3 (Locked; amended by ADR-0004; §6 project layout updated per ADR-0013; §5.7 authorization vocabulary per ADR-0014; §5.7 editor create/flush semantics per ADR-0015; posts data model `content_updated_at` per ADR-0016; §2/§3/§5.5 unified home browse/search per ADR-0018)
 **Owner:** Paul
 **Last updated:** July 11, 2026
 **Companion doc:** Paulitakes Product Doc v0.2
@@ -35,8 +35,8 @@
                     │              Next.js on Vercel          │
                     │                                         │
  Visitors ────────▶ │  Public pages (RSC + ISR, tag-cached)   │
-                    │   home / posts / categories / tags /    │
-                    │   search / sitemap                      │
+                    │   home (browse+search) / posts /        │
+                    │   tags / sitemap                        │
                     │                                         │
  Readers ─────────▶ │  Client islands                         │
                     │   comments (TanStack Query),            │
@@ -57,14 +57,13 @@
 
 ### Rendering strategy per route
 
-| Route                                | Strategy                                                                     |
-| ------------------------------------ | ---------------------------------------------------------------------------- |
-| `/` (home)                           | ISR, `revalidate: 60`, cache tags `post-list`, `announcements`               |
-| `/posts/[slug]`                      | ISR per-slug, cache tag `post:{slug}`; comments + likes hydrate client-side  |
-| `/categories/[slug]`, `/tags/[slug]` | ISR, `revalidate: 60`, tag `post-list`                                       |
-| `/search`                            | Dynamic (query-dependent), never cached                                      |
-| `/admin/**`                          | Fully dynamic, `noindex`, `requireStaff()` in layout + every page (ADR-0009) |
-| `/sitemap.xml`                       | Route handler, tag `post-list`                                               |
+| Route                        | Strategy                                                                                                                                                                                              |
+| ---------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `/` (home = browse + search) | PPR: static shell + streamed section reading `?q`/`?category` (ADR-0018). Browse feeds are `use cache` data, `revalidate: 60`, tags `post-list`, `announcements`; `?q=` search reads are never cached |
+| `/posts/[slug]`              | ISR per-slug, cache tag `post:{slug}`; comments + likes hydrate client-side                                                                                                                           |
+| `/tags/[slug]`               | ISR, `revalidate: 60`, tag `post-list`                                                                                                                                                                |
+| `/admin/**`                  | Fully dynamic, `noindex`, `requireStaff()` in layout + every page (ADR-0009)                                                                                                                          |
+| `/sitemap.xml`               | Route handler, tag `post-list`                                                                                                                                                                        |
 
 **Key pattern:** post pages are cached static shells; user-specific or fast-changing data (comment tree, like state, view beacon) lives in small client components. Public pages stay fast and cheap, and a new comment never triggers a page rebuild.
 
@@ -77,7 +76,7 @@ Four layers, each with a distinct job:
 1. **Full Route Cache + Vercel CDN.** ISR pages render once and serve as cached HTML from the edge. Invalidated by (a) time — `revalidate: 60` regenerates in the background at most once per minute, stale-while-revalidate, so no visitor ever waits — or (b) on-demand invalidation from server actions.
 2. **Tag-based on-demand invalidation.** Pages declare cache tags (`post:{slug}`, `post-list`, `announcements`). Publish/edit/archive/announcement actions call `revalidateTag(...)`, which correctly invalidates the post page, home, category/tag listings, and sitemap in one shot — no path enumeration to forget.
 3. **Time as the scheduled-publish safety net.** Visibility is a query predicate (§4), so a scheduled post becomes queryable at `publish_at` automatically; the next time-based regeneration (≤60s later) surfaces it. The 5-minute cron (cron-job.org) makes it exact by revalidating tags when any `publish_at`/`archive_at` crosses.
-4. **Deliberately uncached:** `/search`, `/admin/**`, and all comment/like reads (`no-store`). Interactive reads (comments, likes, comment moderation, the analytics dashboard) are client-fetched with TanStack Query. Filtered admin _lists_ (e.g. the ADM-8 post list) are uncached via dynamic server rendering with URL-param filters instead — client fetching buys nothing for them (ADR-0010).
+4. **Deliberately uncached:** the home page's `?q=` search reads (ADR-0018), `/admin/**`, and all comment/like reads (`no-store`). Interactive reads (comments, likes, comment moderation, the analytics dashboard) are client-fetched with TanStack Query. Filtered admin _lists_ (e.g. the ADM-8 post list) are uncached via dynamic server rendering with URL-param filters instead — client fetching buys nothing for them (ADR-0010).
 
 ---
 
@@ -279,7 +278,7 @@ WHERE <visiblePostsWhere()>
 ORDER BY rank DESC, publish_at DESC
 ```
 
-`websearch_to_tsquery` gives forgiving, Google-ish syntax. Snippets via `ts_headline`. Optional `category` param ANDs a category filter (FR-3.3). Dynamic route, debounced input.
+`websearch_to_tsquery` gives forgiving, Google-ish syntax. Snippets via `ts_headline`. Optional `category` param ANDs a category filter (FR-3.3). Search lives on the home page (`/?q=`, combinable with `?category=` — ADR-0018): debounced input, search reads never cached.
 
 ### 5.6 Analytics
 
@@ -314,11 +313,10 @@ Layout updated per ADR-0013 (thin action/route-handler boundaries; `src/lib` reo
 src/
   app/
     (public)/
-      page.tsx                    # home: announcements + recent posts
+      page.tsx                    # home: announcements + browse/search
+                                   # (?q, ?category — ADR-0018)
       posts/[slug]/page.tsx
-      categories/[slug]/page.tsx
       tags/[slug]/page.tsx
-      search/page.tsx
     admin/
       page.tsx                    # post list dashboard
       posts/[id]/edit/page.tsx

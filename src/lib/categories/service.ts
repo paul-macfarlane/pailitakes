@@ -2,8 +2,8 @@ import "server-only";
 
 // Business logic for the admin-only category CRUD screen (SRCH-1, FR-2.1).
 // Locked invariant: slug is derived from the name ONLY at create time and
-// never changes on rename — public /categories/[slug] URLs (built next task)
-// must never break. DB access lives in src/lib/categories/data.ts.
+// never changes on rename — category deep-links (`/?category=slug`) must
+// never break. DB access lives in src/lib/categories/data.ts.
 
 import { revalidateTag } from "next/cache";
 

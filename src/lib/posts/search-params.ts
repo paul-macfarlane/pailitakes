@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-// /search's URL params degrade silently (engineering rule: public FILTER
+// Home's (`/`) URL params degrade silently (engineering rule: public FILTER
 // params never throw) — a junk q/category/page just falls back to "no
 // filter"/page 1 rather than 404ing or erroring. Mirrors the admin list
 // pages' per-field `.catch()` idiom (src/app/admin/users/page.tsx).

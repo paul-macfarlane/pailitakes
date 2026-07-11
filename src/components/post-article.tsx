@@ -78,7 +78,7 @@ export function PostArticle({ post }: { post: PostArticleData }) {
         <header className="mb-6">
           <p className="mb-2 text-sm font-medium text-muted-foreground">
             <Link
-              href={`/categories/${post.category.slug}`}
+              href={`/?category=${post.category.slug}`}
               className="hover:underline"
             >
               {post.category.name}

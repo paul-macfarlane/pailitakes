@@ -25,3 +25,4 @@ Create one with `/adr <title>` whenever a choice is non-obvious, hard to reverse
 | [0015](0015-explicit-create-and-flush-before-lifecycle-actions.md)   | Explicit post creation + flush-before-lifecycle       | Accepted |
 | [0016](0016-content-updated-at-display-column.md)                    | `content_updated_at` drives the public "Updated" date | Accepted |
 | [0017](0017-category-management-semantics.md)                        | Category slugs stable; deactivate-not-delete; seed    | Accepted |
+| [0018](0018-unified-home-browse-search.md)                           | Home is the single browse/search surface (PPR)        | Accepted |

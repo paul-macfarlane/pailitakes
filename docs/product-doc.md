@@ -65,7 +65,7 @@ The homepage features recent posts alongside a dedicated announcements section f
 - **FR-2.1** — Categories are a fixed, admin-managed list. Initial set: **NFL, NBA, MLB, College Football**. Admin can add, rename, and deactivate categories.
 - **FR-2.2** — Each post belongs to exactly one category.
 - **FR-2.3** — Tags are freeform, created inline while authoring. A post can have any number of tags.
-- **FR-2.4** — Each category and each tag has a public listing page showing its published posts, newest first.
+- **FR-2.4** — Each category and each tag has a public listing view of its published posts, newest first. For categories this is the home page filtered in place (`/?category=…`, combinable with search — amended 2026-07-11 by Paul, ADR-0018); tags keep dedicated pages (`/tags/[slug]`).
 
 ### 3.3 Search
 

@@ -1,73 +1,312 @@
-import { cacheLife, cacheTag } from "next/cache";
+import Link from "next/link";
+import { Suspense } from "react";
 
-import { getHomeFeed } from "@/lib/posts/home-feed";
+import { CategoryPills } from "@/app/(public)/_components/category-pills";
 import { LoadMorePosts } from "@/app/(public)/_components/load-more-posts";
-import { CategoryPills } from "@/components/category-pills";
+import { SearchBox } from "@/app/(public)/_components/search-box";
+import { ExternalImage } from "@/components/external-image";
 import { PostCard } from "@/components/post-card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { Skeleton } from "@/components/ui/skeleton";
 import { listActiveCategories } from "@/lib/categories/data";
+import { getCategoryFeed, getHomeFeed } from "@/lib/posts/home-feed";
+import {
+  searchVisiblePosts,
+  SNIPPET_END,
+  SNIPPET_START,
+  type SearchResult,
+} from "@/lib/posts/search";
+import {
+  searchParamsSchema,
+  type SearchPageParams,
+} from "@/lib/posts/search-params";
 
-// Whole page cached and tagged `post-list` (design §3): getHomeFeed's own
-// tag covers the post query, and this page-level tag/life is needed on top
-// because the page also reads listActiveCategories directly (category
-// create/update/deactivate revalidates `post-list`, same tag, so this stays
-// in sync with the pills below).
-export default async function HomePage() {
-  "use cache";
-  cacheTag("post-list");
-  cacheLife({ stale: 60, revalidate: 60 });
+const SEARCH_PAGE_SIZE = 20;
 
-  const [{ posts, hasMore }, categories] = await Promise.all([
-    getHomeFeed(0),
-    listActiveCategories(),
-  ]);
+// UTC-pinned, same rationale as PostCard (src/components/post-card.tsx):
+// server-rendered results must show the same date regardless of viewer
+// timezone.
+const dateFormat = new Intl.DateTimeFormat("en-US", {
+  dateStyle: "medium",
+  timeZone: "UTC",
+});
 
+// `/` is the single browse/search surface (owner-approved fold of /search and
+// /categories/[slug] into home, epic 03 SRCH): optional, combinable `q` and
+// `category` query params drive search mode, category-browse mode, or the
+// plain feed. Query-dependent per ADR-0008 — the page itself declares no
+// `use cache` because it reads searchParams, so that read (and everything it
+// drives) sits inside the Suspense boundary below rather than the page
+// shell. The underlying feed/search DATA still caches exactly as designed:
+// getHomeFeed/getCategoryFeed keep their own `use cache` + `post-list` tag
+// (ADR-0018); only the request-dependent presentation (which mode to render,
+// pill active state, search box value) is dynamic.
+export default function HomePage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
   return (
     <main className="mx-auto w-full max-w-2xl flex-1 px-4 py-8">
       <h1 className="text-2xl font-bold tracking-tight">Paulitakes</h1>
       <p className="mt-1 text-sm text-muted-foreground">
         Hot takes, cold analysis.
       </p>
+      <Suspense fallback={<HomeSkeleton />}>
+        <HomeSection searchParams={searchParams} />
+      </Suspense>
+    </main>
+  );
+}
 
-      {/* Plain GET form: submits without any JS (Label/Input hydrate but
-          SSR to native elements, so the cached shell works pre-hydration).
-          Live debounced typing lives on /search itself (SearchForm). */}
-      <form action="/search" role="search" className="mt-6">
-        <Label htmlFor="home-search-q" className="sr-only">
-          Search posts
-        </Label>
-        <Input
-          id="home-search-q"
-          type="search"
-          name="q"
-          placeholder="Search posts…"
-        />
-      </form>
+// One suspended section for the search box + pills + results: all three
+// depend on the same awaited searchParams (and the pills need a fresh
+// listActiveCategories), so splitting into separate boundaries would mean
+// multiple round trips/skeletons for no benefit — same rationale the old
+// /search page used for its single SearchSection.
+async function HomeSection({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
+  const params = searchParamsSchema.parse(await searchParams);
+  const categories = await listActiveCategories();
+
+  return (
+    <>
+      <div className="mt-6">
+        <SearchBox q={params.q ?? ""} category={params.category} />
+      </div>
 
       <div className="mt-4">
-        <CategoryPills categories={categories} />
+        <CategoryPills
+          categories={categories}
+          activeSlug={params.category}
+          q={params.q}
+        />
       </div>
 
       {/* Announcements slot — banner lands with ANN-3. */}
 
-      <div className="mt-8 flex flex-col gap-6">
-        {posts.length === 0 ? (
-          <p className="text-muted-foreground">
-            No posts yet. Check back soon.
-          </p>
-        ) : (
-          <>
-            {posts.map((post) => (
-              <PostCard key={post.slug} post={post} />
-            ))}
-            <LoadMorePosts
-              initialSlugs={posts.map((post) => post.slug)}
-              initialHasMore={hasMore}
-            />
-          </>
-        )}
+      {params.q ? (
+        <SearchMode q={params.q} params={params} />
+      ) : params.category ? (
+        <CategoryMode category={params.category} />
+      ) : (
+        <DefaultMode />
+      )}
+    </>
+  );
+}
+
+async function DefaultMode() {
+  const { posts, hasMore } = await getHomeFeed(0);
+  return (
+    <div className="mt-8 flex flex-col gap-6">
+      {posts.length === 0 ? (
+        <p className="text-muted-foreground">No posts yet. Check back soon.</p>
+      ) : (
+        <>
+          {posts.map((post) => (
+            <PostCard key={post.slug} post={post} />
+          ))}
+          <LoadMorePosts
+            initialSlugs={posts.map((post) => post.slug)}
+            initialHasMore={hasMore}
+          />
+        </>
+      )}
+    </div>
+  );
+}
+
+// Unknown/inactive category slug degrades to an empty feed rather than a
+// 404 (replaces the old /categories/[slug] 404) — getCategoryFeed does no
+// existence/active check by design. Preserves ADR-0017's "a deactivated
+// category stays reachable and keeps rendering its posts": deactivation only
+// hides the category from listActiveCategories (the pills above), never from
+// a direct `?category=` deep link.
+async function CategoryMode({ category }: { category: string }) {
+  const { posts, hasMore } = await getCategoryFeed(category, 0);
+  return (
+    <div className="mt-8 flex flex-col gap-6">
+      {posts.length === 0 ? (
+        <p className="text-muted-foreground">No posts in this category yet.</p>
+      ) : (
+        <>
+          {posts.map((post) => (
+            <PostCard key={post.slug} post={post} />
+          ))}
+          <LoadMorePosts
+            initialSlugs={posts.map((post) => post.slug)}
+            initialHasMore={hasMore}
+            filter={{ kind: "category", slug: category }}
+          />
+        </>
+      )}
+    </div>
+  );
+}
+
+async function SearchMode({
+  q,
+  params,
+}: {
+  q: string;
+  params: SearchPageParams;
+}) {
+  const { results, hasMore } = await searchVisiblePosts({
+    q,
+    categorySlug: params.category,
+    limit: SEARCH_PAGE_SIZE,
+    offset: (params.page - 1) * SEARCH_PAGE_SIZE,
+  });
+
+  return (
+    <>
+      <ResultsList q={q} results={results} />
+      <SearchPagination params={params} hasMore={hasMore} />
+    </>
+  );
+}
+
+function ResultsList({ q, results }: { q: string; results: SearchResult[] }) {
+  if (results.length === 0) {
+    return (
+      <p className="mt-8 text-muted-foreground">
+        No results for &ldquo;{q}&rdquo;.
+      </p>
+    );
+  }
+
+  return (
+    <ul className="mt-6 flex flex-col gap-6">
+      {results.map((result) => (
+        <li key={result.id}>
+          <SearchResultCard result={result} />
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+function SearchResultCard({ result }: { result: SearchResult }) {
+  return (
+    <article className="flex gap-4">
+      {/* Duplicate of the title link with no text of its own, same pattern
+          as PostCard: hidden from the accessibility tree/tab order rather
+          than announced twice. */}
+      <Link
+        href={`/posts/${result.slug}`}
+        tabIndex={-1}
+        aria-hidden="true"
+        className="relative block h-20 w-28 shrink-0 overflow-hidden rounded-md border sm:h-24 sm:w-36"
+      >
+        <ExternalImage src={result.thumbnailUrl} />
+      </Link>
+      <div className="min-w-0">
+        <p className="text-xs font-medium text-muted-foreground">
+          {result.category.name}
+        </p>
+        <h2 className="mt-0.5 font-semibold leading-snug">
+          <Link href={`/posts/${result.slug}`} className="hover:underline">
+            {result.title}
+          </Link>
+        </h2>
+        <p className="mt-1 text-xs text-muted-foreground">
+          <time dateTime={result.publishAt.toISOString()}>
+            {dateFormat.format(result.publishAt)}
+          </time>
+        </p>
+        <p className="mt-1 line-clamp-2 text-sm text-muted-foreground">
+          <SnippetText snippet={result.snippet} />
+        </p>
       </div>
-    </main>
+    </article>
+  );
+}
+
+// Plain-text snippet with ts_headline's StartSel/StopSel markers (search.ts)
+// rendered as <mark> — never dangerouslySetInnerHTML. Split on SNIPPET_START
+// first (distinct from SNIPPET_END, so this doesn't get confused by nesting);
+// each segment after the first starts with a matched span up to SNIPPET_END.
+function SnippetText({ snippet }: { snippet: string }) {
+  const [lead, ...matches] = snippet.split(SNIPPET_START);
+  return (
+    <>
+      {lead}
+      {matches.map((segment, i) => {
+        const [matched, ...rest] = segment.split(SNIPPET_END);
+        return (
+          <span key={i}>
+            <mark className="rounded-sm bg-primary/20 px-0.5 text-foreground">
+              {matched}
+            </mark>
+            {rest.join(SNIPPET_END)}
+          </span>
+        );
+      })}
+    </>
+  );
+}
+
+function SearchPagination({
+  params,
+  hasMore,
+}: {
+  params: SearchPageParams;
+  hasMore: boolean;
+}) {
+  if (params.page <= 1 && !hasMore) return null;
+
+  function pageHref(page: number) {
+    const search = new URLSearchParams();
+    if (params.q) search.set("q", params.q);
+    if (params.category) search.set("category", params.category);
+    if (page > 1) search.set("page", String(page));
+    const query = search.toString();
+    return query ? `/?${query}` : "/";
+  }
+
+  return (
+    <nav className="mt-8 flex items-center justify-between text-sm">
+      {params.page > 1 ? (
+        <Link href={pageHref(params.page - 1)} className="hover:underline">
+          ← Previous
+        </Link>
+      ) : (
+        <span />
+      )}
+      {hasMore ? (
+        <Link href={pageHref(params.page + 1)} className="hover:underline">
+          Next →
+        </Link>
+      ) : (
+        <span />
+      )}
+    </nav>
+  );
+}
+
+function HomeSkeleton() {
+  return (
+    <div aria-busy="true" className="mt-6 flex flex-col gap-6">
+      <Skeleton className="h-8 w-full" />
+      <div className="flex gap-2">
+        <Skeleton className="h-7 w-14 rounded-full" />
+        <Skeleton className="h-7 w-20 rounded-full" />
+        <Skeleton className="h-7 w-16 rounded-full" />
+      </div>
+      {Array.from({ length: 3 }).map((_, i) => (
+        <div key={i} className="flex gap-4">
+          <Skeleton className="h-20 w-28 shrink-0 rounded-md sm:h-24 sm:w-36" />
+          <div className="flex min-w-0 flex-1 flex-col gap-2">
+            <Skeleton className="h-3 w-16" />
+            <Skeleton className="h-4 w-3/4" />
+            <Skeleton className="h-3 w-24" />
+            <Skeleton className="h-3 w-full" />
+          </div>
+        </div>
+      ))}
+    </div>
   );
 }
