@@ -52,11 +52,11 @@ export function canTransition(from: PostStatus, to: PostStatus): boolean {
 // being rescheduled); a future archive is set on a post that is or will be
 // public (published or scheduled). FR-7.5, FR-7.6.
 export function canSchedulePublish(from: PostStatus): boolean {
-  return from === "draft" || from === "scheduled";
+  return from === PostStatus.Draft || from === PostStatus.Scheduled;
 }
 
 export function canScheduleArchive(from: PostStatus): boolean {
-  return from === "published" || from === "scheduled";
+  return from === PostStatus.Published || from === PostStatus.Scheduled;
 }
 
 // JS mirror of visiblePostsWhere() (src/lib/posts.ts): a post is publicly
