@@ -30,7 +30,7 @@ export function PostCard({ post }: { post: HomeFeedCard }) {
       <div className="min-w-0">
         <p className="text-xs font-medium text-muted-foreground">
           <Link
-            href={`/categories/${post.category.slug}`}
+            href={`/?category=${post.category.slug}`}
             className="hover:underline"
           >
             {post.category.name}

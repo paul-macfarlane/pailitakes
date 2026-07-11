@@ -6,13 +6,13 @@ import { PostCard } from "@/components/post-card";
 import { Button } from "@/components/ui/button";
 import type { HomeFeedCard } from "@/lib/posts/home-feed";
 
-// Load-more island for the home feed (POST-7), reused by the /categories/
-// [slug] and /tags/[slug] listing pages (SRCH-2) via `filter`. Appends pages
-// from /api/posts. The first page is server-rendered; this only owns what
-// came after a click. Offset pagination shifts when posts publish/unpublish
-// between requests, so appends dedupe against every slug already on screen
-// (prevents doubled cards and React key collisions; a shifted-past post
-// simply waits for the next revalidation).
+// Load-more island for the home feed (POST-7), reused by home's `?category=`
+// browse mode and the /tags/[slug] listing page (SRCH-2) via `filter`.
+// Appends pages from /api/posts. The first page is server-rendered; this
+// only owns what came after a click. Offset pagination shifts when posts
+// publish/unpublish between requests, so appends dedupe against every slug
+// already on screen (prevents doubled cards and React key collisions; a
+// shifted-past post simply waits for the next revalidation).
 export function LoadMorePosts({
   initialSlugs,
   initialHasMore,

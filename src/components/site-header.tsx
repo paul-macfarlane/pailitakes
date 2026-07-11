@@ -1,18 +1,17 @@
-import { Search } from "lucide-react";
 import Link from "next/link";
 import { Suspense } from "react";
 
 import { HeaderAuth, HeaderAuthFallback } from "@/components/header-auth";
 import { HeaderShell } from "@/components/header-shell";
 import { ThemeToggle } from "@/components/theme-toggle";
-import { Button } from "@/components/ui/button";
 
 // Static shell — no request data. Session state renders inside the
 // HeaderAuth client island so public pages remain ISR-cacheable (also why
 // nav links carry no active-route styling: that would need a client island).
-// Category discovery and search moved onto the home page itself (owner
-// feedback, epic 03 SRCH); the header keeps only a compact icon link to
-// /search.
+// Category discovery and search live on the home page itself (owner-approved
+// fold of /search and /categories/[slug] into home, epic 03 SRCH); the
+// header no longer needs its own search entry point — the brand link
+// already goes to the same page.
 export function SiteHeader() {
   return (
     <HeaderShell maxWidthClass="max-w-4xl">
@@ -32,14 +31,6 @@ export function SiteHeader() {
         </nav>
       </div>
       <div className="flex shrink-0 items-center gap-1">
-        <Button
-          render={<Link href="/search" aria-label="Search" />}
-          variant="ghost"
-          size="icon"
-          nativeButton={false}
-        >
-          <Search className="size-4" />
-        </Button>
         <ThemeToggle />
         {/* HeaderAuth reads usePathname; wrap so it's deferred out of the
             prerendered shell on dynamic routes (cacheComponents). */}

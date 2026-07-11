@@ -31,26 +31,11 @@ export async function listAllCategories(): Promise<CategoryRow[]> {
     .orderBy(asc(categories.sortOrder), asc(categories.name));
 }
 
-// Single category by slug, active or not — /categories/[slug] (SRCH-2). A
-// deactivated category's own page stays reachable (deactivation only hides
-// it from listActiveCategories/pickers), so this deliberately doesn't filter
-// on `active` the way listActiveCategories does.
-export async function getCategoryBySlug(
-  slug: string,
-): Promise<{ slug: string; name: string } | undefined> {
-  const [row] = await db
-    .select({ slug: categories.slug, name: categories.name })
-    .from(categories)
-    .where(eq(categories.slug, slug))
-    .limit(1);
-  return row;
-}
-
 export type CategoryOption = { id: number; slug: string; name: string };
 
 // Active categories only, for pickers (editor category select) and the
-// public category index (FR-2.1: deactivating hides a category from these,
-// it is not an unpublish of its posts).
+// home page's category pills (FR-2.1: deactivating hides a category from
+// these, it is not an unpublish of its posts).
 export async function listActiveCategories(): Promise<CategoryOption[]> {
   return db
     .select({ id: categories.id, slug: categories.slug, name: categories.name })
@@ -80,8 +65,9 @@ export async function insertCategory(input: {
 }
 
 // Slug is deliberately not part of `patch` — it's derived from the name only
-// at create time and never changes on rename (SRCH-1, public /categories/
-// [slug] URLs must not break). Returns undefined when `id` doesn't exist.
+// at create time and never changes on rename (SRCH-1, category deep-links
+// `/?category=slug` must not break). Returns undefined when `id` doesn't
+// exist.
 export async function updateCategory(
   id: number,
   patch: { name?: string; active?: boolean; sortOrder?: number },

@@ -69,9 +69,9 @@ export async function listVisiblePosts({
   limit?: number;
   offset?: number;
   now?: Date;
-  // SRCH-2's category/tag listing pages: mutually independent filters layered
-  // onto the same visibility predicate, so /categories/[slug] and /tags/[slug]
-  // share this one query rather than forking listVisiblePosts.
+  // SRCH-2's category/tag listing modes: mutually independent filters layered
+  // onto the same visibility predicate, so home's `?category=` browse mode
+  // and /tags/[slug] share this one query rather than forking listVisiblePosts.
   categorySlug?: string;
   tagSlug?: string;
 } = {}): Promise<{

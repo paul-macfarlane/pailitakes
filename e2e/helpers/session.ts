@@ -219,8 +219,8 @@ export interface TestCategory {
 // least one to render. Seeds a uniquely-named, active category for authoring
 // specs and removes it (and any posts that landed in it) afterwards. `slug`
 // is a real (uuid-derived, not name-derived) DB value — search-and-listing
-// specs use it directly for /categories/[slug] and the search filter, rather
-// than re-deriving it from `name` with a duplicated slugify.
+// specs use it directly for the home `?category=` filter, rather than
+// re-deriving it from `name` with a duplicated slugify.
 export async function createTestCategory(
   name = `E2E Category ${crypto.randomUUID().slice(0, 8)}`,
 ): Promise<TestCategory> {

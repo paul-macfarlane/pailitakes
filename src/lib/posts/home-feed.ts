@@ -57,10 +57,11 @@ export async function getHomeFeed(offset: number): Promise<HomeFeed> {
   return toHomeFeed(await listVisiblePosts({ limit: HOME_PAGE_SIZE, offset }));
 }
 
-// /categories/[slug] (SRCH-2, FR-2.4). An inactive category's page stays
-// reachable and keeps rendering its posts — deactivation only hides the
-// category from pickers and the pill bars (locked decision, see the
-// page component). Cache key includes categorySlug/offset automatically.
+// Home's `?category=` browse mode (SRCH-2, FR-2.4). An inactive/unknown
+// category degrades to an empty feed rather than a 404 — deactivation only
+// hides the category from pickers and the pill bar, never from a direct
+// deep link (locked decision, see the home page component). Cache key
+// includes categorySlug/offset automatically.
 export async function getCategoryFeed(
   categorySlug: string,
   offset: number,
