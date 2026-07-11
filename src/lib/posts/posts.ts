@@ -1,6 +1,17 @@
 import "server-only";
 
-import { and, desc, eq, gt, inArray, isNull, lte, or, sql } from "drizzle-orm";
+import {
+  and,
+  desc,
+  eq,
+  exists,
+  gt,
+  inArray,
+  isNull,
+  lte,
+  or,
+  sql,
+} from "drizzle-orm";
 import type { SQL } from "drizzle-orm";
 
 import { db } from "@/db";
@@ -52,7 +63,18 @@ export async function listVisiblePosts({
   limit = DEFAULT_LIMIT,
   offset = 0,
   now,
-}: { limit?: number; offset?: number; now?: Date } = {}): Promise<{
+  categorySlug,
+  tagSlug,
+}: {
+  limit?: number;
+  offset?: number;
+  now?: Date;
+  // SRCH-2's category/tag listing pages: mutually independent filters layered
+  // onto the same visibility predicate, so /categories/[slug] and /tags/[slug]
+  // share this one query rather than forking listVisiblePosts.
+  categorySlug?: string;
+  tagSlug?: string;
+} = {}): Promise<{
   posts: PostCard[];
   hasMore: boolean;
 }> {
@@ -64,6 +86,19 @@ export async function listVisiblePosts({
   const clampedOffset = Number.isFinite(offset)
     ? Math.max(Math.trunc(offset), 0)
     : 0;
+
+  // EXISTS rather than a join: a post can carry many tags, and a join would
+  // duplicate rows (breaking limit/offset pagination) unless deduped with a
+  // groupBy — EXISTS filters without touching the row shape at all.
+  const tagMatch = tagSlug
+    ? exists(
+        db
+          .select({ one: sql`1` })
+          .from(postTags)
+          .innerJoin(tags, eq(tags.id, postTags.tagId))
+          .where(and(eq(postTags.postId, posts.id), eq(tags.slug, tagSlug))),
+      )
+    : undefined;
 
   const rows = await db
     .select({
@@ -79,7 +114,13 @@ export async function listVisiblePosts({
     .from(posts)
     .innerJoin(categories, eq(posts.categoryId, categories.id))
     .innerJoin(user, eq(posts.authorId, user.id))
-    .where(visiblePostsWhere(now))
+    .where(
+      and(
+        visiblePostsWhere(now),
+        categorySlug ? eq(categories.slug, categorySlug) : undefined,
+        tagMatch,
+      ),
+    )
     // id tiebreaker: ties on publishAt would otherwise reorder arbitrarily
     // between offset pages, duplicating/dropping posts across load-more.
     .orderBy(desc(posts.publishAt), desc(posts.id))
@@ -144,4 +185,17 @@ export async function getVisiblePostBySlug(
   // Same publishAt narrowing as listVisiblePosts: the predicate excludes
   // null publish_at rows.
   return (rows[0] as PostDetail | undefined) ?? null;
+}
+
+// Public read for the /tags/[slug] page (SRCH-2). Tags are a posts-domain
+// concept (no dedicated tags module exists), same as postTagsAgg above.
+export async function getTagBySlug(
+  slug: string,
+): Promise<{ slug: string; name: string } | undefined> {
+  const [row] = await db
+    .select({ slug: tags.slug, name: tags.name })
+    .from(tags)
+    .where(eq(tags.slug, slug))
+    .limit(1);
+  return row;
 }

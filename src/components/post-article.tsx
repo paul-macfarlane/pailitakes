@@ -1,5 +1,7 @@
 import "lite-youtube-embed/src/lite-yt-embed.css";
 
+import Link from "next/link";
+
 import { ExternalImage } from "@/components/external-image";
 import { LiteYouTubeActivation } from "@/components/lite-youtube-activation";
 import { PostBody } from "@/components/post-body";
@@ -25,7 +27,7 @@ export type PostArticleData = {
   contentUpdatedAt: Date | null;
   thumbnailUrl: string;
   bannerUrl: string | null;
-  category: { name: string };
+  category: { slug: string; name: string };
   author: { name: string };
   tags: { slug: string; name: string }[];
 };
@@ -75,7 +77,12 @@ export function PostArticle({ post }: { post: PostArticleData }) {
         )}
         <header className="mb-6">
           <p className="mb-2 text-sm font-medium text-muted-foreground">
-            {post.category.name}
+            <Link
+              href={`/categories/${post.category.slug}`}
+              className="hover:underline"
+            >
+              {post.category.name}
+            </Link>
           </p>
           <h1 className="text-3xl font-bold tracking-tight">{post.title}</h1>
           <p className="mt-2 text-sm text-muted-foreground">
@@ -123,12 +130,13 @@ export function PostArticle({ post }: { post: PostArticleData }) {
         {post.tags.length > 0 && (
           <footer className="mt-8 flex flex-wrap gap-2">
             {post.tags.map((tag) => (
-              <span
+              <Link
                 key={tag.slug}
-                className="rounded-full border px-3 py-1 text-xs text-muted-foreground"
+                href={`/tags/${tag.slug}`}
+                className="rounded-full border px-3 py-1 text-xs text-muted-foreground hover:bg-accent hover:text-accent-foreground"
               >
                 {tag.name}
-              </span>
+              </Link>
             ))}
           </footer>
         )}

@@ -22,19 +22,12 @@ export type HomeFeedCard = {
 
 export type HomeFeed = { posts: HomeFeedCard[]; hasMore: boolean };
 
-// Cached per offset, tagged `post-list` (design §3): publish/edit/archive
-// actions and the revalidation cron invalidate every cached feed page in one
-// revalidateTag call; 60s revalidation is the scheduled-publish safety net.
-export async function getHomeFeed(offset: number): Promise<HomeFeed> {
-  "use cache";
-  cacheTag("post-list");
-  cacheLife({ stale: 60, revalidate: 60 });
-
-  const { posts, hasMore } = await listVisiblePosts({
-    limit: HOME_PAGE_SIZE,
-    offset,
-  });
-
+// Shared by getHomeFeed/getCategoryFeed/getTagFeed: same PostCard -> card
+// mapping, only the underlying listVisiblePosts filter differs.
+function toHomeFeed({
+  posts,
+  hasMore,
+}: Awaited<ReturnType<typeof listVisiblePosts>>): HomeFeed {
   return {
     posts: posts.map((post) => ({
       slug: post.slug,
@@ -51,4 +44,46 @@ export async function getHomeFeed(offset: number): Promise<HomeFeed> {
     })),
     hasMore,
   };
+}
+
+// Cached per offset, tagged `post-list` (design §3): publish/edit/archive
+// actions and the revalidation cron invalidate every cached feed page in one
+// revalidateTag call; 60s revalidation is the scheduled-publish safety net.
+export async function getHomeFeed(offset: number): Promise<HomeFeed> {
+  "use cache";
+  cacheTag("post-list");
+  cacheLife({ stale: 60, revalidate: 60 });
+
+  return toHomeFeed(await listVisiblePosts({ limit: HOME_PAGE_SIZE, offset }));
+}
+
+// /categories/[slug] (SRCH-2, FR-2.4). An inactive category's page stays
+// reachable and keeps rendering its posts — deactivation only hides the
+// category from pickers and the /categories index (locked decision, see the
+// page component). Cache key includes categorySlug/offset automatically.
+export async function getCategoryFeed(
+  categorySlug: string,
+  offset: number,
+): Promise<HomeFeed> {
+  "use cache";
+  cacheTag("post-list");
+  cacheLife({ stale: 60, revalidate: 60 });
+
+  return toHomeFeed(
+    await listVisiblePosts({ limit: HOME_PAGE_SIZE, offset, categorySlug }),
+  );
+}
+
+// /tags/[slug] (SRCH-2, FR-2.4).
+export async function getTagFeed(
+  tagSlug: string,
+  offset: number,
+): Promise<HomeFeed> {
+  "use cache";
+  cacheTag("post-list");
+  cacheLife({ stale: 60, revalidate: 60 });
+
+  return toHomeFeed(
+    await listVisiblePosts({ limit: HOME_PAGE_SIZE, offset, tagSlug }),
+  );
 }
