@@ -1,8 +1,14 @@
 "use client";
 
-import { useState, useSyncExternalStore, useTransition } from "react";
+import {
+  useContext,
+  useState,
+  useSyncExternalStore,
+  useTransition,
+} from "react";
 
 import { discardPostChanges, publishPostChanges } from "@/actions/posts/draft";
+import { EditorFlushContext } from "@/app/admin/posts/_components/editor-flush-context";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
@@ -23,6 +29,7 @@ export function PostPendingControls({
 }) {
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
+  const flush = useContext(EditorFlushContext);
 
   // Hydration-safe mounted flag: draftUpdatedAt formats to the viewer's
   // timezone, which the server (UTC) can't match — render the time only after
@@ -33,10 +40,24 @@ export function PostPendingControls({
     () => false,
   );
 
-  function run(action: () => Promise<{ ok: boolean; error?: string }>) {
+  function run(
+    action: () => Promise<{ ok: boolean; error?: string }>,
+    options?: { skipFlushGuard?: boolean },
+  ) {
     setError(null);
     startTransition(async () => {
       try {
+        const flushed = (await flush?.()) ?? true;
+        // Discard is throwing the staged edits away regardless of whether
+        // they saved cleanly, so a flush failure (e.g. a validation error
+        // left in the form) must not block it. Publish needs the latest
+        // edits actually saved first, so it still blocks on a failed flush.
+        if (!flushed && !options?.skipFlushGuard) {
+          setError(
+            "Couldn't save your latest edits — fix any errors above and try again.",
+          );
+          return;
+        }
         const result = await action();
         if (!result.ok) {
           setError(result.error ?? "Something went wrong. Please try again.");
@@ -76,7 +97,9 @@ export function PostPendingControls({
           size="sm"
           variant="ghost"
           disabled={isPending}
-          onClick={() => run(() => discardPostChanges(postId))}
+          onClick={() =>
+            run(() => discardPostChanges(postId), { skipFlushGuard: true })
+          }
         >
           Discard changes
         </Button>

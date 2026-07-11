@@ -38,8 +38,8 @@ test.describe("authoring lifecycle", () => {
   });
 
   // Creates a draft through the editor and returns its id + resolved slug.
-  // The editor assigns the id on first save and swaps the URL to the edit
-  // route (history.replaceState), so we read the id back from the URL.
+  // The editor assigns the id on first (explicit) save and navigates to the
+  // edit route (router.replace), so we read the id back from the URL.
   async function createDraft(
     page: Page,
     title: string,
@@ -227,5 +227,67 @@ test.describe("authoring lifecycle", () => {
     await expect(page.getByText(/Preview ·/)).toBeVisible();
     await expect(page.getByText("not visible to the public")).toBeVisible();
     await expect(page.getByRole("heading", { name: title })).toBeVisible();
+  });
+
+  test("typing alone does not create a post", async ({ page }) => {
+    await page.goto("/admin/posts/new");
+    await expect(page.getByRole("heading", { name: "New post" })).toBeVisible();
+
+    const title = `E2E NoAutoCreate ${crypto.randomUUID().slice(0, 8)}`;
+    await page.locator("#title").fill(title);
+    await page.locator("#bodyMd").fill("Typed but never explicitly saved.");
+
+    // Past one autosave interval (5s), with margin for slow CI — the passive
+    // interval tick must never create a post from typing alone (only an
+    // explicit action like "Save now" may).
+    await page.waitForTimeout(6500);
+    expect(new URL(page.url()).pathname).toBe("/admin/posts/new");
+  });
+
+  test("new post form starts empty after editing another post", async ({
+    page,
+  }) => {
+    const title = `E2E Reuse ${crypto.randomUUID().slice(0, 8)}`;
+    await createDraft(page, title);
+
+    // Client-side navigation back to the dashboard and on to a fresh "New
+    // post" — no full page load in between, so a stale form/postId would
+    // carry over here if create didn't hand off via a real navigation
+    // (router.replace) that lets Next remount the editor.
+    await page.getByRole("link", { name: "← Posts" }).click();
+    await page.waitForURL((url) => new URL(url).pathname === "/admin");
+    await page.locator('a[href="/admin/posts/new"]').click();
+    await page.waitForURL(
+      (url) => new URL(url).pathname === "/admin/posts/new",
+    );
+
+    await expect(page.getByRole("heading", { name: "New post" })).toBeVisible();
+    // ":visible" excludes the previous edit page's form, which Next's client
+    // router keeps in the DOM (display: none) for instant back-navigation
+    // rather than unmounting it on this soft nav.
+    await expect(page.locator("#title:visible")).toHaveValue("");
+    await expect(page.locator("#bodyMd:visible")).toHaveValue("");
+  });
+
+  test("publishing includes keystrokes typed just before publish", async ({
+    page,
+  }) => {
+    const title = `E2E Flush ${crypto.randomUUID().slice(0, 8)}`;
+    const { slug } = await createDraft(page, title);
+
+    // Type more body content but neither save manually nor wait for the 5s
+    // autosave tick — click Publish now immediately. If PostStatusControls
+    // didn't flush the editor's in-progress edits first, the publish would
+    // act on the post row as createDraft last left it, missing this text.
+    const marker = `flush-marker-${crypto.randomUUID().slice(0, 8)}`;
+    await page
+      .locator("#bodyMd")
+      .fill(`First take. **Bold** and clear. ${marker}`);
+    await page.getByRole("button", { name: "Publish now" }).click();
+    await expect(page.getByText("Published", { exact: true })).toBeVisible();
+
+    const response = await page.goto(`/posts/${slug}`);
+    expect(response?.status()).toBe(200);
+    await expect(page.getByText(marker)).toBeVisible();
   });
 });

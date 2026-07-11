@@ -1,9 +1,10 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState, useTransition } from "react";
+import { useContext, useState, useTransition } from "react";
 
 import { transitionPostStatus } from "@/actions/posts/lifecycle";
+import { EditorFlushContext } from "@/app/admin/posts/_components/editor-flush-context";
 import { Button } from "@/components/ui/button";
 import {
   allowedTransitions,
@@ -31,6 +32,7 @@ export function PostStatusControls({
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
+  const flush = useContext(EditorFlushContext);
 
   function handle(target: PostStatus) {
     setError(null);
@@ -40,6 +42,16 @@ export function PostStatusControls({
     // harmless — transitionPostStatus is idempotent and CAS-guarded.
     startTransition(async () => {
       try {
+        // Save the editor's in-progress edits first — transitionPostStatus
+        // only reads the post row, so a "Publish now" click that beats the
+        // next autosave tick would otherwise publish stale content.
+        const flushed = (await flush?.()) ?? true;
+        if (!flushed) {
+          setError(
+            "Couldn't save your latest edits — fix any errors above and try again.",
+          );
+          return;
+        }
         const result = await transitionPostStatus(postId, target);
         if (!result.ok) {
           setError(result.error);

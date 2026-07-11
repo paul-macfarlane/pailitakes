@@ -1,13 +1,19 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState, useSyncExternalStore, useTransition } from "react";
+import {
+  useContext,
+  useState,
+  useSyncExternalStore,
+  useTransition,
+} from "react";
 
 import {
   cancelScheduledArchive,
   scheduleArchive,
   schedulePublish,
 } from "@/actions/posts/lifecycle";
+import { EditorFlushContext } from "@/app/admin/posts/_components/editor-flush-context";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -42,6 +48,7 @@ export function PostScheduleControls({
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
+  const flush = useContext(EditorFlushContext);
   // null = the field hasn't been edited yet → show the server value
   // (formatted to the viewer's timezone); a string is the user's own edit.
   const [publishEdit, setPublishEdit] = useState<string | null>(null);
@@ -90,6 +97,16 @@ export function PostScheduleControls({
     setError(null);
     startTransition(async () => {
       try {
+        // Save the editor's in-progress edits first — the scheduling actions
+        // only read the post row, so a schedule/cancel click that beats the
+        // next autosave tick would otherwise act on stale content.
+        const flushed = (await flush?.()) ?? true;
+        if (!flushed) {
+          setError(
+            "Couldn't save your latest edits — fix any errors above and try again.",
+          );
+          return;
+        }
         const result = await action();
         if (!result.ok) {
           setError(result.error ?? "Something went wrong. Please try again.");
