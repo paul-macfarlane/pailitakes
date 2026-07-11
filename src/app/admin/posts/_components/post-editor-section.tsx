@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 
 import { EditorFlushContext } from "@/app/admin/posts/_components/editor-flush-context";
 import { PostEditor } from "@/app/admin/posts/_components/post-editor";
@@ -32,18 +32,30 @@ export function PostEditorSection({
   );
   const [statusIsError, setStatusIsError] = useState(false);
   const saveRef = useRef<() => Promise<boolean>>(() => Promise.resolve(true));
+  const allowUnloadOnceRef = useRef<() => void>(() => {});
 
   const registerSave = useCallback((save: () => Promise<boolean>) => {
     saveRef.current = save;
+  }, []);
+  const registerAllowUnloadOnce = useCallback((allowUnloadOnce: () => void) => {
+    allowUnloadOnceRef.current = allowUnloadOnce;
   }, []);
   const onStatus = useCallback((next: string, isError: boolean) => {
     setStatus(next);
     setStatusIsError(isError);
   }, []);
-  // Wraps the editor's registered save so the lifecycle islands (children)
-  // can flush in-progress edits before publishing/discarding/transitioning/
-  // scheduling — see EditorFlushContext.
-  const flush = useCallback(() => saveRef.current(), []);
+  // Wraps the editor's registered save + unload-suppression so the lifecycle
+  // islands (children) can flush in-progress edits before publishing/
+  // discarding/transitioning/scheduling, and suppress the editor's own
+  // beforeunload prompt for their own follow-up reload — see
+  // EditorFlushContext.
+  const flush = useMemo(
+    () => ({
+      flush: () => saveRef.current(),
+      allowUnloadOnce: () => allowUnloadOnceRef.current(),
+    }),
+    [],
+  );
 
   return (
     <>
@@ -94,6 +106,7 @@ export function PostEditorSection({
         categories={categories}
         initialPost={initialPost}
         registerSave={registerSave}
+        registerAllowUnloadOnce={registerAllowUnloadOnce}
         onStatus={onStatus}
       />
     </>

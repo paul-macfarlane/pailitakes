@@ -29,6 +29,9 @@ function AlertDialogOverlay({
   return (
     <AlertDialogPrimitive.Backdrop
       data-slot="alert-dialog-overlay"
+      // bg-black/10 is a raw color (theme-token rule exception): kept verbatim
+      // from the shadcn generator — ui/ primitives are vendored as generated,
+      // and a translucent black scrim reads correctly over both themes.
       className={cn(
         "fixed inset-0 isolate z-50 bg-black/10 duration-100 supports-backdrop-filter:backdrop-blur-xs data-open:animate-in data-open:fade-in-0 data-closed:animate-out data-closed:fade-out-0",
         className,
