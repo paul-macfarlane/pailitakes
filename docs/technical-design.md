@@ -316,6 +316,7 @@ src/
     (public)/
       page.tsx                    # home: announcements + recent posts
       posts/[slug]/page.tsx
+      categories/page.tsx         # active-category index
       categories/[slug]/page.tsx
       tags/[slug]/page.tsx
       search/page.tsx
@@ -326,7 +327,8 @@ src/
       analytics/page.tsx
       moderation/page.tsx         # moderation log
       announcements/page.tsx
-      settings/page.tsx           # categories, users
+      categories/page.tsx         # category management (ADR-0017)
+      users/page.tsx              # roles, bans (ADM-10)
       _components/                # colocated, single-route components
     api/
       auth/[...all]/route.ts      # Better Auth handler
@@ -350,13 +352,15 @@ src/
     users/                        # admin, display-name
       service.ts
       data.ts
+    categories/                   # input, service, data (ADR-0017)
     content/                      # markdown, excerpt, image-src
     admin/                        # cross-domain admin-screen helpers
                                    # (route-params, search)
-    shared/                       # cache, env, sql-like, action-result
+    shared/                       # cache, env, sql-like, slug, action-result
     utils.ts                      # shadcn generators hardcode "@/lib/utils"
   actions/
     posts/                        # crud.ts, draft.ts, lifecycle.ts
+    categories.ts
     users.ts
     preview.ts
 ```

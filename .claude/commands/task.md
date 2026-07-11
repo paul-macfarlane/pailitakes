@@ -14,6 +14,7 @@ A "task" may be one backlog item, several related items, or a whole epic — sco
   - `plan-review` — human review of the plan before implementing. **Default OFF**: the plan is written and handed straight to implementation without stopping. `--plan` turns review ON (present the plan and wait for approval); `--no-plan` is the default. A plan is **always** produced regardless of this gate (Pipeline step 1) — the gate only controls whether a human approves it first, never whether a plan exists.
   - `test` — default `auto`; `--test=manual` stops for the human to test; `--test=skip` only when there is no runtime surface.
 - State the resolved target and gates in one line, and mark the task `[~]` in its backlog file.
+- **Branch first:** before touching any code, create a feature branch off `staging` (`feat/<task-id-or-epic-slug>`); all pipeline work happens on it. If the working tree already has unrelated uncommitted changes, ask before proceeding.
 
 ## Model routing — three tiers
 
@@ -26,8 +27,8 @@ Every delegation is built from the Pipeline step-1 plan: hand the implementer th
 1. **Plan** — **always** produce a written plan: files to touch, approach, applicable FR-x.y / design-doc sections, any decision needing an ADR. When the plan depends on current-state facts you haven't verified (call sites, existing patterns, coverage), dispatch `scout` agents first rather than planning from memory. The plan is mandatory whether or not a human reviews it — it is what the implementing agent works from (see Model routing), so it must be concrete enough to hand off. If the plan-review gate is on (`--plan`), present the plan and wait for approval before implementing; by default, hand it straight to implementation without stopping.
 2. **Implement** — follow `.claude/rules/engineering.md` and the technical design; use the Vercel/Next/shadcn/Drizzle skills for framework specifics.
 3. **Review & test** — done when the `evaluator` subagent (Opus), briefed with the diff, the plan, and the task's acceptance criteria, returns a clean verdict (confirmed findings go to an `implementer` to fix, then the same evaluator re-verifies; findings you reject get a recorded rationale), and the affected flow demonstrably works (`/verify` or `/run`, plus unit tests for lib/action logic). `/code-review` remains available for focused single-concern passes. In `--test=manual`, describe what to test and wait for the result.
-4. **Close out** — docs updated if behavior/architecture changed, non-obvious decisions recorded via `/adr`, task marked `[x]`.
-5. **Report** — what shipped, review/test outcomes, docs/ADRs touched, next unblocked task. Don't commit or push unless asked.
+4. **Close out** — docs updated if behavior/architecture changed, non-obvious decisions recorded via `/adr`, task marked `[x]`. Then commit the work to the feature branch (conventional-prefix messages, logically grouped commits), push it, and open a PR targeting `staging` with `gh pr create` (summary, task IDs, test/review outcomes in the body). Pushing a feature branch needs no confirmation; never push to `staging`/`main` directly.
+5. **Report** — what shipped, review/test outcomes, docs/ADRs touched, the PR link, next unblocked task.
 
 ## Escalate — in every mode, including `--auto`
 

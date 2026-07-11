@@ -118,6 +118,10 @@ export interface TestPost {
   id: string;
   slug: string;
   title: string;
+  // Derived tag slugs, in the same order as the `tags` option — lets callers
+  // hit /tags/[slug] without re-deriving the slug themselves. Empty when no
+  // `tags` option was passed.
+  tagSlugs: string[];
   cleanup: () => Promise<void>;
 }
 
@@ -125,17 +129,22 @@ export interface TestPost {
 // need an existing post to act on — e.g. post-delete.spec.ts drives the
 // delete dialog, not the authoring flow that creates the row. Defaults to
 // "published" with a past publishAt so it's immediately publicly visible
-// (visiblePostsWhere, src/lib/posts/posts.ts).
+// (visiblePostsWhere, src/lib/posts/posts.ts). `bodyMd`/`tags` are optional
+// so search-and-listing.spec.ts can seed a distinctive body word and tag for
+// FTS/tag-page assertions without every other caller having to pass them.
 export async function createTestPost(options: {
   authorId: string;
   categoryId: number;
   title?: string;
   status?: "draft" | "published";
+  bodyMd?: string;
+  tags?: string[];
 }): Promise<TestPost> {
   const { databaseUrl } = requireEnv();
   const title = options.title ?? `E2E Post ${crypto.randomUUID().slice(0, 8)}`;
   const status = options.status ?? "published";
   const slug = `e2e-post-${crypto.randomUUID()}`;
+  const bodyMd = options.bodyMd ?? "Seeded body for e2e.";
 
   const pool = new Pool({ connectionString: databaseUrl, max: 1 });
   const { rows } = await pool.query<{ id: string }>(
@@ -146,7 +155,7 @@ export async function createTestPost(options: {
       options.authorId,
       title,
       slug,
-      "Seeded body for e2e.",
+      bodyMd,
       "https://example.com/e2e-thumb.png",
       options.categoryId,
       status,
@@ -155,12 +164,45 @@ export async function createTestPost(options: {
   );
   const id = rows[0]!.id;
 
+  // Same onConflictDoNothing-then-select upsert idiom as setPostTags
+  // (src/lib/posts/data.ts) — slugified locally (ASCII-only; e2e tag names
+  // never carry diacritics) rather than importing tagToSlug, since this file
+  // otherwise has no "@/..." dependency on the app source (only node/pg/dotenv).
+  const tagSlugs: string[] = [];
+  for (const name of options.tags ?? []) {
+    const tagSlug = name
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "");
+    await pool.query(
+      `insert into tags (slug, name) values ($1, $2) on conflict (slug) do nothing`,
+      [tagSlug, name],
+    );
+    const { rows: tagRows } = await pool.query<{ id: number }>(
+      `select id from tags where slug = $1`,
+      [tagSlug],
+    );
+    await pool.query(
+      `insert into post_tags (post_id, tag_id) values ($1, $2)`,
+      [id, tagRows[0]!.id],
+    );
+    tagSlugs.push(tagSlug);
+  }
+
   return {
     id,
     slug,
     title,
+    tagSlugs,
     cleanup: async () => {
+      // post_tags cascades off posts (schema.ts); the tag row itself doesn't,
+      // so drop it explicitly. Safe even if another post shares the tag slug
+      // (won't happen here — tag names are per-test unique) since delete is
+      // scoped to this test's own slugs.
       await pool.query(`delete from posts where id = $1`, [id]);
+      if (tagSlugs.length > 0) {
+        await pool.query(`delete from tags where slug = any($1)`, [tagSlugs]);
+      }
       await pool.end();
     },
   };
@@ -168,13 +210,17 @@ export async function createTestPost(options: {
 
 export interface TestCategory {
   id: number;
+  slug: string;
   name: string;
   cleanup: () => Promise<void>;
 }
 
 // Categories aren't seeded by any migration, and the post editor needs at
 // least one to render. Seeds a uniquely-named, active category for authoring
-// specs and removes it (and any posts that landed in it) afterwards.
+// specs and removes it (and any posts that landed in it) afterwards. `slug`
+// is a real (uuid-derived, not name-derived) DB value — search-and-listing
+// specs use it directly for /categories/[slug] and the search filter, rather
+// than re-deriving it from `name` with a duplicated slugify.
 export async function createTestCategory(
   name = `E2E Category ${crypto.randomUUID().slice(0, 8)}`,
 ): Promise<TestCategory> {
@@ -191,6 +237,7 @@ export async function createTestCategory(
 
   return {
     id,
+    slug,
     name,
     cleanup: async () => {
       // categories has no ON DELETE from posts either — clear referencing posts
@@ -200,4 +247,24 @@ export async function createTestCategory(
       await pool.end();
     },
   };
+}
+
+// category-management.spec.ts creates categories through the real admin
+// form (createCategory server action), not createTestCategory — there's no
+// TestCategory.cleanup() to call. Sweeps rows by name prefix instead, so an
+// afterEach still cleans up even if an earlier assertion in the test threw.
+// Matching by prefix (not exact name) also catches a row after the spec's
+// rename test changes its name, since rename only ever appends to the
+// unique per-test prefix the name started with. Slug is untouched by rename
+// (SRCH-1 invariant) but isn't derivable here without importing slugifyCore,
+// so name is the simpler, sufficient match key.
+export async function deleteCategoriesByPrefix(prefix: string): Promise<void> {
+  const { databaseUrl } = requireEnv();
+  const pool = new Pool({ connectionString: databaseUrl, max: 1 });
+  await pool.query(
+    `delete from posts where category_id in (select id from categories where name like $1)`,
+    [`${prefix}%`],
+  );
+  await pool.query(`delete from categories where name like $1`, [`${prefix}%`]);
+  await pool.end();
 }
