@@ -4,7 +4,10 @@ import { generateObject } from "ai";
 import { z } from "zod";
 
 import { MODERATION_EXAMPLES } from "@/lib/comments/moderation-examples";
-import type { ModVerdictRecord } from "@/lib/comments/verdict";
+import {
+  ModerationVerdict,
+  type ModVerdictRecord,
+} from "@/lib/comments/verdict";
 import { env } from "@/lib/shared/env";
 
 // Plain gateway model string — the AI SDK's default provider is Vercel AI
@@ -82,10 +85,10 @@ export async function moderateComment(body: string): Promise<ModerationResult> {
   if (!env.COMMENT_MODERATION_ENABLED) {
     const reason = "Moderation disabled (COMMENT_MODERATION_ENABLED=false)";
     return {
-      outcome: "allow",
+      outcome: ModerationVerdict.Allow,
       reason,
       record: {
-        verdict: "allow",
+        verdict: ModerationVerdict.Allow,
         reason,
         model: MODERATION_MODEL,
         latencyMs: 0,
