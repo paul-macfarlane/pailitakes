@@ -18,6 +18,10 @@ export type CommentRow = {
   status: CommentStatus;
   createdAt: Date;
   editedAt: Date | null;
+  // Read-time aggregates (design §5.4, LIKE-3): counted/checked alongside the
+  // tree query in loadCommentRowsForPost, not denormalized on the row.
+  likeCount: number;
+  likedByMe: boolean;
 };
 
 // Dates are ISO strings (not Date) because this type crosses the JSON
@@ -30,6 +34,8 @@ export type CommentNode = {
   createdAt: string;
   editedAt: string | null;
   author: { id: string; name: string; image: string | null } | null;
+  likeCount: number;
+  likedByMe: boolean;
   children: CommentNode[];
 };
 
@@ -56,6 +62,11 @@ export function buildCommentTree(rows: CommentRow[]): CommentNode[] {
       author: visible
         ? { id: row.authorId, name: row.authorName, image: row.authorImage }
         : null,
+      // A redacted placeholder renders no like button — zeroing these
+      // alongside body/author keeps a non-visible node from leaking a like
+      // count for content the reader can't see.
+      likeCount: visible ? row.likeCount : 0,
+      likedByMe: visible ? row.likedByMe : false,
       children: [],
     });
   }

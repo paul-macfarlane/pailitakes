@@ -32,7 +32,7 @@ const {
   softDeleteComment,
 } = await import("./data");
 
-const { categories, comments, posts, user } = schema;
+const { categories, commentLikes, comments, posts, user } = schema;
 
 const SEED_PREFIX = "t-cmt-data-";
 const runId = `${SEED_PREFIX}${crypto.randomUUID().slice(0, 8)}`;
@@ -218,7 +218,7 @@ describe("parentIsValidForReply / insertComment / loadCommentRowsForPost", () =>
       },
     });
 
-    const rows = await loadCommentRowsForPost(postId);
+    const rows = await loadCommentRowsForPost(postId, null);
     const byId = new Map(rows.map((r) => [r.id, r]));
 
     expect(byId.get(visible.id)).toMatchObject({
@@ -232,6 +232,66 @@ describe("parentIsValidForReply / insertComment / loadCommentRowsForPost", () =>
       status: "rejected",
       authorId: otherAuthorId,
     });
+  });
+
+  it("loadCommentRowsForPost aggregates likeCount and scopes likedByMe to the given viewer", async () => {
+    const postId = visiblePostId;
+    const liked = await insertComment({
+      postId,
+      parentId: null,
+      authorId,
+      body: "Liked by two people.",
+      status: "visible",
+      modVerdict: VERDICT_ALLOW,
+    });
+    const unliked = await insertComment({
+      postId,
+      parentId: null,
+      authorId,
+      body: "Nobody liked this.",
+      status: "visible",
+      modVerdict: VERDICT_ALLOW,
+    });
+
+    await testDb.insert(commentLikes).values([
+      { commentId: liked.id, userId: authorId },
+      { commentId: liked.id, userId: otherAuthorId },
+    ]);
+
+    const rowsAsAuthor = await loadCommentRowsForPost(postId, authorId);
+    const byIdAsAuthor = new Map(rowsAsAuthor.map((r) => [r.id, r]));
+    expect(byIdAsAuthor.get(liked.id)).toMatchObject({
+      likeCount: 2,
+      likedByMe: true,
+    });
+    expect(byIdAsAuthor.get(unliked.id)).toMatchObject({
+      likeCount: 0,
+      likedByMe: false,
+    });
+
+    const rowsAsLiker = await loadCommentRowsForPost(postId, otherAuthorId);
+    expect(rowsAsLiker.find((r) => r.id === liked.id)).toMatchObject({
+      likeCount: 2,
+      likedByMe: true,
+    });
+
+    // A viewer who never liked it (not FK-checked — likedByMe is a plain
+    // read-time EXISTS, never an insert) sees the same count but false.
+    const rowsAsStranger = await loadCommentRowsForPost(postId, "not-a-liker");
+    expect(rowsAsStranger.find((r) => r.id === liked.id)).toMatchObject({
+      likeCount: 2,
+      likedByMe: false,
+    });
+
+    const rowsAsSignedOut = await loadCommentRowsForPost(postId, null);
+    expect(rowsAsSignedOut.find((r) => r.id === liked.id)).toMatchObject({
+      likeCount: 2,
+      likedByMe: false,
+    });
+
+    await testDb
+      .delete(commentLikes)
+      .where(inArray(commentLikes.commentId, [liked.id, unliked.id]));
   });
 });
 
