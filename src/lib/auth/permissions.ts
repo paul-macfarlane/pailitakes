@@ -31,11 +31,16 @@ export const Action = {
   ManageAnyComment: "comment.manage-any",
   // Moderation log access (design §5.2 "Moderation log (admin)").
   ModerateComments: "comment.moderate",
+  // Any authenticated, non-banned user may like a post/comment (FR-5.1,
+  // design §5.4) — same breadth as CreateComment, held separately so a
+  // future split (e.g. likes-only suspension) doesn't need to touch comment
+  // gating.
+  LikeContent: "like_content",
 } as const;
 export type Action = (typeof Action)[keyof typeof Action];
 
 const ROLE_ACTIONS: Record<Role, readonly Action[]> = {
-  [Role.Reader]: [Action.CreateComment],
+  [Role.Reader]: [Action.CreateComment, Action.LikeContent],
   [Role.Author]: [
     Action.CreatePost,
     Action.EditPost,
@@ -43,6 +48,7 @@ const ROLE_ACTIONS: Record<Role, readonly Action[]> = {
     Action.PreviewPost,
     Action.AccessAdmin,
     Action.CreateComment,
+    Action.LikeContent,
   ],
   [Role.Admin]: [
     Action.CreatePost,
@@ -57,6 +63,7 @@ const ROLE_ACTIONS: Record<Role, readonly Action[]> = {
     Action.CreateComment,
     Action.ManageAnyComment,
     Action.ModerateComments,
+    Action.LikeContent,
   ],
 };
 
