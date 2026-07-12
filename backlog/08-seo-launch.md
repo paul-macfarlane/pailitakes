@@ -7,3 +7,4 @@ Metadata, sitemap, mobile polish, launch. Ref: FR-9.5; technical-design.md §5.8
 - [ ] **SEO-3** — `robots.txt` disallowing `/admin`. _(deps: none)_
 - [ ] **SEO-4** — Mobile-first QA pass across all public pages, comment threads, embeds, and interactions. _(deps: all public epics)_
 - [ ] **SEO-5** — Launch checklist: env/secrets set per environment, migrations applied, cron job configured, OAuth clients verified. _(deps: SEO-4)_
+- [ ] **SEO-6** — Privacy Policy and Terms of Service pages (static public routes) + footer links from all public pages; privacy copy must reflect the salted-hash analytics posture (§8) and comment moderation. _(deps: none; requested 2026-07-12 by Paul)_

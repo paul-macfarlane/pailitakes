@@ -31,6 +31,7 @@ Write tasks as **goals**: the outcome plus the FR-x.y / technical-design § that
 | `06-announcements.md`   | `ANN`  | Admin announcements                                 |
 | `07-analytics.md`       | `ANLY` | View tracking + admin dashboard                     |
 | `08-seo-launch.md`      | `SEO`  | Metadata, sitemap, mobile QA, launch                |
+| `09-accounts.md`        | `ACCT` | Account self-service (deletion, anonymization)      |
 
 ## Working the backlog
 
