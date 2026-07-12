@@ -351,6 +351,23 @@ export const commentLikes = pgTable(
   ],
 );
 
+// Announcements domain (design §4, FR-6.1, FR-6.3): short, admin-authored
+// site-wide messages with minimal markdown and an optional expiration.
+export const announcements = pgTable("announcements", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  // ≤500 chars enforced at the input layer (announcementInputSchema), not the
+  // column type — repo convention is text everywhere (design §4).
+  body: text("body").notNull(),
+  expiresAt: timestamp("expires_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .notNull()
+    .defaultNow()
+    .$onUpdate(() => new Date()),
+});
+
 // Single-row state for the ADM-9 revalidation cron (design §4): the last time
 // it ran, so the window of crossed publish_at/archive_at is computed from the
 // DB rather than trusted from call timing (idempotent to missed/duplicated

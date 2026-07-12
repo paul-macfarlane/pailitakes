@@ -25,6 +25,7 @@ describe("canPerformAction", () => {
     ["reader", reader, Action.AccessAdmin, false],
     ["reader", reader, Action.ManageUsers, false],
     ["reader", reader, Action.ManageCategories, false],
+    ["reader", reader, Action.ManageAnnouncements, false],
     ["reader", reader, Action.CreateComment, true],
     ["reader", reader, Action.ManageAnyComment, false],
     ["reader", reader, Action.ModerateComments, false],
@@ -32,8 +33,8 @@ describe("canPerformAction", () => {
 
     // Author: create/edit/publish/preview/access-admin/comment, but not the
     // admin-only ownership bypass, delete, user management, category
-    // management (FR-2.1: categories are admin-managed), or comment
-    // moderation/manage-any.
+    // management (FR-2.1: categories are admin-managed), announcement
+    // management (FR-6.1: admin-only), or comment moderation/manage-any.
     ["author", author, Action.CreatePost, true],
     ["author", author, Action.EditPost, true],
     ["author", author, Action.ManageAnyPost, false],
@@ -43,6 +44,7 @@ describe("canPerformAction", () => {
     ["author", author, Action.AccessAdmin, true],
     ["author", author, Action.ManageUsers, false],
     ["author", author, Action.ManageCategories, false],
+    ["author", author, Action.ManageAnnouncements, false],
     ["author", author, Action.CreateComment, true],
     ["author", author, Action.ManageAnyComment, false],
     ["author", author, Action.ModerateComments, false],
@@ -58,6 +60,7 @@ describe("canPerformAction", () => {
     ["admin", admin, Action.AccessAdmin, true],
     ["admin", admin, Action.ManageUsers, true],
     ["admin", admin, Action.ManageCategories, true],
+    ["admin", admin, Action.ManageAnnouncements, true],
     ["admin", admin, Action.CreateComment, true],
     ["admin", admin, Action.ManageAnyComment, true],
     ["admin", admin, Action.ModerateComments, true],
@@ -113,6 +116,10 @@ describe("rolesWithAction", () => {
 
   it("returns only admin for ManageCategories", () => {
     expect(rolesWithAction(Action.ManageCategories)).toEqual(["admin"]);
+  });
+
+  it("returns only admin for ManageAnnouncements", () => {
+    expect(rolesWithAction(Action.ManageAnnouncements)).toEqual(["admin"]);
   });
 
   it("returns reader, author, and admin for CreateComment", () => {
