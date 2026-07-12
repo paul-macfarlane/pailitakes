@@ -6,24 +6,25 @@ Create one with `/adr <title>` whenever a choice is non-obvious, hard to reverse
 
 ## Index
 
-| #                                                                    | Title                                                 | Status   |
-| -------------------------------------------------------------------- | ----------------------------------------------------- | -------- |
-| [0001](0001-record-architecture-decisions.md)                        | Record architecture decisions                         | Accepted |
-| [0002](0002-baseline-stack.md)                                       | Baseline stack and architecture                       | Accepted |
-| [0003](0003-testing-strategy.md)                                     | Testing strategy                                      | Accepted |
-| [0004](0004-comments-locked-flag-on-posts.md)                        | `comments_locked` flag on posts                       | Accepted |
-| [0005](0005-neon-websocket-driver.md)                                | Neon serverless websocket driver (not neon-http)      | Accepted |
-| [0006](0006-shadcn-base-ui.md)                                       | shadcn/ui on Base UI primitives (base-nova style)     | Accepted |
-| [0007](0007-react-hook-form.md)                                      | react-hook-form for form state                        | Accepted |
-| [0008](0008-cache-components.md)                                     | Next 16 Cache Components for ISR + cache tags         | Accepted |
-| [0009](0009-admin-gate-in-request-path.md)                           | Admin gate: cookie proxy + `requireStaff()`           | Accepted |
-| [0010](0010-admin-post-list-server-rendered.md)                      | Admin post list server-rendered, URL-param filters    | Accepted |
-| [0011](0011-staged-edits-for-public-posts.md)                        | Staged edits for public posts (draft-of-published)    | Accepted |
-| [0012](0012-normalized-post-draft-table.md)                          | Normalize the staged-draft buffer into `post_drafts`  | Accepted |
-| [0013](0013-thin-actions-domain-organized-lib.md)                    | Thin actions + domain-organized `src/lib` layering    | Accepted |
-| [0014](0014-capability-map-authorization-const-object-value-sets.md) | Capability-map authorization, const-object value sets | Accepted |
-| [0015](0015-explicit-create-and-flush-before-lifecycle-actions.md)   | Explicit post creation + flush-before-lifecycle       | Accepted |
-| [0016](0016-content-updated-at-display-column.md)                    | `content_updated_at` drives the public "Updated" date | Accepted |
-| [0017](0017-category-management-semantics.md)                        | Category slugs stable; deactivate-not-delete; seed    | Accepted |
-| [0018](0018-unified-home-browse-search.md)                           | Home is the single browse/search surface (PPR)        | Accepted |
-| [0019](0019-page-link-pagination.md)                                 | Page-link pagination everywhere; load-more removed    | Accepted |
+| #                                                                    | Title                                                      | Status   |
+| -------------------------------------------------------------------- | ---------------------------------------------------------- | -------- |
+| [0001](0001-record-architecture-decisions.md)                        | Record architecture decisions                              | Accepted |
+| [0002](0002-baseline-stack.md)                                       | Baseline stack and architecture                            | Accepted |
+| [0003](0003-testing-strategy.md)                                     | Testing strategy                                           | Accepted |
+| [0004](0004-comments-locked-flag-on-posts.md)                        | `comments_locked` flag on posts                            | Accepted |
+| [0005](0005-neon-websocket-driver.md)                                | Neon serverless websocket driver (not neon-http)           | Accepted |
+| [0006](0006-shadcn-base-ui.md)                                       | shadcn/ui on Base UI primitives (base-nova style)          | Accepted |
+| [0007](0007-react-hook-form.md)                                      | react-hook-form for form state                             | Accepted |
+| [0008](0008-cache-components.md)                                     | Next 16 Cache Components for ISR + cache tags              | Accepted |
+| [0009](0009-admin-gate-in-request-path.md)                           | Admin gate: cookie proxy + `requireStaff()`                | Accepted |
+| [0010](0010-admin-post-list-server-rendered.md)                      | Admin post list server-rendered, URL-param filters         | Accepted |
+| [0011](0011-staged-edits-for-public-posts.md)                        | Staged edits for public posts (draft-of-published)         | Accepted |
+| [0012](0012-normalized-post-draft-table.md)                          | Normalize the staged-draft buffer into `post_drafts`       | Accepted |
+| [0013](0013-thin-actions-domain-organized-lib.md)                    | Thin actions + domain-organized `src/lib` layering         | Accepted |
+| [0014](0014-capability-map-authorization-const-object-value-sets.md) | Capability-map authorization, const-object value sets      | Accepted |
+| [0015](0015-explicit-create-and-flush-before-lifecycle-actions.md)   | Explicit post creation + flush-before-lifecycle            | Accepted |
+| [0016](0016-content-updated-at-display-column.md)                    | `content_updated_at` drives the public "Updated" date      | Accepted |
+| [0017](0017-category-management-semantics.md)                        | Category slugs stable; deactivate-not-delete; seed         | Accepted |
+| [0018](0018-unified-home-browse-search.md)                           | Home is the single browse/search surface (PPR)             | Accepted |
+| [0019](0019-page-link-pagination.md)                                 | Page-link pagination everywhere; load-more removed         | Accepted |
+| [0020](0020-comment-moderation-lifecycle-semantics.md)               | Comment edit re-moderation, delete + placeholder semantics | Accepted |
