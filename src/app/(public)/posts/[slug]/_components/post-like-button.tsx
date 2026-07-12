@@ -1,6 +1,6 @@
 "use client";
 
-import { Heart } from "lucide-react";
+import { ThumbsUp } from "lucide-react";
 import { useEffect, useState } from "react";
 
 import { setPostLike } from "@/actions/likes";
@@ -49,7 +49,7 @@ export function PostLikeButton({ postId }: { postId: string }) {
 
   if (failed) {
     // No known liked/count state to seed LikeButton with, so this renders a
-    // plain disabled heart with a muted "—" in place of a real count rather
+    // plain disabled thumbs-up with a muted "—" in place of a real count rather
     // than reusing LikeButton (which always has SOME real count to show).
     return (
       <Button
@@ -59,7 +59,7 @@ export function PostLikeButton({ postId }: { postId: string }) {
         disabled
         aria-label="Like this post (unavailable)"
       >
-        <Heart className="text-muted-foreground" />
+        <ThumbsUp className="text-muted-foreground" />
         <span className="text-muted-foreground">—</span>
       </Button>
     );
