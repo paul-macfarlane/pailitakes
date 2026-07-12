@@ -2,12 +2,7 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import {
-  QueryClient,
-  QueryClientProvider,
-  useQuery,
-  useQueryClient,
-} from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { createComment } from "@/actions/comments";
 import { CommentComposer } from "@/app/(public)/posts/[slug]/_components/comment-composer";
@@ -16,11 +11,16 @@ import {
   type CommentsContextValue,
 } from "@/app/(public)/posts/[slug]/_components/comments-context";
 import { CommentThread } from "@/app/(public)/posts/[slug]/_components/comment-thread";
+import { QueryProvider } from "@/components/query-provider";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { authClient } from "@/lib/auth/client";
 import { Action, canPerformAction } from "@/lib/auth/permissions";
-import type { CommentSubmitResult } from "@/lib/comments/submit-result";
+import { CommentDenialReason } from "@/lib/comments/denial";
+import {
+  CommentSubmitStatus,
+  type CommentSubmitResult,
+} from "@/lib/comments/submit-result";
 import {
   countVisibleComments,
   insertCommentNode,
@@ -55,22 +55,6 @@ async function fetchCommentThread(
   return response.json();
 }
 
-// Module-singleton QueryClient (not created per-render/per-mount): comments
-// are the ONE TanStack Query consumer in the app (design §1/§5.3), so this
-// island owns its own client rather than a root-layout provider every other
-// (non-comment) page would carry for nothing.
-const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: {
-      // Reads are already no-store at the fetch layer; refetch on every
-      // mount/focus instead of trusting a stale in-memory cache across
-      // separate post pages sharing this one singleton client.
-      staleTime: 0,
-      refetchOnWindowFocus: false,
-    },
-  },
-});
-
 // Island root (CMT-3): mounted after <PostArticle> in the (cached, "use
 // cache") post page — a client-component reference serializes fine into
 // that cached shell, and everything this renders is fetched fresh
@@ -83,9 +67,9 @@ export function CommentsSection({
   postSlug: string;
 }) {
   return (
-    <QueryClientProvider client={queryClient}>
+    <QueryProvider>
       <CommentsSectionInner postId={postId} postSlug={postSlug} />
-    </QueryClientProvider>
+    </QueryProvider>
   );
 }
 
@@ -123,11 +107,12 @@ function CommentsSectionInner({
   }
 
   function handleRootResult(result: CommentSubmitResult) {
-    if (result.status === "visible") {
+    if (result.status === CommentSubmitStatus.Visible) {
       insertNode(null, result.comment);
     } else if (
-      result.status === "denied" &&
-      (result.reason === "locked" || result.reason === "archived")
+      result.status === CommentSubmitStatus.Denied &&
+      (result.reason === CommentDenialReason.Locked ||
+        result.reason === CommentDenialReason.Archived)
     ) {
       setLockMessage(result.message);
     }
@@ -196,7 +181,7 @@ function CommentsSectionInner({
           <p
             role="status"
             aria-live="polite"
-            className="text-sm text-muted-foreground"
+            className="rounded-md border border-destructive/50 bg-destructive/10 px-3 py-2 text-sm text-destructive"
           >
             You&rsquo;re banned from commenting.
           </p>

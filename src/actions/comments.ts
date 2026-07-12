@@ -37,7 +37,10 @@ import {
   approveHeldComment as approveHeldCommentService,
   restoreRejectedComment as restoreRejectedCommentService,
 } from "@/lib/comments/service/moderation-log";
-import type { CommentSubmitResult } from "@/lib/comments/submit-result";
+import {
+  CommentSubmitStatus,
+  type CommentSubmitResult,
+} from "@/lib/comments/submit-result";
 import {
   NOT_AUTHORIZED_ERROR,
   type ActionResult,
@@ -48,12 +51,15 @@ export async function createComment(
 ): Promise<CommentSubmitResult> {
   const session = await getSession();
   if (!session) {
-    return { status: "error", message: NOT_AUTHORIZED_ERROR };
+    return { status: CommentSubmitStatus.Error, message: NOT_AUTHORIZED_ERROR };
   }
 
   const parsed = createCommentSchema.safeParse(input);
   if (!parsed.success) {
-    return { status: "error", message: parsed.error.issues[0]!.message };
+    return {
+      status: CommentSubmitStatus.Error,
+      message: parsed.error.issues[0]!.message,
+    };
   }
 
   return createCommentService(
@@ -70,16 +76,22 @@ export async function editComment(
 ): Promise<CommentSubmitResult> {
   const session = await getSession();
   if (!session) {
-    return { status: "error", message: NOT_AUTHORIZED_ERROR };
+    return { status: CommentSubmitStatus.Error, message: NOT_AUTHORIZED_ERROR };
   }
 
   const idResult = commentIdSchema.safeParse(id);
   if (!idResult.success) {
-    return { status: "error", message: idResult.error.issues[0]!.message };
+    return {
+      status: CommentSubmitStatus.Error,
+      message: idResult.error.issues[0]!.message,
+    };
   }
   const parsed = editCommentSchema.safeParse(input);
   if (!parsed.success) {
-    return { status: "error", message: parsed.error.issues[0]!.message };
+    return {
+      status: CommentSubmitStatus.Error,
+      message: parsed.error.issues[0]!.message,
+    };
   }
 
   return editOwnComment(idResult.data, parsed.data.body, session.user);

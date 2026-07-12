@@ -19,8 +19,10 @@ import { Button } from "@/components/ui/button";
 import { CommentComposer } from "@/app/(public)/posts/[slug]/_components/comment-composer";
 import { CommentsContext } from "@/app/(public)/posts/[slug]/_components/comments-context";
 import { CommentThread } from "@/app/(public)/posts/[slug]/_components/comment-thread";
+import { CommentDenialReason } from "@/lib/comments/denial";
 import { linkifyText } from "@/lib/comments/linkify";
 import { CommentStatus } from "@/lib/comments/status";
+import { CommentSubmitStatus } from "@/lib/comments/submit-result";
 import type { CommentNode } from "@/lib/comments/tree";
 
 // Client-rendered only (no SSR of this island — design §2), so unlike
@@ -211,7 +213,7 @@ export function CommentItem({
                     autoFocus
                     onSubmit={(body) => editComment(node.id, { body })}
                     onResult={(result) => {
-                      if (result.status === "visible") {
+                      if (result.status === CommentSubmitStatus.Visible) {
                         ctx.onEdited(
                           node.id,
                           result.comment.body,
@@ -219,8 +221,8 @@ export function CommentItem({
                         );
                         setIsEditing(false);
                       } else if (
-                        result.status === "held" ||
-                        result.status === "rejected"
+                        result.status === CommentSubmitStatus.Held ||
+                        result.status === CommentSubmitStatus.Rejected
                       ) {
                         // No longer publicly visible — reconcile via refetch
                         // (design: this comment's own place in the tree may
@@ -313,12 +315,13 @@ export function CommentItem({
                   createComment({ postId: ctx.postId, parentId: node.id, body })
                 }
                 onResult={(result) => {
-                  if (result.status === "visible") {
+                  if (result.status === CommentSubmitStatus.Visible) {
                     ctx.onCreated(node.id, result.comment);
                     setIsReplying(false);
                   } else if (
-                    result.status === "denied" &&
-                    (result.reason === "locked" || result.reason === "archived")
+                    result.status === CommentSubmitStatus.Denied &&
+                    (result.reason === CommentDenialReason.Locked ||
+                      result.reason === CommentDenialReason.Archived)
                   ) {
                     ctx.onDenialLock(result.message);
                   }

@@ -19,16 +19,6 @@ export function SiteHeader() {
         <Link href="/" className="text-lg font-bold tracking-tight">
           Paulitakes
         </Link>
-        <nav aria-label="Main" className="flex items-center gap-4 text-sm">
-          {/* Brand already links home; the explicit link appears once
-                space allows (mobile-first, FR-9.4). */}
-          <Link
-            href="/"
-            className="hidden text-muted-foreground transition-colors hover:text-foreground sm:inline"
-          >
-            Home
-          </Link>
-        </nav>
       </div>
       <div className="flex shrink-0 items-center gap-1">
         <ThemeToggle />
