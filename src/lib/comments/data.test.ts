@@ -38,6 +38,7 @@ const SEED_PREFIX = "t-cmt-data-";
 const runId = `${SEED_PREFIX}${crypto.randomUUID().slice(0, 8)}`;
 const authorId = `user-${runId}-author`;
 const otherAuthorId = `user-${runId}-other`;
+const bannedAuthorId = `user-${runId}-banned`;
 
 const T = new Date("2026-02-01T12:00:00Z");
 const seconds = (n: number) => new Date(T.getTime() + n * 1000);
@@ -68,6 +69,13 @@ beforeAll(async () => {
       name: `Test Other ${runId}`,
       email: `other-${runId}@example.com`,
       role: "reader",
+    },
+    {
+      id: bannedAuthorId,
+      name: `Test Banned ${runId}`,
+      email: `banned-${runId}@example.com`,
+      role: "reader",
+      bannedAt: seconds(-3600),
     },
   ]);
 
@@ -114,7 +122,9 @@ afterAll(async () => {
     .where(inArray(comments.postId, [visiblePostId, draftPostId]));
   await testDb.delete(posts).where(like(posts.slug, `${runId}%`));
   await testDb.delete(categories).where(eq(categories.id, categoryId));
-  await testDb.delete(user).where(inArray(user.id, [authorId, otherAuthorId]));
+  await testDb
+    .delete(user)
+    .where(inArray(user.id, [authorId, otherAuthorId, bannedAuthorId]));
   await pool.end();
 });
 
@@ -530,6 +540,17 @@ describe("listModerationLogRows / casCommentStatus", () => {
       status: "rejected",
       modVerdict: { verdict: "flag", reason: "r", model: "m", latencyMs: 1 },
     });
+    // CMT-10: a held comment from a banned author — asserts bannedAt flows
+    // through the join so the moderation log can surface the auto-ban
+    // without cross-referencing /admin/users.
+    const heldFromBannedAuthor = await insertComment({
+      postId: visiblePostId,
+      parentId: null,
+      authorId: bannedAuthorId,
+      body: "held from banned author",
+      status: "held",
+      modVerdict: { error: "e", model: "m", latencyMs: 1 },
+    });
 
     // Large enough to safely capture our own rows alongside any concurrent
     // noise from other test files.
@@ -545,9 +566,13 @@ describe("listModerationLogRows / casCommentStatus", () => {
       author: {
         name: `Test Author ${runId}`,
         email: `author-${runId}@example.com`,
+        bannedAt: null,
       },
     });
     expect(heldById.has(held2.id)).toBe(true);
+    expect(heldById.get(heldFromBannedAuthor.id)?.author.bannedAt).toEqual(
+      seconds(-3600),
+    );
 
     // limit smaller than our own known held count is guaranteed to report
     // hasMore=true regardless of concurrent noise (noise only adds rows).

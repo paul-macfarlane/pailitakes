@@ -31,6 +31,15 @@ const envSchema = z.object({
   COMMENT_RATE_LIMIT_PER_MINUTE: z.coerce.number().int().positive().default(3),
   COMMENT_RATE_LIMIT_PER_HOUR: z.coerce.number().int().positive().default(30),
 
+  // Auto-ban repeat moderation offenders (CMT-10, ADR-0022): >= threshold
+  // rejected comments within the trailing window bans the author.
+  COMMENT_AUTOBAN_REJECTED_THRESHOLD: z.coerce
+    .number()
+    .int()
+    .positive()
+    .default(5),
+  COMMENT_AUTOBAN_WINDOW_DAYS: z.coerce.number().int().positive().default(7),
+
   // Lets lower environments turn the LLM gate off while testing (owner
   // request 2026-07-12).
   COMMENT_MODERATION_ENABLED: z.stringbool().default(true),

@@ -77,6 +77,34 @@ export async function countRecentCommentsByAuthor(
   return row?.value ?? 0;
 }
 
+// Live windowed count behind auto-ban (CMT-10/ADR-0022, see
+// src/lib/comments/service/auto-ban.ts): only currently-`rejected` rows count,
+// so an admin restore (rejected -> visible) decrements it automatically —
+// this is a fresh COUNT on every trigger, not a persisted tally. Counts a row
+// if EITHER created_at OR edited_at falls in the window, same reasoning as
+// countRecentCommentsByAuthor above: a flagged EDIT demotes an already-old
+// comment to rejected, so its created_at is stale but edited_at is fresh, and
+// that demotion must still count toward the window. The `(author_id,
+// created_at)` index still serves the `author_id` prefix of this predicate;
+// `status`/`edited_at` are unindexed extra filters on an already-narrow
+// per-author row set (same tradeoff as countRecentCommentsByAuthor).
+export async function countRejectedCommentsByAuthorSince(
+  authorId: string,
+  since: Date,
+): Promise<number> {
+  const [row] = await db
+    .select({ value: count() })
+    .from(comments)
+    .where(
+      and(
+        eq(comments.authorId, authorId),
+        eq(comments.status, CommentStatus.Rejected),
+        or(gt(comments.createdAt, since), gt(comments.editedAt, since)),
+      ),
+    );
+  return row?.value ?? 0;
+}
+
 // Mirrors uniqueViolationConstraint (src/lib/posts/data.ts) but for
 // foreign_key_violation (23503): node-postgres surfaces the Postgres error
 // code and violated constraint name as `.code`/`.constraint` on the thrown
@@ -297,7 +325,9 @@ export type ModerationLogRow = {
   // Names aren't unique — the admin needs the email to match a comment to a
   // specific account (feedback item 4). Admin-only screen, so showing PII
   // here is fine.
-  author: { name: string; email: string };
+  // bannedAt surfaces auto-bans (CMT-10) right where the rejections are
+  // reviewed, so the admin doesn't have to cross-reference /admin/users.
+  author: { name: string; email: string; bannedAt: Date | null };
 };
 
 export const MODERATION_LOG_PAGE_SIZE = 25;
@@ -315,7 +345,7 @@ export async function listModerationLogRows(params: {
       modVerdict: comments.modVerdict,
       createdAt: comments.createdAt,
       post: { slug: posts.slug, title: posts.title },
-      author: { name: user.name, email: user.email },
+      author: { name: user.name, email: user.email, bannedAt: user.bannedAt },
     })
     .from(comments)
     .innerJoin(posts, eq(posts.id, comments.postId))

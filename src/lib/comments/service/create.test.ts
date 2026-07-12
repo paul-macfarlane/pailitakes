@@ -33,7 +33,12 @@ vi.mock("@/lib/comments/moderation", () => ({
 // mocks it) — pin the rate-limit config the boundary tests below assert
 // against instead of depending on ambient .env.
 vi.mock("@/lib/shared/env", () => ({
-  env: { COMMENT_RATE_LIMIT_PER_MINUTE: 3, COMMENT_RATE_LIMIT_PER_HOUR: 30 },
+  env: {
+    COMMENT_RATE_LIMIT_PER_MINUTE: 3,
+    COMMENT_RATE_LIMIT_PER_HOUR: 30,
+    COMMENT_AUTOBAN_REJECTED_THRESHOLD: 2,
+    COMMENT_AUTOBAN_WINDOW_DAYS: 7,
+  },
 }));
 
 const { createComment, editOwnComment } = await import("./create");
@@ -447,6 +452,48 @@ describe("createComment", () => {
         reason: "rate-limited",
         message: expect.any(String),
       });
+    });
+  });
+
+  // Wiring only (ONE representative case) — the auto-ban threshold/window
+  // rule matrix itself is exhaustively covered by
+  // src/lib/comments/service/auto-ban.test.ts (engineering.md: don't
+  // re-prove matrices through actions/wiring tests).
+  describe("auto-ban wiring (CMT-10)", () => {
+    beforeEach(async () => {
+      await clearAuthorComments(authorId);
+      await testDb
+        .update(user)
+        .set({ bannedAt: null })
+        .where(eq(user.id, authorId));
+    });
+
+    it("bans the author when a newly rejected comment reaches the auto-ban threshold", async () => {
+      await testDb.insert(comments).values({
+        postId: visiblePostId,
+        authorId,
+        parentId: null,
+        body: "Prior rejected comment.",
+        status: "rejected",
+      });
+
+      moderateCommentMock.mockResolvedValue(FLAG);
+      const result = await createComment(
+        visiblePostId,
+        null,
+        "Another bad take.",
+        READER,
+      );
+
+      expect(result).toEqual({
+        status: "rejected",
+        message: expect.any(String),
+      });
+      const [row] = await testDb
+        .select({ bannedAt: user.bannedAt })
+        .from(user)
+        .where(eq(user.id, authorId));
+      expect(row!.bannedAt).not.toBeNull();
     });
   });
 });
