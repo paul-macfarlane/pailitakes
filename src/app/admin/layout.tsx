@@ -29,10 +29,11 @@ export default function AdminLayout({
     <>
       <HeaderShell maxWidthClass="max-w-5xl">
         <div className="flex min-w-0 items-center gap-5">
-          {/* Brand returns to the public site; the in-shell nav toggles between
-              the Posts and Users sections (feedback: consistent admin nav). */}
-          <Link href="/" className="text-lg font-bold tracking-tight">
-            Paulitakes
+          {/* Brand names the area you're in and returns to the admin home;
+              the in-shell nav toggles between the Posts/Categories/
+              Moderation/Users sections (feedback: consistent admin nav). */}
+          <Link href="/admin" className="text-lg font-bold tracking-tight">
+            Paulitakes Admin
           </Link>
           {/* Users link is admin-only and resolved server-side; the fallback
               renders the always-present Posts link so the shell still streams

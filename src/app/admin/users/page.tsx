@@ -35,7 +35,19 @@ function RoleBadge({ user }: { user: AdminUserRow }) {
   return (
     <span className="text-xs text-muted-foreground">
       {roleLabel(user.role)}
-      {user.bannedAt ? " · Banned" : ""}
+      {user.bannedAt ? (
+        // Nested (not a sibling span) so the Banned pill stays inside the
+        // role-label span's text content — e2e/user-management.spec.ts scopes
+        // a locator on "span:not([data-slot])" expecting exactly one match
+        // per row; data-slot excludes this pill from that CSS selector while
+        // its text still shows up via the outer span's toContainText checks.
+        <span
+          data-slot="banned-badge"
+          className="ml-1.5 rounded-full bg-destructive/10 px-2 py-0.5 text-xs font-medium text-destructive"
+        >
+          Banned
+        </span>
+      ) : null}
     </span>
   );
 }
