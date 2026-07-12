@@ -29,10 +29,43 @@ const runId = `t-adm9-${crypto.randomUUID().slice(0, 8)}`;
 const authorId = `user-${runId}`;
 let categoryId: number;
 
-const BASE = new Date("2026-06-01T00:00:00Z");
-const IN_WINDOW = new Date("2026-06-01T00:02:00Z");
-const NOW = new Date("2026-06-01T00:05:00Z");
-const BEFORE_WINDOW = new Date("2026-05-01T00:00:00Z");
+// This file runs the REAL, table-global normalizePostStatuses/getCrossedSlugs
+// against the shared test DB, so its entire time window must be one no other
+// suite's fixtures — or its own leftover rows, still `scheduled`/`published`
+// between this file's tests — can collide with. That cuts both ways:
+//   - NOW must stay EARLIER than every other suite's real fixture dates (all
+//     2026-era in this repo), or the global archive/publish sweep here would
+//     mutate their rows out from under them (the diagnosed CI flake).
+//   - BASE must stay LATER than posts.test.ts's reserved 1971–1999 window
+//     (T2), because visiblePostsWhere() is a dynamic predicate keyed on
+//     `now`: a `scheduled`/`published` row this file leaves behind with a
+//     publishAt in that reserved window would read as "already public" the
+//     instant posts.test.ts's own unscoped whole-table query runs at T2 —
+//     our era must sit AFTER T2's 1999 ceiling so publishAt > T2 and that
+//     read stays negative.
+// A day drawn from 2005–2020 satisfies both: comfortably after 1999 and
+// comfortably before 2026. (A fixed 2026 date originally archived other
+// suites' fixtures mid-run — CI flake, 2026-07-12; an earlier fix that moved
+// BASE before 1971 traded that bug for the T2 leak above, caught by a local
+// stress run.)
+const BASE = new Date(
+  Date.UTC(2005, 0, 1, 0) + Math.floor(Math.random() * 15 * 365) * 86_400_000,
+);
+const addMonths = (d: Date, n: number) =>
+  new Date(
+    Date.UTC(
+      d.getUTCFullYear(),
+      d.getUTCMonth() + n,
+      d.getUTCDate(),
+      d.getUTCHours(),
+      d.getUTCMinutes(),
+      d.getUTCSeconds(),
+    ),
+  );
+const minutes = (n: number) => new Date(BASE.getTime() + n * 60_000);
+const IN_WINDOW = minutes(2);
+const NOW = minutes(5);
+const BEFORE_WINDOW = addMonths(BASE, -1);
 
 async function seedPost(opts: {
   suffix: string;
@@ -193,7 +226,7 @@ describe("advanceRevalidationMarker", () => {
   });
 
   it("is monotonic — an earlier now never moves the marker backward", async () => {
-    const later = new Date("2026-06-01T00:10:00Z");
+    const later = minutes(10);
     await setLastRun(later);
 
     await advanceRevalidationMarker(NOW); // NOW (00:05) < later (00:10)
@@ -245,7 +278,7 @@ describe("normalizePostStatuses", () => {
   });
 
   it("leaves a scheduled post whose publish_at is still in the future", async () => {
-    const future = new Date("2026-07-01T00:00:00Z");
+    const future = addMonths(BASE, 1);
     const post = await seedPost({
       suffix: "norm-future",
       status: "scheduled",
