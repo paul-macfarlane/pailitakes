@@ -44,6 +44,10 @@ export type EditablePost = {
   // post — the editor edits (and autosaves to) the pending copy.
   hasPendingChanges: boolean;
   draftUpdatedAt: Date | null;
+  // Comment-lock state (CMT-8, FR-4.4): a live post column, not staged by
+  // ADR-0011's draft buffer — locking is a moderation action independent of
+  // content edits, so it applies immediately regardless of pending changes.
+  commentsLocked: boolean;
 };
 
 // Loads a single post for editing. Authors are scoped to their own rows;
@@ -70,6 +74,7 @@ export async function getEditablePost(
       publishAt: posts.publishAt,
       archiveAt: posts.archiveAt,
       authorId: posts.authorId,
+      commentsLocked: posts.commentsLocked,
       tagName: tags.name,
       ...draftJoinColumns,
     })
@@ -112,6 +117,7 @@ export async function getEditablePost(
     tags: draft ? draft.tags : liveTags,
     hasPendingChanges: draft !== null,
     draftUpdatedAt: draft ? first.draftUpdatedAt : null,
+    commentsLocked: first.commentsLocked,
   };
 }
 

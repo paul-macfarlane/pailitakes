@@ -3,6 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { PostEditorSection } from "@/app/admin/posts/_components/post-editor-section";
+import { CommentLockToggle } from "@/app/admin/posts/[id]/edit/_components/comment-lock-toggle";
 import { PostDeleteControls } from "@/app/admin/posts/[id]/edit/_components/post-delete-controls";
 import { PostPendingControls } from "@/app/admin/posts/[id]/edit/_components/post-pending-controls";
 import { PostScheduleControls } from "@/app/admin/posts/[id]/edit/_components/post-schedule-controls";
@@ -66,6 +67,9 @@ export default async function EditPostPage({
             archiveAt={post.archiveAt}
             pendingChanges={post.hasPendingChanges}
           />
+          {canPerformAction(session.user, Action.ManageAnyComment) ? (
+            <CommentLockToggle postId={post.id} locked={post.commentsLocked} />
+          ) : null}
           {canPerformAction(session.user, Action.DeletePost) ? (
             <div className="border-t pt-4">
               <PostDeleteControls postId={post.id} postTitle={post.title} />
