@@ -187,6 +187,9 @@ export async function createComment(
     createdAt: inserted.createdAt.toISOString(),
     editedAt: null,
     author: { id: author.id, name: author.name, image: author.image ?? null },
+    // Just created — nobody has had the chance to like it yet.
+    likeCount: 0,
+    likedByMe: false,
     children: [],
   };
   return { status: CommentSubmitStatus.Visible, comment: node };
@@ -270,6 +273,11 @@ export async function editOwnComment(
     createdAt: existing.createdAt.toISOString(),
     editedAt: editedAt.toISOString(),
     author: { id: author.id, name: author.name, image: author.image ?? null },
+    // Editing never touches likes; the client-side patch (updateCommentNode,
+    // comments-section.tsx) only reads body/editedAt off this node, so these
+    // two are unused placeholders rather than a claim about actual state.
+    likeCount: 0,
+    likedByMe: false,
     children: [],
   };
   return { status: CommentSubmitStatus.Visible, comment: node };

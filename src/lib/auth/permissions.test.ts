@@ -28,6 +28,7 @@ describe("canPerformAction", () => {
     ["reader", reader, Action.CreateComment, true],
     ["reader", reader, Action.ManageAnyComment, false],
     ["reader", reader, Action.ModerateComments, false],
+    ["reader", reader, Action.LikeContent, true],
 
     // Author: create/edit/publish/preview/access-admin/comment, but not the
     // admin-only ownership bypass, delete, user management, category
@@ -45,6 +46,7 @@ describe("canPerformAction", () => {
     ["author", author, Action.CreateComment, true],
     ["author", author, Action.ManageAnyComment, false],
     ["author", author, Action.ModerateComments, false],
+    ["author", author, Action.LikeContent, true],
 
     // Admin: everything.
     ["admin", admin, Action.CreatePost, true],
@@ -59,6 +61,7 @@ describe("canPerformAction", () => {
     ["admin", admin, Action.CreateComment, true],
     ["admin", admin, Action.ManageAnyComment, true],
     ["admin", admin, Action.ModerateComments, true],
+    ["admin", admin, Action.LikeContent, true],
 
     // Banned staff lose access immediately, regardless of role or action.
     ["banned author", bannedAuthor, Action.CreatePost, false],
@@ -67,6 +70,7 @@ describe("canPerformAction", () => {
     ["banned author", bannedAuthor, Action.PreviewPost, false],
     ["banned author", bannedAuthor, Action.AccessAdmin, false],
     ["banned author", bannedAuthor, Action.CreateComment, false],
+    ["banned author", bannedAuthor, Action.LikeContent, false],
     ["banned admin", bannedAdmin, Action.CreatePost, false],
     ["banned admin", bannedAdmin, Action.ManageAnyPost, false],
     ["banned admin", bannedAdmin, Action.DeletePost, false],
@@ -75,14 +79,17 @@ describe("canPerformAction", () => {
     ["banned admin", bannedAdmin, Action.CreateComment, false],
     ["banned admin", bannedAdmin, Action.ManageAnyComment, false],
     ["banned admin", bannedAdmin, Action.ModerateComments, false],
+    ["banned admin", bannedAdmin, Action.LikeContent, false],
 
     // Missing/unknown role: never grants anything.
     ["undefined role", undefinedRole, Action.CreatePost, false],
     ["undefined role", undefinedRole, Action.AccessAdmin, false],
     ["undefined role", undefinedRole, Action.CreateComment, false],
+    ["undefined role", undefinedRole, Action.LikeContent, false],
     ["null role", nullRole, Action.CreatePost, false],
     ["null role", nullRole, Action.AccessAdmin, false],
     ["null role", nullRole, Action.CreateComment, false],
+    ["null role", nullRole, Action.LikeContent, false],
   ])("%s -> %s: %s", (_label, user, action, expected) => {
     expect(canPerformAction(user, action)).toBe(expected);
   });
@@ -122,5 +129,13 @@ describe("rolesWithAction", () => {
 
   it("returns only admin for ModerateComments", () => {
     expect(rolesWithAction(Action.ModerateComments)).toEqual(["admin"]);
+  });
+
+  it("returns reader, author, and admin for LikeContent", () => {
+    expect(rolesWithAction(Action.LikeContent).sort()).toEqual([
+      "admin",
+      "author",
+      "reader",
+    ]);
   });
 });

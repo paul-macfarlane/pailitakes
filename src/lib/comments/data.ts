@@ -4,11 +4,11 @@ import "server-only";
 // thread reads, moderation log, lock toggle) — queries/mutations only.
 // Business rules live in src/lib/comments/service/*.
 
-import { and, asc, count, desc, eq, gt, notExists, or } from "drizzle-orm";
+import { and, asc, count, desc, eq, gt, notExists, or, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 
 import { db } from "@/db";
-import { comments, posts, user } from "@/db/schema";
+import { commentLikes, comments, posts, user } from "@/db/schema";
 import { visiblePostsWhere } from "@/lib/posts/posts";
 import { CommentStatus } from "@/lib/comments/status";
 import type { CommentRow } from "@/lib/comments/tree";
@@ -278,9 +278,21 @@ export async function hardDeleteCommentIfChildless(
 // (including held/rejected/deleted) to correctly redact-and-prune, not just
 // visible+deleted. Ordered so buildCommentTree's own sort is just a
 // stability formality, not load-bearing.
+//
+// likeCount/likedByMe (design §5.4, LIKE-3) ride along as correlated scalar
+// subqueries rather than a second query per row (no N+1) — `::int` keeps the
+// count a native pg int4 (parsed as a JS number), not the string node-pg
+// would hand back for an int8/bigint. viewerId null (signed-out reader)
+// skips the EXISTS entirely via a `false` literal rather than parameterizing
+// a viewer that can never match.
 export async function loadCommentRowsForPost(
   postId: string,
+  viewerId: string | null,
 ): Promise<CommentRow[]> {
+  const likedByMe = viewerId
+    ? sql<boolean>`exists (select 1 from ${commentLikes} where ${commentLikes.commentId} = ${comments.id} and ${commentLikes.userId} = ${viewerId})`
+    : sql<boolean>`false`;
+
   return db
     .select({
       id: comments.id,
@@ -292,6 +304,8 @@ export async function loadCommentRowsForPost(
       status: comments.status,
       createdAt: comments.createdAt,
       editedAt: comments.editedAt,
+      likeCount: sql<number>`(select count(*)::int from ${commentLikes} where ${commentLikes.commentId} = ${comments.id})`,
+      likedByMe,
     })
     .from(comments)
     .innerJoin(user, eq(user.id, comments.authorId))

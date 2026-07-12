@@ -26,13 +26,14 @@ export type LoadCommentThreadResult =
 // redacts before this ever gets serialized.
 export async function loadCommentThread(
   postId: string,
+  viewerId: string | null,
 ): Promise<LoadCommentThreadResult> {
   const post = await loadPostForComment(postId);
   if (!post) {
     return { ok: false, reason: "not-found" };
   }
 
-  const rows = await loadCommentRowsForPost(postId);
+  const rows = await loadCommentRowsForPost(postId, viewerId);
   return {
     ok: true,
     thread: {

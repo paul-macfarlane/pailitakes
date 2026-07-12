@@ -3,6 +3,7 @@
 import { useContext, useState, useTransition } from "react";
 
 import { deleteComment, editComment, createComment } from "@/actions/comments";
+import { setCommentLike } from "@/actions/likes";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -19,6 +20,7 @@ import { Button } from "@/components/ui/button";
 import { CommentComposer } from "@/app/(public)/posts/[slug]/_components/comment-composer";
 import { CommentsContext } from "@/app/(public)/posts/[slug]/_components/comments-context";
 import { CommentThread } from "@/app/(public)/posts/[slug]/_components/comment-thread";
+import { LikeButton } from "@/app/(public)/posts/[slug]/_components/like-button";
 import { CommentDenialReason } from "@/lib/comments/denial";
 import { linkifyText } from "@/lib/comments/linkify";
 import { CommentStatus } from "@/lib/comments/status";
@@ -243,6 +245,19 @@ export function CommentItem({
 
           {!isPlaceholder && !isEditing && (
             <div className="mt-1 flex items-center gap-3">
+              {/* No cache invalidation on like (LIKE-3): the optimistic
+                  liked/count state lives entirely inside LikeButton, seeded
+                  once from this node's likeCount/likedByMe — a later
+                  refetch (e.g. after a sibling delete) may hand this row a
+                  stale count, which is acceptable and self-corrects on the
+                  next full reload. */}
+              <LikeButton
+                likeCount={node.likeCount}
+                likedByMe={node.likedByMe}
+                signedIn={ctx.currentUserId != null}
+                onSetLike={(liked) => setCommentLike(node.id, liked)}
+                label="comment"
+              />
               {canReply && (
                 <Button
                   type="button"

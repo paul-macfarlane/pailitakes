@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { cacheLife, cacheTag } from "next/cache";
 
 import { CommentsSection } from "@/app/(public)/posts/[slug]/_components/comments-section";
+import { PostLikeButton } from "@/app/(public)/posts/[slug]/_components/post-like-button";
 import { PostArticle } from "@/components/post-article";
 import { deriveExcerpt } from "@/lib/content/excerpt";
 import { renderMarkdown } from "@/lib/content/markdown";
@@ -83,6 +84,12 @@ export default async function PostPage({
         ← All posts
       </Link>
       <PostArticle post={post} />
+      {/* Client-ref-in-"use cache" island (LIKE-3), same pattern as
+          <CommentsSection> just below — footer area of the article, before
+          comments. */}
+      <div className="mt-4 border-t pt-4">
+        <PostLikeButton postId={post.id} />
+      </div>
       <CommentsSection postId={post.id} postSlug={slugResult.data} />
     </main>
   );

@@ -298,6 +298,59 @@ export const comments = pgTable(
   ],
 );
 
+// Likes domain (design §4, §5.4, FR-5.1). Both tables are pure join rows with
+// no content of their own, so — unlike posts/comments authorId — the user_id
+// FK cascades too (mirrors post_tags): there's nothing worth failing loudly
+// over if the liking user is gone.
+
+export const postLikes = pgTable(
+  "post_likes",
+  {
+    postId: uuid("post_id")
+      .notNull()
+      .references(() => posts.id, { onDelete: "cascade" }),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    // Composite PK makes "one like per user per post" structural and the
+    // toggle idempotent (design §5.4), rather than an app-level check.
+    primaryKey({ columns: [table.postId, table.userId] }),
+    // FK companion index for the user-side cascade path — Postgres doesn't
+    // index referencing columns automatically (same reason as
+    // post_tags_tag_id_idx).
+    index("post_likes_user_id_idx").on(table.userId),
+  ],
+);
+
+export const commentLikes = pgTable(
+  "comment_likes",
+  {
+    commentId: uuid("comment_id")
+      .notNull()
+      .references(() => comments.id, { onDelete: "cascade" }),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    // Composite PK makes "one like per user per comment" structural and the
+    // toggle idempotent (design §5.4), rather than an app-level check.
+    primaryKey({ columns: [table.commentId, table.userId] }),
+    // FK companion index for the user-side cascade path — Postgres doesn't
+    // index referencing columns automatically (same reason as
+    // post_tags_tag_id_idx).
+    index("comment_likes_user_id_idx").on(table.userId),
+  ],
+);
+
 // Single-row state for the ADM-9 revalidation cron (design §4): the last time
 // it ran, so the window of crossed publish_at/archive_at is computed from the
 // DB rather than trusted from call timing (idempotent to missed/duplicated
