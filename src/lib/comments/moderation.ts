@@ -5,12 +5,13 @@ import { z } from "zod";
 
 import { MODERATION_EXAMPLES } from "@/lib/comments/moderation-examples";
 import type { ModVerdictRecord } from "@/lib/comments/verdict";
+import { env } from "@/lib/shared/env";
 
 // Plain gateway model string — the AI SDK's default provider is Vercel AI
 // Gateway (design §5.2). It authenticates with AI_GATEWAY_API_KEY locally
 // and Vercel OIDC automatically in deployed envs; never wire the key by
 // hand here.
-export const MODERATION_MODEL = "anthropic/claude-haiku-4.5";
+export const MODERATION_MODEL = env.COMMENT_MODERATION_MODEL;
 
 // ~5s timeout (design §5.2 step 3) — a slow/unavailable model must not hang
 // the comment-submission request; a timeout falls through to the fail-closed
@@ -73,6 +74,25 @@ export type ModerationResult =
 // an `error` outcome so the caller can fail closed to `held` (design §5.2
 // step 4) instead of the comment submission itself erroring out.
 export async function moderateComment(body: string): Promise<ModerationResult> {
+  // Lets lower environments turn the LLM gate off while testing (owner
+  // request 2026-07-12). Short-circuits before any LLM call, but still
+  // returns a verdict record so the audit invariant (a record on every
+  // comment) holds — the moderation log filters these out since it only
+  // lists held/rejected comments.
+  if (!env.COMMENT_MODERATION_ENABLED) {
+    const reason = "Moderation disabled (COMMENT_MODERATION_ENABLED=false)";
+    return {
+      outcome: "allow",
+      reason,
+      record: {
+        verdict: "allow",
+        reason,
+        model: MODERATION_MODEL,
+        latencyMs: 0,
+      },
+    };
+  }
+
   const start = performance.now();
 
   try {

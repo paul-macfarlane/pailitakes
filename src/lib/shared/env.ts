@@ -30,6 +30,14 @@ const envSchema = z.object({
 
   COMMENT_RATE_LIMIT_PER_MINUTE: z.coerce.number().int().positive().default(3),
   COMMENT_RATE_LIMIT_PER_HOUR: z.coerce.number().int().positive().default(30),
+
+  // Lets lower environments turn the LLM gate off while testing (owner
+  // request 2026-07-12).
+  COMMENT_MODERATION_ENABLED: z.stringbool().default(true),
+  COMMENT_MODERATION_MODEL: z
+    .string()
+    .min(1)
+    .default("anthropic/claude-haiku-4.5"),
 });
 
 const parsed = envSchema.safeParse(process.env);

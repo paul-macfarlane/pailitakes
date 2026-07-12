@@ -4,12 +4,25 @@ const generateObjectMock = vi.fn();
 
 vi.mock("ai", () => ({ generateObject: generateObjectMock }));
 
+// env.ts parses process.env at import time and isn't populated with real
+// values under an isolated vitest run (same reason src/lib/comments/service/
+// create.test.ts mocks it) — pin the flag/model the tests assert against
+// instead of depending on ambient .env. Mutable so individual tests can flip
+// COMMENT_MODERATION_ENABLED without vi.resetModules() (MODERATION_MODEL is
+// captured once at import; COMMENT_MODERATION_ENABLED is read live per call).
+const envMock = vi.hoisted(() => ({
+  COMMENT_MODERATION_ENABLED: true,
+  COMMENT_MODERATION_MODEL: "anthropic/claude-haiku-4.5",
+}));
+vi.mock("@/lib/shared/env", () => ({ env: envMock }));
+
 const { MODERATION_MODEL, MODERATION_TIMEOUT_MS, moderateComment } =
   await import("./moderation");
 
 describe("moderateComment", () => {
   beforeEach(() => {
     generateObjectMock.mockReset();
+    envMock.COMMENT_MODERATION_ENABLED = true;
   });
 
   it("returns an allow outcome with the full record on an allow verdict", async () => {
@@ -113,5 +126,20 @@ describe("moderateComment", () => {
     const call = generateObjectMock.mock.calls[0]![0];
     expect(call.abortSignal).toBeInstanceOf(AbortSignal);
     expect(MODERATION_TIMEOUT_MS).toBe(5000);
+  });
+
+  it("short-circuits to allow without calling the model when the flag is off", async () => {
+    envMock.COMMENT_MODERATION_ENABLED = false;
+
+    const result = await moderateComment("Some comment.");
+
+    expect(result.outcome).toBe("allow");
+    expect(result.record).toEqual({
+      verdict: "allow",
+      reason: "Moderation disabled (COMMENT_MODERATION_ENABLED=false)",
+      model: MODERATION_MODEL,
+      latencyMs: 0,
+    });
+    expect(generateObjectMock).not.toHaveBeenCalled();
   });
 });
