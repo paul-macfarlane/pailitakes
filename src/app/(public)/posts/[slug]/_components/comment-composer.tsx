@@ -5,11 +5,42 @@ import { useId, useState, useTransition } from "react";
 import { Button } from "@/components/ui/button";
 import { Field, FieldDescription, FieldLabel } from "@/components/ui/field";
 import { Textarea } from "@/components/ui/textarea";
+import { CommentDenialReason } from "@/lib/comments/denial";
 import {
   CommentSubmitStatus,
   type CommentSubmitResult,
 } from "@/lib/comments/submit-result";
 import { cn } from "@/lib/utils";
+
+// Module-private (never leaves this file) but still a const object per
+// engineering rules — a bounded set backing the notice's Tailwind classes.
+const NoticeTone = {
+  Danger: "danger",
+  Warning: "warning",
+  Muted: "muted",
+} as const;
+type NoticeTone = (typeof NoticeTone)[keyof typeof NoticeTone];
+
+const NOTICE_TONE_CLASSNAME: Record<NoticeTone, string> = {
+  [NoticeTone.Danger]:
+    "rounded-md border border-destructive/50 bg-destructive/10 px-3 py-2 text-sm text-destructive",
+  [NoticeTone.Warning]:
+    "rounded-md border border-warning/50 bg-warning/10 px-3 py-2 text-sm text-warning",
+  [NoticeTone.Muted]: "text-sm text-muted-foreground",
+};
+
+// Tone is keyed off the typed denial reason, not the message string (Paul's
+// review: banned should read as danger, rate-limited as warning). Banned can
+// reach the composer (rather than the dedicated comments-section notice) when
+// the client session is stale, e.g. right after an auto-ban.
+function noticeToneFor(result: CommentSubmitResult): NoticeTone {
+  if (result.status === CommentSubmitStatus.Denied) {
+    if (result.reason === CommentDenialReason.Banned) return NoticeTone.Danger;
+    if (result.reason === CommentDenialReason.RateLimited)
+      return NoticeTone.Warning;
+  }
+  return NoticeTone.Muted;
+}
 
 // Mirrors src/lib/comments/input.ts's commentBodySchema limit — that module
 // is server-safe zod but not marked for client import (CMT-3 spec fallback);
@@ -50,7 +81,10 @@ export function CommentComposer({
   const id = useId();
   const [value, setValue] = useState(initialValue);
   const [isPending, startTransition] = useTransition();
-  const [notice, setNotice] = useState<string | null>(null);
+  const [notice, setNotice] = useState<{
+    message: string;
+    tone: NoticeTone;
+  } | null>(null);
 
   function handleSubmit(event: React.FormEvent) {
     event.preventDefault();
@@ -82,7 +116,7 @@ export function CommentComposer({
         setValue("");
       }
       if (result.status !== CommentSubmitStatus.Visible) {
-        setNotice(result.message);
+        setNotice({ message: result.message, tone: noticeToneFor(result) });
       }
       onResult(result);
     });
@@ -163,9 +197,9 @@ export function CommentComposer({
         <p
           role="status"
           aria-live="polite"
-          className="text-sm text-muted-foreground"
+          className={NOTICE_TONE_CLASSNAME[notice.tone]}
         >
-          {notice}
+          {notice.message}
         </p>
       )}
     </form>

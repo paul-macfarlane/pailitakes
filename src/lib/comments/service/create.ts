@@ -17,6 +17,7 @@ import {
   parentIsValidForReply,
 } from "@/lib/comments/data";
 import { moderateComment } from "@/lib/comments/moderation";
+import { maybeAutoBanForRejectedComment } from "@/lib/comments/service/auto-ban";
 import { CommentStatus } from "@/lib/comments/status";
 import {
   CommentSubmitStatus,
@@ -170,6 +171,8 @@ export async function createComment(
   }
 
   if (status === CommentStatus.Rejected) {
+    // CMT-10/ADR-0022: fire-and-forget, never affects this rejected result.
+    await maybeAutoBanForRejectedComment(author.id, now);
     return { status: CommentSubmitStatus.Rejected, message: REJECTED_MESSAGE };
   }
   if (status === CommentStatus.Held) {
@@ -254,6 +257,8 @@ export async function editOwnComment(
   const editedAt = await applyCommentEdit(id, body, status, verdict.record);
 
   if (status === CommentStatus.Rejected) {
+    // CMT-10/ADR-0022: fire-and-forget, never affects this rejected result.
+    await maybeAutoBanForRejectedComment(author.id, now);
     return { status: CommentSubmitStatus.Rejected, message: REJECTED_MESSAGE };
   }
   if (status === CommentStatus.Held) {

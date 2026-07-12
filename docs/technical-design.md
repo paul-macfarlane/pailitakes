@@ -250,6 +250,8 @@ POST comment (server action, authed)
 
 Edits re-run steps 2–4 on the new body and count against the same rate limits (each edit is a fresh moderation call) — a flagged edit demotes the comment to `rejected`/`held` (ADR-0020).
 
+**Auto-ban (FR-4.9, ADR-0022):** after any write that lands a comment in `rejected`, the service counts the author's currently-`rejected` comments in a rolling window (`created_at` or `edited_at` newer than the window start; defaults 5 in 7 days, env-configurable). At/above threshold it bans via the users domain's locked ban service — same last-active-admin invariant as a manual ban, no-op if already banned. The step is fire-and-forget: a ban failure never alters the commenter's rejection result. Because the count is live, an admin restoring a false positive un-counts it; `held` rows (LLM failures) never count. Ban state is shown on moderation-log rows; unban stays on the users screen.
+
 **Moderation log (admin):** all `rejected` and `held` comments are browsable with the model's verdict and reasoning. Its purpose is _monitoring_, not an approval workflow — rejections are final by default. `held` items (LLM failures only) await an approve/delete decision; a restore action also exists on `rejected` for clear false positives.
 
 **Moderation policy (finalized):**

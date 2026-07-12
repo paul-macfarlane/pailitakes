@@ -83,6 +83,7 @@ The homepage features recent posts alongside a dedicated announcements section f
 - **FR-4.6** — **Automated moderation:** every new comment is screened by an inexpensive LLM for NSFW content, spam, and abuse before becoming visible. Clean comments post immediately; flagged comments are rejected with a brief message to the user and logged for admin review (admin can approve false positives).
 - **FR-4.7** — **Rate limiting:** per-account limits on comment creation (e.g., max N comments per minute and M per hour) to prevent flooding. Limits are configurable.
 - **FR-4.8** — Admin can ban a user, preventing them from commenting and liking.
+- **FR-4.9** — **Auto-ban:** a user whose count of currently-rejected comments within a rolling window crosses a threshold (default 5 in 7 days; both configurable) is banned automatically. Held comments never count; restoring a false positive un-counts it. Auto-banned users are visible in the moderation log; admin can unban as with any ban.
 
 ### 3.5 Likes
 

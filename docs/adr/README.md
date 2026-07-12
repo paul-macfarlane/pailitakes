@@ -29,3 +29,4 @@ Create one with `/adr <title>` whenever a choice is non-obvious, hard to reverse
 | [0019](0019-page-link-pagination.md)                                 | Page-link pagination everywhere; load-more removed         | Accepted |
 | [0020](0020-comment-moderation-lifecycle-semantics.md)               | Comment edit re-moderation, delete + placeholder semantics | Accepted |
 | [0021](0021-likes-read-write-shape.md)                               | Likes: desired-state set actions, session-aware tree reads | Accepted |
+| [0022](0022-auto-ban-repeat-moderation-offenders.md)                 | Auto-ban repeat moderation offenders (live rejected count) | Accepted |
