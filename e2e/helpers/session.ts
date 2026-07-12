@@ -47,9 +47,15 @@ function signSessionCookie(token: string, secret: string) {
 }
 
 export async function createTestSession(
-  options: { userName?: string; role?: SeedRole } = {},
+  options: {
+    userName?: string;
+    role?: SeedRole;
+    // banned_at is server-managed (ADM-10) same as role — set directly on
+    // the seeded row, mirroring the role field's own comment above.
+    banned?: boolean;
+  } = {},
 ): Promise<TestSession> {
-  const { userName = "E2E Tester", role = "reader" } = options;
+  const { userName = "E2E Tester", role = "reader", banned = false } = options;
   const { databaseUrl, secret } = requireEnv();
 
   const pool = new Pool({ connectionString: databaseUrl, max: 1 });
@@ -58,8 +64,8 @@ export async function createTestSession(
   const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
 
   await pool.query(
-    `insert into "user" (id, name, email, role) values ($1, $2, $3, $4)`,
-    [userId, userName, `${userId}@e2e.test`, role],
+    `insert into "user" (id, name, email, role, banned_at) values ($1, $2, $3, $4, $5)`,
+    [userId, userName, `${userId}@e2e.test`, role, banned ? new Date() : null],
   );
   await pool.query(
     `insert into session (id, token, user_id, expires_at) values ($1, $2, $3, $4)`,
@@ -206,6 +212,40 @@ export async function createTestPost(options: {
       await pool.end();
     },
   };
+}
+
+export interface TestComment {
+  id: string;
+}
+
+// Seeds a comment row directly (bypassing the composer/moderation call) for
+// comments.spec.ts, which deliberately never drives the create-comment UI —
+// that path always calls the moderation LLM (src/lib/comments/service/
+// create.ts), making it non-deterministic e2e territory. No `cleanup` here:
+// comments.post_id cascades on the post's own delete (schema.ts), so the
+// seeding post's cleanup() already removes every comment seeded onto it.
+export async function createTestComment(options: {
+  postId: string;
+  authorId: string;
+  parentId?: string | null;
+  body?: string;
+  status?: "visible" | "held" | "rejected" | "deleted";
+}): Promise<TestComment> {
+  const { databaseUrl } = requireEnv();
+  const pool = new Pool({ connectionString: databaseUrl, max: 1 });
+  const body =
+    options.body ?? `Seeded comment ${crypto.randomUUID().slice(0, 8)}`;
+  const status = options.status ?? "visible";
+
+  const { rows } = await pool.query<{ id: string }>(
+    `insert into comments (post_id, author_id, parent_id, body, status)
+     values ($1, $2, $3, $4, $5)
+     returning id`,
+    [options.postId, options.authorId, options.parentId ?? null, body, status],
+  );
+  await pool.end();
+
+  return { id: rows[0]!.id };
 }
 
 export interface TestCategory {

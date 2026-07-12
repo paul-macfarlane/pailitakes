@@ -3,6 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { cacheLife, cacheTag } from "next/cache";
 
+import { CommentsSection } from "@/app/(public)/posts/[slug]/_components/comments-section";
 import { PostArticle } from "@/components/post-article";
 import { deriveExcerpt } from "@/lib/content/excerpt";
 import { renderMarkdown } from "@/lib/content/markdown";
@@ -82,6 +83,7 @@ export default async function PostPage({
         ← All posts
       </Link>
       <PostArticle post={post} />
+      <CommentsSection postId={post.id} postSlug={slugResult.data} />
     </main>
   );
 }
