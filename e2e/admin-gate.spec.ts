@@ -1,5 +1,6 @@
 import { expect, test } from "@playwright/test";
 
+import { openAdminNav } from "./helpers/interaction";
 import { createTestSession, type TestSession } from "./helpers/session";
 
 // The security boundary is the server action + requireStaff/requireAdmin gate
@@ -62,6 +63,9 @@ test.describe("admin route gating", () => {
 
     test("does not see the Users link (admin-only)", async ({ page }) => {
       await page.goto("/admin");
+      // At mobile the links live inside a closed (unmounted) sheet — open it
+      // first so absence is meaningful, not just "sheet is closed".
+      await openAdminNav(page);
       await expect(page.getByRole("link", { name: "Users" })).toHaveCount(0);
     });
 
@@ -101,15 +105,20 @@ test.describe("admin route gating", () => {
     test("sees the Users link and the users screen", async ({ page }) => {
       await page.goto("/admin");
       // Posts is the active section on the dashboard.
+      await openAdminNav(page);
       await expect(page.getByRole("link", { name: "Posts" })).toHaveAttribute(
         "aria-current",
         "page",
       );
 
+      await openAdminNav(page);
       await page.getByRole("link", { name: "Users" }).click();
       await page.waitForURL("**/admin/users");
       await expect(page.getByRole("heading", { name: "Users" })).toBeVisible();
-      // The admin nav now reflects the active section.
+      // The admin nav now reflects the active section. Selecting a link
+      // closes the sheet (navigate + close), so re-open it for this
+      // assertion.
+      await openAdminNav(page);
       await expect(page.getByRole("link", { name: "Users" })).toHaveAttribute(
         "aria-current",
         "page",

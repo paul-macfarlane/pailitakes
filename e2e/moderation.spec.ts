@@ -4,7 +4,7 @@ import { config } from "dotenv";
 import { Pool } from "pg";
 import { expect, test } from "@playwright/test";
 
-import { clickUntil } from "./helpers/interaction";
+import { clickUntil, openAdminNav } from "./helpers/interaction";
 import {
   createTestCategory,
   createTestPost,
@@ -147,6 +147,9 @@ test.describe("admin moderation log", () => {
     const authorPage = await authorContext.newPage();
 
     await authorPage.goto("/admin");
+    // At mobile the links live inside a closed (unmounted) sheet — open it
+    // first so absence is meaningful, not just "sheet is closed".
+    await openAdminNav(authorPage);
     await expect(
       authorPage.getByRole("link", { name: "Moderation" }),
     ).toHaveCount(0);

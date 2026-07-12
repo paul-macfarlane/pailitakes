@@ -2,7 +2,7 @@ import crypto from "node:crypto";
 
 import { expect, test } from "@playwright/test";
 
-import { clickUntil } from "./helpers/interaction";
+import { clickUntil, openAdminNav } from "./helpers/interaction";
 import {
   createTestSession,
   deleteCategoriesByPrefix,
@@ -85,6 +85,7 @@ test.describe("admin category management", () => {
 
   test("sees the Categories nav link", async ({ page }) => {
     await page.goto("/admin");
+    await openAdminNav(page);
     await expect(page.getByRole("link", { name: "Categories" })).toBeVisible();
   });
 });
@@ -111,6 +112,9 @@ test.describe("category management is admin-only", () => {
     page,
   }) => {
     await page.goto("/admin");
+    // At mobile the links live inside a closed (unmounted) sheet — open it
+    // first so absence is meaningful, not just "sheet is closed".
+    await openAdminNav(page);
     await expect(page.getByRole("link", { name: "Categories" })).toHaveCount(0);
 
     await page.goto("/admin/categories");

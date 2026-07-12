@@ -53,10 +53,13 @@ export default function AdminLayout({
               site (feedback 2026-07-12: admins need a way back). Inline
               styling matches AdminNavLink's inactive state rather than
               importing that component, since this isn't a section toggle
-              with active-route highlighting. */}
+              with active-route highlighting. Hidden below sm: the admin nav's
+              hamburger sheet carries its own "View site" link at that width
+              (feedback: replace horizontal-scroll nav with a standard
+              hamburger). */}
           <Link
             href="/"
-            className="px-2 text-sm text-muted-foreground transition-colors hover:text-foreground"
+            className="hidden px-2 text-sm text-muted-foreground transition-colors hover:text-foreground sm:inline"
           >
             View site
           </Link>
