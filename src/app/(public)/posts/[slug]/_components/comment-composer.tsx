@@ -104,11 +104,23 @@ export function CommentComposer({
           id={id}
           value={value}
           onChange={(event) => setValue(event.target.value)}
+          onKeyDown={(event) => {
+            // Comments are prose, so Enter must stay a newline (unlike a chat
+            // box) — Cmd/Ctrl+Enter is the GitHub/Facebook-style power-user
+            // submit shortcut. Route through requestSubmit() rather than
+            // calling handleSubmit directly so the form's own onSubmit stays
+            // the single source of truth for the empty/pending guards.
+            if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
+              event.preventDefault();
+              event.currentTarget.form?.requestSubmit();
+            }
+          }}
           placeholder={placeholder}
           maxLength={MAX_COMMENT_BODY}
           disabled={isPending}
           autoFocus={autoFocus}
           rows={3}
+          aria-describedby={`${id}-shortcut-hint`}
         />
         {showCounter && (
           <FieldDescription className={cn(remaining < 0 && "text-destructive")}>
@@ -135,6 +147,17 @@ export function CommentComposer({
             Cancel
           </Button>
         )}
+        {/* Hidden below sm: too tight to coexist with Post/Cancel at 375px
+            (FR-9.4) — the shortcut still works, it's just not advertised on
+            narrow screens. aria-describedby on the textarea ties the hint to
+            the control for screen readers (display:none drops it from the
+            a11y tree on mobile, which is fine — the hint is advisory). */}
+        <span
+          id={`${id}-shortcut-hint`}
+          className="hidden text-xs text-muted-foreground sm:inline"
+        >
+          ⌘/Ctrl + Enter to submit
+        </span>
       </div>
       {notice && (
         <p
