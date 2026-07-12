@@ -29,6 +29,8 @@ describe("env validation", () => {
     expect(env.DATABASE_URL).toBe(validEnv.DATABASE_URL);
     expect(env.COMMENT_RATE_LIMIT_PER_MINUTE).toBe(3);
     expect(env.COMMENT_RATE_LIMIT_PER_HOUR).toBe(30);
+    expect(env.COMMENT_MODERATION_ENABLED).toBe(true);
+    expect(env.COMMENT_MODERATION_MODEL).toBe("anthropic/claude-haiku-4.5");
   });
 
   it("rejects a non-postgres DATABASE_URL", async () => {
@@ -58,5 +60,20 @@ describe("env validation", () => {
       COMMENT_RATE_LIMIT_PER_MINUTE: "5",
     });
     expect(env.COMMENT_RATE_LIMIT_PER_MINUTE).toBe(5);
+  });
+
+  it("parses COMMENT_MODERATION_ENABLED='false' to boolean false", async () => {
+    const { env } = await importEnv({
+      ...validEnv,
+      COMMENT_MODERATION_ENABLED: "false",
+    });
+    expect(env.COMMENT_MODERATION_ENABLED).toBe(false);
+  });
+
+  it("rejects an invalid COMMENT_MODERATION_ENABLED value", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    await expect(
+      importEnv({ ...validEnv, COMMENT_MODERATION_ENABLED: "not-a-bool" }),
+    ).rejects.toThrow(/invalid environment/i);
   });
 });
