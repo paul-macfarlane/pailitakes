@@ -3,6 +3,7 @@ import { Suspense } from "react";
 
 import { CategoryPills } from "@/app/(public)/_components/category-pills";
 import { FeedPagination } from "@/app/(public)/_components/feed-pagination";
+import { HomeAnnouncements } from "@/app/(public)/_components/home-announcements";
 import { SearchBox } from "@/app/(public)/_components/search-box";
 import { ExternalImage } from "@/components/external-image";
 import { PostCard } from "@/components/post-card";
@@ -87,7 +88,7 @@ async function HomeSection({
         />
       </div>
 
-      {/* Announcements slot — banner lands with ANN-3. */}
+      <HomeAnnouncements />
 
       {params.q ? (
         <SearchMode q={params.q} params={params} />
