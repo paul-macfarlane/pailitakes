@@ -1,6 +1,6 @@
 # Paulitakes — Technical Design
 
-**Version:** 0.3 (Locked; amended by ADR-0004; §6 project layout updated per ADR-0013; §5.7 authorization vocabulary per ADR-0014; §5.7 editor create/flush semantics per ADR-0015; posts data model `content_updated_at` per ADR-0016; §2/§3/§5.5 unified home browse/search per ADR-0018; §2 page-link pagination per ADR-0019)
+**Version:** 0.3 (Locked; amended by ADR-0004; §6 project layout updated per ADR-0013; §5.7 authorization vocabulary per ADR-0014; §5.7 editor create/flush semantics per ADR-0015; posts data model `content_updated_at` per ADR-0016; §2/§3/§5.5 unified home browse/search per ADR-0018; §2 page-link pagination per ADR-0019; §5.2/§5.3 comment edit re-moderation + generalized placeholder rule per ADR-0020)
 **Owner:** Paul
 **Last updated:** July 11, 2026
 **Companion doc:** Paulitakes Product Doc v0.2
@@ -248,6 +248,8 @@ POST comment (server action, authed)
  5. mod_verdict jsonb stored on every comment for audit
 ```
 
+Edits re-run steps 2–4 on the new body and count against the same rate limits (each edit is a fresh moderation call) — a flagged edit demotes the comment to `rejected`/`held` (ADR-0020).
+
 **Moderation log (admin):** all `rejected` and `held` comments are browsable with the model's verdict and reasoning. Its purpose is _monitoring_, not an approval workflow — rejections are final by default. `held` items (LLM failures only) await an approve/delete decision; a restore action also exists on `rejected` for clear false positives.
 
 **Moderation policy (finalized):**
@@ -260,7 +262,7 @@ Cost: Haiku on a ~100-token comment is a fraction of a cent; Vercel's included m
 
 ### 5.3 Comment tree
 
-One query per post via a route handler (`GET /api/comments?postId=...`, `no-store`) — reads go through GET route handlers so TanStack Query can fetch/refetch freely, while writes stay in server actions. `WHERE post_id = ? AND status IN ('visible','deleted')`, tree assembled in memory by `parent_id`. `deleted` comments render as "[deleted]" placeholders only when they have visible descendants. UI indents to depth ~5, then flattens with "replying to @name" labels (critical on phone widths). Fetched and mutated via TanStack Query with optimistic inserts on `allow` — the one island complex enough to earn the dependency.
+One query per post via a route handler (`GET /api/comments?postId=...`, `no-store`) — reads go through GET route handlers so TanStack Query can fetch/refetch freely, while writes stay in server actions. `WHERE post_id = ?` across all statuses (amended by ADR-0020: a re-moderated edit can flag a parent that still has visible replies, so the placeholder rule generalizes beyond `deleted`), tree assembled in memory by `parent_id`. Non-visible comments are redacted server-side (body/author stripped) and render as placeholders only when they have visible descendants. The response's `meta` carries `comments_locked` so lock toggles never touch the cached post page (ADR-0020). UI indents to depth ~5, then flattens with "replying to @name" labels (critical on phone widths). Fetched and mutated via TanStack Query with optimistic inserts on `allow` — the one island complex enough to earn the dependency.
 
 ### 5.4 Likes
 
