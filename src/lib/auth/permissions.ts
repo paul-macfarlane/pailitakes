@@ -23,6 +23,8 @@ export const Action = {
   ManageUsers: "user.manage",
   // Admin-managed fixed list (FR-2.1) — authors get nothing.
   ManageCategories: "category.manage",
+  // Admin-only site-wide messages (FR-6.1) — authors get nothing.
+  ManageAnnouncements: "announcement.manage",
   // Any authenticated, non-banned reader may comment (FR-4.1) — CreateComment
   // is deliberately the widest-held action in this map.
   CreateComment: "comment.create",
@@ -60,6 +62,7 @@ const ROLE_ACTIONS: Record<Role, readonly Action[]> = {
     Action.AccessAdmin,
     Action.ManageUsers,
     Action.ManageCategories,
+    Action.ManageAnnouncements,
     Action.CreateComment,
     Action.ManageAnyComment,
     Action.ModerateComments,
