@@ -308,3 +308,17 @@ export async function deleteCategoriesByPrefix(prefix: string): Promise<void> {
   await pool.query(`delete from categories where name like $1`, [`${prefix}%`]);
   await pool.end();
 }
+
+// Same sweep-by-prefix rationale as deleteCategoriesByPrefix:
+// announcements.spec.ts creates rows through the real admin form, and the
+// edit test only ever appends to the per-test prefix the body started with.
+export async function deleteAnnouncementsByPrefix(
+  prefix: string,
+): Promise<void> {
+  const { databaseUrl } = requireEnv();
+  const pool = new Pool({ connectionString: databaseUrl, max: 1 });
+  await pool.query(`delete from announcements where body like $1`, [
+    `${prefix}%`,
+  ]);
+  await pool.end();
+}
