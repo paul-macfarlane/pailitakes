@@ -1,6 +1,6 @@
 "use client";
 
-import { Heart } from "lucide-react";
+import { ThumbsUp } from "lucide-react";
 import {
   useEffect,
   useOptimistic,
@@ -111,7 +111,7 @@ export function LikeButton({
         aria-label={`Like this ${label}`}
         onClick={handleClick}
       >
-        <Heart
+        <ThumbsUp
           className={cn(optimistic.liked && "fill-current text-destructive")}
         />
         <span className="text-muted-foreground">{optimistic.count}</span>
