@@ -5,7 +5,10 @@ import { useId, useState, useTransition } from "react";
 import { Button } from "@/components/ui/button";
 import { Field, FieldDescription, FieldLabel } from "@/components/ui/field";
 import { Textarea } from "@/components/ui/textarea";
-import type { CommentSubmitResult } from "@/lib/comments/submit-result";
+import {
+  CommentSubmitStatus,
+  type CommentSubmitResult,
+} from "@/lib/comments/submit-result";
 import { cn } from "@/lib/utils";
 
 // Mirrors src/lib/comments/input.ts's commentBodySchema limit — that module
@@ -61,7 +64,7 @@ export function CommentComposer({
         result = await onSubmit(body);
       } catch {
         result = {
-          status: "error",
+          status: CommentSubmitStatus.Error,
           message: "Something went wrong. Please try again.",
         };
       }
@@ -72,13 +75,13 @@ export function CommentComposer({
       // `denied`/`error`: keep the draft so a rate-limited or flaky
       // submission doesn't lose the user's typing.
       if (
-        result.status === "visible" ||
-        result.status === "held" ||
-        result.status === "rejected"
+        result.status === CommentSubmitStatus.Visible ||
+        result.status === CommentSubmitStatus.Held ||
+        result.status === CommentSubmitStatus.Rejected
       ) {
         setValue("");
       }
-      if (result.status !== "visible") {
+      if (result.status !== CommentSubmitStatus.Visible) {
         setNotice(result.message);
       }
       onResult(result);

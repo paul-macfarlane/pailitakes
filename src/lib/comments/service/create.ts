@@ -18,7 +18,10 @@ import {
 } from "@/lib/comments/data";
 import { moderateComment } from "@/lib/comments/moderation";
 import { CommentStatus } from "@/lib/comments/status";
-import type { CommentSubmitResult } from "@/lib/comments/submit-result";
+import {
+  CommentSubmitStatus,
+  type CommentSubmitResult,
+} from "@/lib/comments/submit-result";
 import type { CommentNode } from "@/lib/comments/tree";
 import {
   GENERIC_ERROR,
@@ -93,13 +96,13 @@ export async function createComment(
 ): Promise<CommentSubmitResult> {
   if (author.bannedAt) {
     return {
-      status: "denied",
+      status: CommentSubmitStatus.Denied,
       reason: CommentDenialReason.Banned,
       message: "You're banned from commenting.",
     };
   }
   if (!canPerformAction(author, Action.CreateComment)) {
-    return { status: "error", message: NOT_AUTHORIZED_ERROR };
+    return { status: CommentSubmitStatus.Error, message: NOT_AUTHORIZED_ERROR };
   }
 
   const now = new Date();
@@ -107,7 +110,7 @@ export async function createComment(
   const post = await loadPostForComment(postId, now);
   if (!post) {
     return {
-      status: "denied",
+      status: CommentSubmitStatus.Denied,
       reason: CommentDenialReason.Archived,
       message: "This post is no longer accepting comments.",
     };
@@ -115,7 +118,7 @@ export async function createComment(
 
   if (post.commentsLocked) {
     return {
-      status: "denied",
+      status: CommentSubmitStatus.Denied,
       reason: CommentDenialReason.Locked,
       message: "Comments are locked on this post.",
     };
@@ -123,13 +126,16 @@ export async function createComment(
 
   if (parentId !== null) {
     if (!(await parentIsValidForReply(parentId, postId))) {
-      return { status: "error", message: "Cannot reply to that comment." };
+      return {
+        status: CommentSubmitStatus.Error,
+        message: "Cannot reply to that comment.",
+      };
     }
   }
 
   if (await isRateLimited(author.id, now)) {
     return {
-      status: "denied",
+      status: CommentSubmitStatus.Denied,
       reason: CommentDenialReason.RateLimited,
       message: "You're commenting too fast. Try again in a bit.",
     };
@@ -154,17 +160,20 @@ export async function createComment(
     // that window surfaces here as an FK violation rather than at the
     // earlier check (design D7 steps 5 vs 7).
     if (isParentDeletedRace(err)) {
-      return { status: "error", message: "Cannot reply to that comment." };
+      return {
+        status: CommentSubmitStatus.Error,
+        message: "Cannot reply to that comment.",
+      };
     }
     console.error("createComment insert failed", err);
-    return { status: "error", message: GENERIC_ERROR };
+    return { status: CommentSubmitStatus.Error, message: GENERIC_ERROR };
   }
 
   if (status === CommentStatus.Rejected) {
-    return { status: "rejected", message: REJECTED_MESSAGE };
+    return { status: CommentSubmitStatus.Rejected, message: REJECTED_MESSAGE };
   }
   if (status === CommentStatus.Held) {
-    return { status: "held", message: HELD_MESSAGE };
+    return { status: CommentSubmitStatus.Held, message: HELD_MESSAGE };
   }
 
   const node: CommentNode = {
@@ -177,7 +186,7 @@ export async function createComment(
     author: { id: author.id, name: author.name, image: author.image ?? null },
     children: [],
   };
-  return { status: "visible", comment: node };
+  return { status: CommentSubmitStatus.Visible, comment: node };
 }
 
 // design D7 "Edit": strict ownership (no admin bypass — FR-4.3 is "own
@@ -193,25 +202,25 @@ export async function editOwnComment(
 ): Promise<CommentSubmitResult> {
   if (author.bannedAt) {
     return {
-      status: "denied",
+      status: CommentSubmitStatus.Denied,
       reason: CommentDenialReason.Banned,
       message: "You're banned from commenting.",
     };
   }
   if (!canPerformAction(author, Action.CreateComment)) {
-    return { status: "error", message: NOT_AUTHORIZED_ERROR };
+    return { status: CommentSubmitStatus.Error, message: NOT_AUTHORIZED_ERROR };
   }
 
   const existing = await loadCommentForEdit(id);
   if (!existing) {
-    return { status: "error", message: "Comment not found." };
+    return { status: CommentSubmitStatus.Error, message: "Comment not found." };
   }
   if (existing.authorId !== author.id) {
-    return { status: "error", message: NOT_AUTHORIZED_ERROR };
+    return { status: CommentSubmitStatus.Error, message: NOT_AUTHORIZED_ERROR };
   }
   if (existing.status !== CommentStatus.Visible) {
     return {
-      status: "error",
+      status: CommentSubmitStatus.Error,
       message: "This comment can no longer be edited.",
     };
   }
@@ -222,7 +231,7 @@ export async function editOwnComment(
     now.getTime() - existing.editedAt.getTime() < EDIT_COOLDOWN_MS
   ) {
     return {
-      status: "denied",
+      status: CommentSubmitStatus.Denied,
       reason: CommentDenialReason.RateLimited,
       message: "You're editing too fast. Try again in a minute.",
     };
@@ -230,7 +239,7 @@ export async function editOwnComment(
 
   if (await isRateLimited(author.id, now)) {
     return {
-      status: "denied",
+      status: CommentSubmitStatus.Denied,
       reason: CommentDenialReason.RateLimited,
       message: "You're commenting too fast. Try again in a bit.",
     };
@@ -242,10 +251,10 @@ export async function editOwnComment(
   const editedAt = await applyCommentEdit(id, body, status, verdict.record);
 
   if (status === CommentStatus.Rejected) {
-    return { status: "rejected", message: REJECTED_MESSAGE };
+    return { status: CommentSubmitStatus.Rejected, message: REJECTED_MESSAGE };
   }
   if (status === CommentStatus.Held) {
-    return { status: "held", message: HELD_MESSAGE };
+    return { status: CommentSubmitStatus.Held, message: HELD_MESSAGE };
   }
 
   const node: CommentNode = {
@@ -258,5 +267,5 @@ export async function editOwnComment(
     author: { id: author.id, name: author.name, image: author.image ?? null },
     children: [],
   };
-  return { status: "visible", comment: node };
+  return { status: CommentSubmitStatus.Visible, comment: node };
 }
