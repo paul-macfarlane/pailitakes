@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { cacheLife, cacheTag } from "next/cache";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
 
@@ -18,6 +19,21 @@ export function generateStaticParams(): { slug: string }[] {
   return [{ slug: "build-validation-placeholder" }];
 }
 
+// The lookup must run inside a cache scope: generateMetadata executes during
+// the build-time prerender of the placeholder, and an uncached query there
+// makes the Neon serverless driver's connection handshake (sync
+// `randomBytes`) a next-prerender-random build error on Vercel — the local
+// `pg` driver doesn't hit that path, so only CI catches it. Tag rows change
+// only through post mutations, which already revalidate `post-list`
+// (design §3), same tag/life as getTagFeed.
+async function getCachedTag(slug: string) {
+  "use cache";
+  cacheTag("post-list");
+  cacheLife({ stale: 60, revalidate: 60 });
+
+  return getTagBySlug(slug);
+}
+
 export async function generateMetadata({
   params,
 }: {
@@ -27,7 +43,7 @@ export async function generateMetadata({
   const slugResult = slugParamSchema.safeParse(slug);
   if (!slugResult.success) return {};
 
-  const tag = await getTagBySlug(slugResult.data);
+  const tag = await getCachedTag(slugResult.data);
   if (!tag) return {};
   return { title: `Tagged "${tag.name}"` };
 }
@@ -64,7 +80,7 @@ async function TagSection({
   const slugResult = slugParamSchema.safeParse(slug);
   if (!slugResult.success) notFound();
 
-  const tag = await getTagBySlug(slugResult.data);
+  const tag = await getCachedTag(slugResult.data);
   // notFound() fires inside this streamed Suspense boundary rather than
   // before the shell, so an unknown tag now returns 200-with-404-UI (a soft
   // 404) instead of a status-line 404 — accepted trade-off of making the
