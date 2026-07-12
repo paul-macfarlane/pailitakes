@@ -542,7 +542,10 @@ describe("listModerationLogRows / casCommentStatus", () => {
     expect(heldById.get(held1.id)).toMatchObject({
       status: "held",
       post: { slug: `${runId}-visible` },
-      author: { name: `Test Author ${runId}` },
+      author: {
+        name: `Test Author ${runId}`,
+        email: `author-${runId}@example.com`,
+      },
     });
     expect(heldById.has(held2.id)).toBe(true);
 
@@ -569,5 +572,59 @@ describe("listModerationLogRows / casCommentStatus", () => {
     expect(await casCommentStatus(rejected1.id, "rejected", "visible")).toBe(
       true,
     );
+  });
+
+  // The comment above explains why this suite avoids positional assertions
+  // on the raw result — but the ORDER BY itself still needs pinning. Seed
+  // 3 held rows with distinct created_at, request a generous limit (so ours
+  // are guaranteed to be on the page even with concurrent noise from other
+  // test files), then FILTER to just this run's own ids: their relative
+  // order within that filtered subsequence is stable — newest-first — no
+  // matter how many foreign rows from concurrent suites interleave.
+  it("orders newest-first (desc createdAt, desc id)", async () => {
+    const base = seconds(3000);
+    const seeded = await testDb
+      .insert(comments)
+      .values([
+        {
+          postId: visiblePostId,
+          authorId,
+          parentId: null,
+          body: "order oldest",
+          status: "held",
+          createdAt: new Date(base.getTime()),
+        },
+        {
+          postId: visiblePostId,
+          authorId,
+          parentId: null,
+          body: "order middle",
+          status: "held",
+          createdAt: new Date(base.getTime() + 1_000),
+        },
+        {
+          postId: visiblePostId,
+          authorId,
+          parentId: null,
+          body: "order newest",
+          status: "held",
+          createdAt: new Date(base.getTime() + 2_000),
+        },
+      ])
+      .returning({ id: comments.id });
+    const seededIds = new Set(seeded.map((row) => row.id));
+
+    const { rows } = await listModerationLogRows({
+      status: "held",
+      limit: 1000,
+      offset: 0,
+    });
+
+    const ownRows = rows.filter((r) => seededIds.has(r.id));
+    expect(ownRows).toHaveLength(3);
+    const createdAts = ownRows.map((r) => r.createdAt.getTime());
+    expect(createdAts).toEqual([...createdAts].sort((a, b) => b - a));
+
+    await testDb.delete(comments).where(inArray(comments.id, [...seededIds]));
   });
 });

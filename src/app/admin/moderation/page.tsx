@@ -143,6 +143,12 @@ export default async function AdminModerationPage({
                       </Link>
                     </span>
                   </p>
+                  {/* Names aren't unique — the email disambiguates which
+                      account posted this comment (admin-only screen, so
+                      showing this PII here is fine). */}
+                  <p className="text-xs text-muted-foreground">
+                    {row.author.email}
+                  </p>
                   <p className="text-xs text-muted-foreground">
                     {dateFormat.format(row.createdAt)} UTC
                   </p>

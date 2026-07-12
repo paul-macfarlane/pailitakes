@@ -294,7 +294,10 @@ export type ModerationLogRow = {
   modVerdict: ModVerdictRecord | null;
   createdAt: Date;
   post: { slug: string; title: string };
-  author: { name: string };
+  // Names aren't unique — the admin needs the email to match a comment to a
+  // specific account (feedback item 4). Admin-only screen, so showing PII
+  // here is fine.
+  author: { name: string; email: string };
 };
 
 export const MODERATION_LOG_PAGE_SIZE = 25;
@@ -312,7 +315,7 @@ export async function listModerationLogRows(params: {
       modVerdict: comments.modVerdict,
       createdAt: comments.createdAt,
       post: { slug: posts.slug, title: posts.title },
-      author: { name: user.name },
+      author: { name: user.name, email: user.email },
     })
     .from(comments)
     .innerJoin(posts, eq(posts.id, comments.postId))
