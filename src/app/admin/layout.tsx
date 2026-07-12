@@ -48,6 +48,18 @@ export default function AdminLayout({
         {/* Same right-side controls as the public SiteHeader (theme + account
             menu) so the two headers are consistent. */}
         <div className="flex shrink-0 items-center gap-1">
+          {/* Exit link back to the public app — the brand now points at
+              /admin, so nothing else in the admin chrome reaches the public
+              site (feedback 2026-07-12: admins need a way back). Inline
+              styling matches AdminNavLink's inactive state rather than
+              importing that component, since this isn't a section toggle
+              with active-route highlighting. */}
+          <Link
+            href="/"
+            className="px-2 text-sm text-muted-foreground transition-colors hover:text-foreground"
+          >
+            View site
+          </Link>
           <ThemeToggle />
           {/* HeaderAuth reads usePathname; wrap so it's deferred out of the
               prerendered shell on dynamic routes (cacheComponents). */}
