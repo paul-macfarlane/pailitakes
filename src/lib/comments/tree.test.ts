@@ -22,6 +22,8 @@ function row(overrides: Partial<CommentRow> & { id: string }): CommentRow {
     status: CommentStatus.Visible,
     createdAt: new Date(2026, 0, 1, 0, 0, counter),
     editedAt: null,
+    likeCount: 0,
+    likedByMe: false,
     ...overrides,
   };
 }
@@ -87,8 +89,15 @@ describe("buildCommentTree", () => {
     expect(tree[0]!.children.map((c) => c.id)).toEqual(["a-child", "z-child"]);
   });
 
-  it("shows body and author only for visible nodes", () => {
-    const rows = [row({ id: "a", status: CommentStatus.Visible })];
+  it("shows body, author, and like state only for visible nodes", () => {
+    const rows = [
+      row({
+        id: "a",
+        status: CommentStatus.Visible,
+        likeCount: 3,
+        likedByMe: true,
+      }),
+    ];
 
     const [node] = buildCommentTree(rows);
 
@@ -98,6 +107,8 @@ describe("buildCommentTree", () => {
       name: "Author a",
       image: null,
     });
+    expect(node!.likeCount).toBe(3);
+    expect(node!.likedByMe).toBe(true);
   });
 
   it.each([CommentStatus.Deleted, CommentStatus.Held, CommentStatus.Rejected])(
@@ -112,10 +123,10 @@ describe("buildCommentTree", () => {
   );
 
   it.each([CommentStatus.Deleted, CommentStatus.Held, CommentStatus.Rejected])(
-    "keeps a %s node as a redacted placeholder when it has a visible descendant",
+    "keeps a %s node as a redacted placeholder — with zeroed like state even if the row carries likes — when it has a visible descendant",
     (status) => {
       const rows = [
-        row({ id: "parent", status }),
+        row({ id: "parent", status, likeCount: 5, likedByMe: true }),
         row({ id: "child", parentId: "parent", status: CommentStatus.Visible }),
       ];
 
@@ -127,6 +138,8 @@ describe("buildCommentTree", () => {
       expect(parent.status).toBe(status);
       expect(parent.body).toBe("");
       expect(parent.author).toBeNull();
+      expect(parent.likeCount).toBe(0);
+      expect(parent.likedByMe).toBe(false);
       expect(parent.children).toHaveLength(1);
       expect(parent.children[0]!.id).toBe("child");
     },
@@ -232,6 +245,8 @@ function node(overrides: Partial<CommentNode> & { id: string }): CommentNode {
       name: `Author ${overrides.id}`,
       image: null,
     },
+    likeCount: 0,
+    likedByMe: false,
     children: [],
     ...overrides,
   };
