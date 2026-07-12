@@ -71,6 +71,13 @@
       "when": 1783799989363,
       "tag": "0009_seed_initial_categories",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1783823537178,
+      "tag": "0010_reflective_elektra",
+      "breakpoints": true
     }
   ]
 }

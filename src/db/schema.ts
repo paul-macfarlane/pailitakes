@@ -4,10 +4,12 @@
 
 import { sql, type SQL } from "drizzle-orm";
 import {
+  type AnyPgColumn,
   boolean,
   customType,
   index,
   integer,
+  jsonb,
   pgEnum,
   pgTable,
   primaryKey,
@@ -16,6 +18,8 @@ import {
   timestamp,
   uuid,
 } from "drizzle-orm/pg-core";
+
+import type { ModVerdictRecord } from "@/lib/comments/verdict";
 
 // drizzle-orm ^0.45 has no built-in tsvector column type; define one custom
 // type used by the generated `search` column on `posts` (design §4).
@@ -235,6 +239,62 @@ export const postTags = pgTable(
     // The composite PK leads with post_id; tag-side lookups (tag pages,
     // tag-delete cascade) need their own index.
     index("post_tags_tag_id_idx").on(table.tagId),
+  ],
+);
+
+// Comments domain (design §4, §5.2, §5.3, CMT-1).
+
+export const commentStatus = pgEnum("comment_status", [
+  "visible",
+  "held",
+  "rejected",
+  "deleted",
+]);
+
+export const comments = pgTable(
+  "comments",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    // Admin hard-delete of a post cascades to its comments (design §5.7).
+    postId: uuid("post_id")
+      .notNull()
+      .references(() => posts.id, { onDelete: "cascade" }),
+    // No onDelete, matching posts.authorId: deleting a user with comments
+    // should fail loudly; there is no user-deletion flow in v1.
+    authorId: text("author_id")
+      .notNull()
+      .references(() => user.id),
+    // Self-FK, null = top-level (design §4). No cascade: hard deletes are
+    // only ever performed on childless comments — the child-existence check
+    // and delete semantics live in the service layer, not the FK.
+    parentId: uuid("parent_id").references((): AnyPgColumn => comments.id),
+    body: text("body").notNull(),
+    // No default: every insert states its moderation outcome explicitly
+    // (design §5.2 step 4).
+    status: commentStatus("status").notNull(),
+    // Audit record { verdict, reason, model, latencyMs } | { error, model,
+    // latencyMs } stored on every comment (design §5.2 step 5).
+    modVerdict: jsonb("mod_verdict").$type<ModVerdictRecord>(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    editedAt: timestamp("edited_at", { withTimezone: true }),
+  },
+  (table) => [
+    // Comment tree reads (design §5.3).
+    index("comments_post_id_created_at_idx").on(table.postId, table.createdAt),
+    // Moderation log (design §5.2).
+    index("comments_status_created_at_idx").on(table.status, table.createdAt),
+    // Per-author rate-limit counts in the last minute/hour (design §5.2 step
+    // 2) — beyond the design's two listed indexes, needed so those COUNTs
+    // don't seq-scan.
+    index("comments_author_id_created_at_idx").on(
+      table.authorId,
+      table.createdAt,
+    ),
+    // Child-existence check on delete (service layer, design §5.7-style hard
+    // delete semantics).
+    index("comments_parent_id_idx").on(table.parentId),
   ],
 );
 

@@ -23,17 +23,26 @@ export const Action = {
   ManageUsers: "user.manage",
   // Admin-managed fixed list (FR-2.1) — authors get nothing.
   ManageCategories: "category.manage",
+  // Any authenticated, non-banned reader may comment (FR-4.1) — CreateComment
+  // is deliberately the widest-held action in this map.
+  CreateComment: "comment.create",
+  // Ownership bypass for comments (mirrors ManageAnyPost): admin delete-any +
+  // lock (FR-4.4).
+  ManageAnyComment: "comment.manage-any",
+  // Moderation log access (design §5.2 "Moderation log (admin)").
+  ModerateComments: "comment.moderate",
 } as const;
 export type Action = (typeof Action)[keyof typeof Action];
 
 const ROLE_ACTIONS: Record<Role, readonly Action[]> = {
-  [Role.Reader]: [],
+  [Role.Reader]: [Action.CreateComment],
   [Role.Author]: [
     Action.CreatePost,
     Action.EditPost,
     Action.PublishPost,
     Action.PreviewPost,
     Action.AccessAdmin,
+    Action.CreateComment,
   ],
   [Role.Admin]: [
     Action.CreatePost,
@@ -45,6 +54,9 @@ const ROLE_ACTIONS: Record<Role, readonly Action[]> = {
     Action.AccessAdmin,
     Action.ManageUsers,
     Action.ManageCategories,
+    Action.CreateComment,
+    Action.ManageAnyComment,
+    Action.ModerateComments,
   ],
 };
 

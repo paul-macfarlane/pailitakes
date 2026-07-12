@@ -1,0 +1,344 @@
+import "server-only";
+
+// Pure DB access for the comments domain (create/edit/delete, rate limiting,
+// thread reads, moderation log, lock toggle) — queries/mutations only.
+// Business rules live in src/lib/comments/service/*.
+
+import { and, asc, count, desc, eq, gt, notExists, or } from "drizzle-orm";
+import { alias } from "drizzle-orm/pg-core";
+
+import { db } from "@/db";
+import { comments, posts, user } from "@/db/schema";
+import { visiblePostsWhere } from "@/lib/posts/posts";
+import { CommentStatus } from "@/lib/comments/status";
+import type { CommentRow } from "@/lib/comments/tree";
+import type { ModVerdictRecord } from "@/lib/comments/verdict";
+
+// Reused (not duplicated — engineering rule) from the posts domain: a
+// comment can only land on a post that's publicly visible right now (design
+// D7 step 3). Also used by the thread-read route for its 404 (D5).
+export async function loadPostForComment(
+  postId: string,
+  now?: Date,
+): Promise<{ commentsLocked: boolean } | undefined> {
+  const [row] = await db
+    .select({ commentsLocked: posts.commentsLocked })
+    .from(posts)
+    .where(and(eq(posts.id, postId), visiblePostsWhere(now)))
+    .limit(1);
+  return row;
+}
+
+// A reply's parent must exist, belong to the same post, and be currently
+// `visible` (design D7 step 5) — replying to a held/rejected/deleted comment
+// (or one on a different post) is rejected outright.
+export async function parentIsValidForReply(
+  parentId: string,
+  postId: string,
+): Promise<boolean> {
+  const [row] = await db
+    .select({ id: comments.id })
+    .from(comments)
+    .where(
+      and(
+        eq(comments.id, parentId),
+        eq(comments.postId, postId),
+        eq(comments.status, CommentStatus.Visible),
+      ),
+    )
+    .limit(1);
+  return row !== undefined;
+}
+
+// One of the two Postgres COUNTs behind the rate limit (design D6/§5.2 step
+// 2) — counts ALL statuses (rejected/held spam still burns the limit).
+// Window boundaries and the configured limits are the service's job
+// (env-driven, not hardcoded here). Counts a row if EITHER it was created OR
+// edited in the window: every moderated edit is a fresh moderation call
+// (editOwnComment re-moderates on every save), so an edit burns the same
+// budget as a create — this supersedes the original "edits don't count"
+// design note, which left edit unbounded (fix, see create.ts's
+// editOwnComment). The `(author_id, created_at)` index still serves the
+// `author_id` prefix of this predicate; the `edited_at` side is an
+// unindexed extra filter on an already-narrow per-author row set.
+export async function countRecentCommentsByAuthor(
+  authorId: string,
+  since: Date,
+): Promise<number> {
+  const [row] = await db
+    .select({ value: count() })
+    .from(comments)
+    .where(
+      and(
+        eq(comments.authorId, authorId),
+        or(gt(comments.createdAt, since), gt(comments.editedAt, since)),
+      ),
+    );
+  return row?.value ?? 0;
+}
+
+// Mirrors uniqueViolationConstraint (src/lib/posts/data.ts) but for
+// foreign_key_violation (23503): node-postgres surfaces the Postgres error
+// code and violated constraint name as `.code`/`.constraint` on the thrown
+// error; drizzle's node-postgres driver rethrows it as-is, but walk `.cause`
+// too in case a wrapper is ever introduced between here and the driver.
+function foreignKeyViolationConstraint(err: unknown): string | null {
+  if (typeof err !== "object" || err === null) return null;
+  const code = (err as { code?: unknown }).code;
+  if (code === "23503") {
+    const constraint = (err as { constraint?: unknown }).constraint;
+    return typeof constraint === "string" ? constraint : "";
+  }
+  const cause = (err as { cause?: unknown }).cause;
+  return cause !== undefined && cause !== err
+    ? foreignKeyViolationConstraint(cause)
+    : null;
+}
+
+// createComment validates the parent exists+visible, then awaits moderation
+// (a network call, seconds) before inserting (design D7 steps 5 vs 7) — a
+// parent hard-deleted in that window throws this FK violation instead of
+// failing the earlier check. Exact constraint match (migration
+// 0010_reflective_elektra.sql: comments_parent_id_comments_id_fk) so an
+// unrelated FK on the same insert (post_id/author_id) is never misread as
+// the parent race.
+export function isParentDeletedRace(err: unknown): boolean {
+  return (
+    foreignKeyViolationConstraint(err) === "comments_parent_id_comments_id_fk"
+  );
+}
+
+export async function insertComment(input: {
+  postId: string;
+  parentId: string | null;
+  authorId: string;
+  body: string;
+  status: CommentStatus;
+  modVerdict: ModVerdictRecord;
+}): Promise<{ id: string; createdAt: Date }> {
+  const [row] = await db
+    .insert(comments)
+    .values({
+      postId: input.postId,
+      parentId: input.parentId,
+      authorId: input.authorId,
+      body: input.body,
+      status: input.status,
+      modVerdict: input.modVerdict,
+    })
+    .returning({ id: comments.id, createdAt: comments.createdAt });
+  return row!;
+}
+
+export type OwnedCommentForEdit = {
+  id: string;
+  authorId: string;
+  postId: string;
+  parentId: string | null;
+  status: CommentStatus;
+  createdAt: Date;
+  editedAt: Date | null;
+};
+
+export async function loadCommentForEdit(
+  id: string,
+): Promise<OwnedCommentForEdit | undefined> {
+  const [row] = await db
+    .select({
+      id: comments.id,
+      authorId: comments.authorId,
+      postId: comments.postId,
+      parentId: comments.parentId,
+      status: comments.status,
+      createdAt: comments.createdAt,
+      editedAt: comments.editedAt,
+    })
+    .from(comments)
+    .where(eq(comments.id, id))
+    .limit(1);
+  return row;
+}
+
+// Applies a re-moderated edit (body + new status + new verdict + editedAt)
+// in ONE update — moderation would otherwise be trivially bypassable by
+// editing (design D7 "Edit"). Returns the stamped editedAt for the
+// CommentNode the caller returns on the `visible` arm.
+export async function applyCommentEdit(
+  id: string,
+  body: string,
+  status: CommentStatus,
+  modVerdict: ModVerdictRecord,
+): Promise<Date> {
+  const [row] = await db
+    .update(comments)
+    .set({ body, status, modVerdict, editedAt: new Date() })
+    .where(eq(comments.id, id))
+    .returning({ editedAt: comments.editedAt });
+  return row!.editedAt!;
+}
+
+export type CommentForDelete = {
+  id: string;
+  authorId: string;
+  postId: string;
+};
+
+export async function loadCommentForDelete(
+  id: string,
+): Promise<CommentForDelete | undefined> {
+  const [row] = await db
+    .select({
+      id: comments.id,
+      authorId: comments.authorId,
+      postId: comments.postId,
+    })
+    .from(comments)
+    .where(eq(comments.id, id))
+    .limit(1);
+  return row;
+}
+
+export async function commentHasChildren(id: string): Promise<boolean> {
+  const [row] = await db
+    .select({ id: comments.id })
+    .from(comments)
+    .where(eq(comments.parentId, id))
+    .limit(1);
+  return row !== undefined;
+}
+
+// Soft delete (design D8): body cleared for privacy — the placeholder never
+// needs it (buildCommentTree redacts non-visible bodies anyway, but clearing
+// at rest means a `deleted` row never carries content at all).
+export async function softDeleteComment(id: string): Promise<void> {
+  await db
+    .update(comments)
+    .set({ status: CommentStatus.Deleted, body: "" })
+    .where(eq(comments.id, id));
+}
+
+// Self-join alias for the NOT EXISTS guard below — deleting FROM comments
+// while correlating a subquery against comments needs a second reference to
+// the same table.
+const childComments = alias(comments, "child_comments");
+
+// Race-safe hard delete (design D8): the NOT EXISTS guard is evaluated by
+// Postgres atomically with the DELETE, so a child inserted between the
+// caller's earlier childless check and this call still blocks the delete
+// (parent_id FK backstops it too). Returns whether the row was removed.
+export async function hardDeleteCommentIfChildless(
+  id: string,
+): Promise<boolean> {
+  const deleted = await db
+    .delete(comments)
+    .where(
+      and(
+        eq(comments.id, id),
+        notExists(
+          db
+            .select({ id: childComments.id })
+            .from(childComments)
+            .where(eq(childComments.parentId, comments.id)),
+        ),
+      ),
+    )
+    .returning({ id: comments.id });
+  return deleted.length > 0;
+}
+
+// One query, ALL statuses (design D5): buildCommentTree needs the full set
+// (including held/rejected/deleted) to correctly redact-and-prune, not just
+// visible+deleted. Ordered so buildCommentTree's own sort is just a
+// stability formality, not load-bearing.
+export async function loadCommentRowsForPost(
+  postId: string,
+): Promise<CommentRow[]> {
+  return db
+    .select({
+      id: comments.id,
+      parentId: comments.parentId,
+      authorId: comments.authorId,
+      authorName: user.name,
+      authorImage: user.image,
+      body: comments.body,
+      status: comments.status,
+      createdAt: comments.createdAt,
+      editedAt: comments.editedAt,
+    })
+    .from(comments)
+    .innerJoin(user, eq(user.id, comments.authorId))
+    .where(eq(comments.postId, postId))
+    .orderBy(asc(comments.createdAt), asc(comments.id));
+}
+
+// Admin lock toggle (design D10) — comment-feature state stored on posts
+// (ADR-0004). Returns whether a row was updated (false = post not found).
+export async function setPostCommentsLockedColumn(
+  postId: string,
+  locked: boolean,
+): Promise<boolean> {
+  const updated = await db
+    .update(posts)
+    .set({ commentsLocked: locked })
+    .where(eq(posts.id, postId))
+    .returning({ id: posts.id });
+  return updated.length > 0;
+}
+
+// Moderation log row (design D9): held/rejected comments joined with post
+// title/slug + author name for the admin browse screen.
+export type ModerationLogRow = {
+  id: string;
+  body: string;
+  status: CommentStatus;
+  modVerdict: ModVerdictRecord | null;
+  createdAt: Date;
+  post: { slug: string; title: string };
+  author: { name: string };
+};
+
+export const MODERATION_LOG_PAGE_SIZE = 25;
+
+export async function listModerationLogRows(params: {
+  status: typeof CommentStatus.Held | typeof CommentStatus.Rejected;
+  limit: number;
+  offset: number;
+}): Promise<{ rows: ModerationLogRow[]; hasMore: boolean }> {
+  const rows = await db
+    .select({
+      id: comments.id,
+      body: comments.body,
+      status: comments.status,
+      modVerdict: comments.modVerdict,
+      createdAt: comments.createdAt,
+      post: { slug: posts.slug, title: posts.title },
+      author: { name: user.name },
+    })
+    .from(comments)
+    .innerJoin(posts, eq(posts.id, comments.postId))
+    .innerJoin(user, eq(user.id, comments.authorId))
+    .where(eq(comments.status, params.status))
+    .orderBy(desc(comments.createdAt), desc(comments.id))
+    .limit(params.limit + 1)
+    .offset(params.offset);
+
+  const hasMore = rows.length > params.limit;
+  return { rows: hasMore ? rows.slice(0, params.limit) : rows, hasMore };
+}
+
+// Compare-and-swap status transition shared by approveHeldComment
+// (held -> visible) and restoreRejectedComment (rejected -> visible) — no
+// row matched (already resolved by someone else, or a bad id) is a conflict,
+// not a silent no-op (design D9).
+export async function casCommentStatus(
+  id: string,
+  fromStatus: CommentStatus,
+  toStatus: CommentStatus,
+): Promise<boolean> {
+  const updated = await db
+    .update(comments)
+    .set({ status: toStatus })
+    .where(and(eq(comments.id, id), eq(comments.status, fromStatus)))
+    .returning({ id: comments.id });
+  return updated.length > 0;
+}
