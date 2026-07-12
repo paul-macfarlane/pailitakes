@@ -130,7 +130,21 @@ export default async function AdminModerationPage({
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <div className="min-w-0">
                   <p className="text-sm font-medium">
-                    {row.author.name}{" "}
+                    {row.author.name}
+                    {row.author.bannedAt ? (
+                      // Ban state surfaces here (CMT-10) so an admin
+                      // reviewing rejections sees the outcome of an
+                      // auto-ban without cross-referencing /admin/users —
+                      // unban still happens there. Same pill markup +
+                      // data-slot convention as RoleBadge
+                      // (src/app/admin/users/page.tsx).
+                      <span
+                        data-slot="banned-badge"
+                        className="ml-1.5 rounded-full bg-destructive/10 px-2 py-0.5 text-xs font-medium text-destructive"
+                      >
+                        Banned
+                      </span>
+                    ) : null}{" "}
                     <span className="font-normal text-muted-foreground">
                       on{" "}
                       <Link
