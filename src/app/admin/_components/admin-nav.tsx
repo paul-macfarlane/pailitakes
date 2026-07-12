@@ -22,38 +22,43 @@ type NavLink = {
   active: boolean;
 };
 
-// In-shell admin navigation (Posts | Categories | Moderation | Users).
-// Client-side only for active-route highlighting (usePathname).
-// `isAdmin`/`canManageCategories`/`canModerateComments` are resolved on the
-// server and passed in, so the admin-only links are present in the initial
-// HTML (no post-hydration pop-in); requireAdmin() on /admin/users,
-// requireCapability(ManageCategories) on /admin/categories, and
-// requireCapability(ModerateComments) on /admin/moderation are still the
-// real boundaries.
+// In-shell admin navigation (Posts | Categories | Announcements | Moderation
+// | Users). Client-side only for active-route highlighting (usePathname).
+// `isAdmin`/`canManageCategories`/`canModerateComments`/
+// `canManageAnnouncements` are resolved on the server and passed in, so the
+// admin-only links are present in the initial HTML (no post-hydration
+// pop-in); requireAdmin() on /admin/users, requireCapability(ManageCategories)
+// on /admin/categories, requireCapability(ModerateComments) on
+// /admin/moderation, and requireCapability(ManageAnnouncements) on
+// /admin/announcements are still the real boundaries.
 export function AdminNav({
   isAdmin,
   canManageCategories,
   canModerateComments,
+  canManageAnnouncements,
 }: {
   isAdmin: boolean;
   canManageCategories: boolean;
   canModerateComments: boolean;
+  canManageAnnouncements: boolean;
 }) {
   const pathname = usePathname();
   const [sheetOpen, setSheetOpen] = useState(false);
 
   // Users owns /admin/users, Categories owns /admin/categories, Moderation
-  // owns /admin/moderation; everything else under /admin (dashboard, post
-  // editor, preview) belongs to Posts.
+  // owns /admin/moderation, Announcements owns /admin/announcements;
+  // everything else under /admin (dashboard, post editor, preview) belongs
+  // to Posts.
   const onUsers = pathname.startsWith("/admin/users");
   const onCategories = pathname.startsWith("/admin/categories");
   const onModeration = pathname.startsWith("/admin/moderation");
+  const onAnnouncements = pathname.startsWith("/admin/announcements");
 
   const links: NavLink[] = [
     {
       href: "/admin",
       label: "Posts",
-      active: !onUsers && !onCategories && !onModeration,
+      active: !onUsers && !onCategories && !onModeration && !onAnnouncements,
     },
     ...(canManageCategories
       ? [
@@ -61,6 +66,15 @@ export function AdminNav({
             href: "/admin/categories",
             label: "Categories",
             active: onCategories,
+          },
+        ]
+      : []),
+    ...(canManageAnnouncements
+      ? [
+          {
+            href: "/admin/announcements",
+            label: "Announcements",
+            active: onAnnouncements,
           },
         ]
       : []),
