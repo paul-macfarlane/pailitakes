@@ -22,7 +22,8 @@ lite-youtube.youtube-embed {
   --font-sans: "Geist", "Geist Fallback", ui-sans-serif, system-ui, sans-serif;
   --font-mono: "Geist Mono", "Geist Mono Fallback", ui-monospace, monospace;
   --font-heading:
-    "Geist", "Geist Fallback", ui-sans-serif, system-ui, sans-serif;
+    "Barlow Condensed", "Barlow Condensed Fallback", ui-sans-serif, system-ui,
+    sans-serif;
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -62,75 +63,81 @@ lite-youtube.youtube-embed {
   --radius-4xl: calc(var(--radius) * 2.6);
 }
 
+/* Brand palette (BRAND-1, ADR-0024): "Hot takes, cold analysis" as a
+   temperature system — every neutral carries a cold slate tint (hue ~250-255,
+   low chroma) and the single hot ember accent (hue 45) is reserved for
+   actions, focus, and identity. All fg/bg pairs validated >= 4.5:1 WCAG AA in
+   both modes. destructive/warning stay stock shadcn; ember sits at hue 45 to
+   keep clear separation from destructive red (hue ~27). */
 :root {
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
+  --background: oklch(0.99 0.003 250);
+  --foreground: oklch(0.16 0.015 255);
+  --card: oklch(1 0.002 250);
+  --card-foreground: oklch(0.16 0.015 255);
+  --popover: oklch(1 0.002 250);
+  --popover-foreground: oklch(0.16 0.015 255);
+  --primary: oklch(0.55 0.185 45);
+  --primary-foreground: oklch(0.985 0.012 45);
+  --secondary: oklch(0.962 0.007 250);
+  --secondary-foreground: oklch(0.22 0.02 255);
+  --muted: oklch(0.962 0.007 250);
+  --muted-foreground: oklch(0.51 0.02 255);
+  --accent: oklch(0.955 0.02 50);
+  --accent-foreground: oklch(0.3 0.06 40);
   --destructive: oklch(0.577 0.245 27.325);
   --warning: oklch(0.666 0.179 58.32);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
+  --border: oklch(0.915 0.01 250);
+  --input: oklch(0.915 0.01 250);
+  --ring: oklch(0.55 0.185 45);
+  --chart-1: oklch(0.55 0.185 45);
+  --chart-2: oklch(0.55 0.12 255);
+  --chart-3: oklch(0.72 0.15 70);
+  --chart-4: oklch(0.6 0.1 200);
+  --chart-5: oklch(0.45 0.03 255);
   --radius: 0.625rem;
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.205 0 0);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
+  --sidebar: oklch(0.975 0.005 250);
+  --sidebar-foreground: oklch(0.16 0.015 255);
+  --sidebar-primary: oklch(0.55 0.185 45);
+  --sidebar-primary-foreground: oklch(0.985 0.012 45);
+  --sidebar-accent: oklch(0.955 0.02 50);
+  --sidebar-accent-foreground: oklch(0.3 0.06 40);
+  --sidebar-border: oklch(0.915 0.01 250);
+  --sidebar-ring: oklch(0.55 0.185 45);
 }
 
 .dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.922 0 0);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
+  --background: oklch(0.15 0.015 255);
+  --foreground: oklch(0.96 0.005 250);
+  --card: oklch(0.195 0.018 255);
+  --card-foreground: oklch(0.96 0.005 250);
+  --popover: oklch(0.195 0.018 255);
+  --popover-foreground: oklch(0.96 0.005 250);
+  --primary: oklch(0.68 0.17 45);
+  --primary-foreground: oklch(0.16 0.05 45);
+  --secondary: oklch(0.26 0.018 255);
+  --secondary-foreground: oklch(0.96 0.005 250);
+  --muted: oklch(0.26 0.018 255);
+  --muted-foreground: oklch(0.7 0.02 255);
+  --accent: oklch(0.27 0.025 45);
+  --accent-foreground: oklch(0.97 0.01 45);
   --destructive: oklch(0.704 0.191 22.216);
   --warning: oklch(0.769 0.188 70.08);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
-  --sidebar: oklch(0.205 0 0);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.269 0 0);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.556 0 0);
+  --border: oklch(0.92 0.02 255 / 12%);
+  --input: oklch(0.92 0.02 255 / 16%);
+  --ring: oklch(0.68 0.17 45);
+  --chart-1: oklch(0.68 0.17 45);
+  --chart-2: oklch(0.65 0.12 255);
+  --chart-3: oklch(0.77 0.15 70);
+  --chart-4: oklch(0.7 0.1 200);
+  --chart-5: oklch(0.75 0.03 255);
+  --sidebar: oklch(0.195 0.018 255);
+  --sidebar-foreground: oklch(0.96 0.005 250);
+  --sidebar-primary: oklch(0.68 0.17 45);
+  --sidebar-primary-foreground: oklch(0.16 0.05 45);
+  --sidebar-accent: oklch(0.27 0.025 45);
+  --sidebar-accent-foreground: oklch(0.97 0.01 45);
+  --sidebar-border: oklch(0.92 0.02 255 / 12%);
+  --sidebar-ring: oklch(0.68 0.17 45);
 }
 
 @layer base {
@@ -139,6 +146,16 @@ lite-youtube.youtube-embed {
   }
   body {
     @apply bg-background text-foreground;
+  }
+  /* Headings sitewide use the condensed display face; prose (post bodies)
+     inherits this too since @tailwindcss/typography doesn't set font-family. */
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    @apply font-heading;
   }
   html {
     @apply font-sans;
