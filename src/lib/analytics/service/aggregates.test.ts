@@ -2,9 +2,9 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 // Mocks src/lib/analytics/data.ts directly (mirrors src/lib/analytics/
 // service/ingest.test.ts) rather than a real DB — canPerformAction is pure
-// and the data-layer SQL shape is proven by the data.ts integration
-// coverage, so this test only needs to prove the service's gating/
-// defaulting/assembly logic.
+// and the data-layer SQL shape is proven by the real-Postgres integration
+// coverage in src/lib/analytics/data.test.ts, so this test only needs to
+// prove the service's gating/defaulting/assembly logic.
 const countViewsByBucketMock = vi.hoisted(() => vi.fn());
 const countViewsByCategoryMock = vi.hoisted(() => vi.fn());
 const viewsAndEngagementByPostMock = vi.hoisted(() => vi.fn());
