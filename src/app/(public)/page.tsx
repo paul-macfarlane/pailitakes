@@ -8,6 +8,7 @@ import { SearchBox } from "@/app/(public)/_components/search-box";
 import { ExternalImage } from "@/components/external-image";
 import { PostCard } from "@/components/post-card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { ViewBeacon } from "@/components/view-beacon";
 import { listActiveCategories } from "@/lib/categories/data";
 import {
   getCategoryFeed,
@@ -57,6 +58,7 @@ export default function HomePage({
       <Suspense fallback={<HomeSkeleton />}>
         <HomeSection searchParams={searchParams} />
       </Suspense>
+      <ViewBeacon path="/" />
     </main>
   );
 }

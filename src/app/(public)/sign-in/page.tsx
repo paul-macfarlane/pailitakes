@@ -10,6 +10,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { ViewBeacon } from "@/components/view-beacon";
 import { safeNextPath } from "@/lib/auth/redirect-target";
 import { getSession } from "@/lib/auth/session";
 
@@ -42,6 +43,7 @@ export default function SignInPage({
           <SignInButtons />
         </CardContent>
       </Card>
+      <ViewBeacon path="/sign-in" />
     </main>
   );
 }
