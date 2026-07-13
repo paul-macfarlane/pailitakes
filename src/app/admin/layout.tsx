@@ -99,12 +99,13 @@ async function AdminGate({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
-// Resolves the admin-only Users/Categories/Moderation/Announcements links
-// server-side. UX only — requireAdmin() on /admin/users,
+// Resolves the admin-only Users/Categories/Moderation/Announcements/
+// Analytics links server-side. UX only — requireAdmin() on /admin/users,
 // requireCapability(ManageCategories) on /admin/categories,
-// requireCapability(ModerateComments) on /admin/moderation, and
-// requireCapability(ManageAnnouncements) on /admin/announcements are the
-// real boundaries — so a missing/non-admin session just hides the links.
+// requireCapability(ModerateComments) on /admin/moderation,
+// requireCapability(ManageAnnouncements) on /admin/announcements, and
+// requireCapability(ViewAnalytics) on /admin/analytics are the real
+// boundaries — so a missing/non-admin session just hides the links.
 async function AdminNavSection() {
   const session = await getSession();
   return (
@@ -126,6 +127,9 @@ async function AdminNavSection() {
         session
           ? canPerformAction(session.user, Action.ManageAnnouncements)
           : false
+      }
+      canViewAnalytics={
+        session ? canPerformAction(session.user, Action.ViewAnalytics) : false
       }
     />
   );
