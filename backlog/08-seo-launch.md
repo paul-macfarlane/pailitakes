@@ -2,7 +2,7 @@
 
 Metadata, sitemap, mobile polish, launch. Ref: FR-9.5; technical-design.md §5.8.
 
-- [ ] **SEO-1** — Per-post Metadata API: title, derived description, canonical URL, Open Graph / Twitter card (`og:image` = thumbnail). _(deps: POST-5)_
+- [ ] **SEO-1** — Per-post Metadata API: title, derived description, canonical URL, Open Graph / Twitter card (`og:image` = thumbnail). _(deps: POST-5; soft dep BRAND-3 — branded fallback card lands there)_
 - [ ] **SEO-2** — `sitemap.xml` route handler over visible posts, revalidated by tag `post-list`. _(deps: POST-2)_
 - [ ] **SEO-3** — `robots.txt` disallowing `/admin`. _(deps: none)_
 - [ ] **SEO-4** — Mobile-first QA pass across all public pages, comment threads, embeds, and interactions. _(deps: all public epics)_
