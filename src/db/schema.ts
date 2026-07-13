@@ -5,6 +5,7 @@
 import { sql, type SQL } from "drizzle-orm";
 import {
   type AnyPgColumn,
+  bigserial,
   boolean,
   customType,
   index,
@@ -367,6 +368,36 @@ export const announcements = pgTable("announcements", {
     .defaultNow()
     .$onUpdate(() => new Date()),
 });
+
+// Analytics domain (design §4, §5.6, ANLY-1): one row per beacon.
+export const pageViews = pgTable(
+  "page_views",
+  {
+    id: bigserial("id", { mode: "number" }).primaryKey(),
+    // Nullable: null = a non-post page (home, tags, account, ...). set null
+    // (not cascade) so an admin hard-delete of a post doesn't erase the
+    // site-traffic history it already generated — traffic-over-time (design
+    // §5.6) must stay accurate even after the post is gone.
+    postId: uuid("post_id").references(() => posts.id, {
+      onDelete: "set null",
+    }),
+    path: text("path").notNull(),
+    // Salted daily hash, no PII (design §8) — never raw IP/user-agent.
+    visitorHash: text("visitor_hash").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    // Per-post traffic-over-time queries (design §5.6 dashboard).
+    index("page_views_post_id_created_at_idx").on(
+      table.postId,
+      table.createdAt,
+    ),
+    // Site-wide traffic-over-time (no post filter).
+    index("page_views_created_at_idx").on(table.createdAt),
+  ],
+);
 
 // Single-row state for the ADM-9 revalidation cron (design §4): the last time
 // it ran, so the window of crossed publish_at/archive_at is computed from the
