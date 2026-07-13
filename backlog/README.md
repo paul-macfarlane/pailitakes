@@ -20,18 +20,19 @@ Write tasks as **goals**: the outcome plus the FR-x.y / technical-design § that
 
 ## Epics
 
-| File                    | Prefix | Epic                                                |
-| ----------------------- | ------ | --------------------------------------------------- |
-| `00-foundation.md`      | `FND`  | Scaffold, auth, environments                        |
-| `01-posts-public.md`    | `POST` | Posts data model, markdown, public post page & home |
-| `02-admin-authoring.md` | `ADM`  | Editor, drafts, preview, scheduling, cron           |
-| `03-search.md`          | `SRCH` | Categories, tags, search                            |
-| `04-comments.md`        | `CMT`  | Comment tree, moderation, rate limits, log          |
-| `05-likes.md`           | `LIKE` | Likes on posts and comments                         |
-| `06-announcements.md`   | `ANN`  | Admin announcements                                 |
-| `07-analytics.md`       | `ANLY` | View tracking + admin dashboard                     |
-| `08-seo-launch.md`      | `SEO`  | Metadata, sitemap, mobile QA, launch                |
-| `09-accounts.md`        | `ACCT` | Account self-service (deletion, anonymization)      |
+| File                    | Prefix  | Epic                                                |
+| ----------------------- | ------- | --------------------------------------------------- |
+| `00-foundation.md`      | `FND`   | Scaffold, auth, environments                        |
+| `01-posts-public.md`    | `POST`  | Posts data model, markdown, public post page & home |
+| `02-admin-authoring.md` | `ADM`   | Editor, drafts, preview, scheduling, cron           |
+| `03-search.md`          | `SRCH`  | Categories, tags, search                            |
+| `04-comments.md`        | `CMT`   | Comment tree, moderation, rate limits, log          |
+| `05-likes.md`           | `LIKE`  | Likes on posts and comments                         |
+| `06-announcements.md`   | `ANN`   | Admin announcements                                 |
+| `07-analytics.md`       | `ANLY`  | View tracking + admin dashboard                     |
+| `08-seo-launch.md`      | `SEO`   | Metadata, sitemap, mobile QA, launch                |
+| `09-accounts.md`        | `ACCT`  | Account self-service (deletion, anonymization)      |
+| `10-brand.md`           | `BRAND` | Visual identity: theme, icons, wordmark, OG card    |
 
 ## Working the backlog
 
