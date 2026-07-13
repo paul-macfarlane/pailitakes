@@ -334,6 +334,8 @@ src/
     api/
       auth/[...all]/route.ts      # Better Auth handler
       view/route.ts               # analytics beacon
+      admin/analytics/route.ts    # dashboard aggregates (admin, no-store;
+                                   # ADR-0025)
       comments/route.ts           # comment tree reads (no-store)
       cron/revalidate/route.ts    # cron-job.org target (secret-protected)
                                    # route handlers: validate -> guard -> delegate
