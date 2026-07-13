@@ -32,3 +32,4 @@ Create one with `/adr <title>` whenever a choice is non-obvious, hard to reverse
 | [0022](0022-auto-ban-repeat-moderation-offenders.md)                 | Auto-ban repeat moderation offenders (live rejected count)  | Accepted |
 | [0023](0023-announcements-rendering-read-shape.md)                   | Announcements: one markdown pipeline, expiry as read filter | Accepted |
 | [0024](0024-brand-temperature-tokens-condensed-heading.md)           | Brand: hot/cold temperature tokens + condensed heading font | Accepted |
+| [0025](0025-analytics-ingest-dashboard-decisions.md)                 | Analytics: set-null views FK, daily salt, drop-with-204     | Accepted |
