@@ -38,6 +38,11 @@ export const Action = {
   // future split (e.g. likes-only suspension) doesn't need to touch comment
   // gating.
   LikeContent: "like_content",
+  // Analytics dashboard + per-post view counts (FR-8.2, FR-8.3) are
+  // admin-facing in v1 — an author seeing only their own posts' analytics is
+  // a plausible future split (deferred, not designed yet), so this stays
+  // admin-only rather than granted to Author now and narrowed later.
+  ViewAnalytics: "analytics.view",
 } as const;
 export type Action = (typeof Action)[keyof typeof Action];
 
@@ -67,6 +72,7 @@ const ROLE_ACTIONS: Record<Role, readonly Action[]> = {
     Action.ManageAnyComment,
     Action.ModerateComments,
     Action.LikeContent,
+    Action.ViewAnalytics,
   ],
 };
 
