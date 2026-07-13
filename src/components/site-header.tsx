@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Suspense } from "react";
 
+import { BrandMark } from "@/components/brand-mark";
 import { HeaderAuth, HeaderAuthFallback } from "@/components/header-auth";
 import { HeaderShell } from "@/components/header-shell";
 import { ThemeToggle } from "@/components/theme-toggle";
@@ -18,8 +19,9 @@ export function SiteHeader() {
       <div className="flex min-w-0 items-center gap-5">
         <Link
           href="/"
-          className="font-heading text-2xl font-bold uppercase tracking-wide"
+          className="flex items-center gap-2 font-heading text-2xl font-bold uppercase tracking-wide"
         >
+          <BrandMark className="size-6 shrink-0" />
           Paulitakes
         </Link>
       </div>

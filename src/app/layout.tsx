@@ -1,9 +1,9 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Barlow_Condensed, Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 
 // Fail fast on invalid configuration (validated once, server-only).
-import "@/lib/shared/env";
+import { env } from "@/lib/shared/env";
 
 import { ThemeProvider } from "@/components/theme-provider";
 
@@ -28,12 +28,33 @@ const barlowCondensed = Barlow_Condensed({
   weight: ["500", "600", "700", "800"],
 });
 
+// next-themes' in-app toggle stamps a class on <html>, but the OS-level
+// theme-color meta tag can only track the system scheme via media query —
+// acceptable drift for users who override the system theme.
+export const viewport: Viewport = {
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#fafcfe" },
+    { media: "(prefers-color-scheme: dark)", color: "#070b11" },
+  ],
+};
+
 export const metadata: Metadata = {
+  // BETTER_AUTH_URL is the app's own origin, so it doubles as the canonical
+  // base for absolute OG/social URLs.
+  metadataBase: new URL(env.BETTER_AUTH_URL),
   title: {
     default: "Paulitakes",
     template: "%s · Paulitakes",
   },
   description: "Hot takes, cold analysis. A mobile-first sports blog.",
+  openGraph: {
+    siteName: "Paulitakes",
+    type: "website",
+    locale: "en_US",
+  },
+  twitter: {
+    card: "summary_large_image",
+  },
 };
 
 export default function RootLayout({

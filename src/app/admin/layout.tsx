@@ -3,6 +3,7 @@ import Link from "next/link";
 import { Suspense } from "react";
 
 import { AdminNav, AdminNavFallback } from "@/app/admin/_components/admin-nav";
+import { BrandMark } from "@/components/brand-mark";
 import { HeaderAuth, HeaderAuthFallback } from "@/components/header-auth";
 import { HeaderShell } from "@/components/header-shell";
 import { ThemeToggle } from "@/components/theme-toggle";
@@ -34,8 +35,9 @@ export default function AdminLayout({
               Moderation/Users sections (feedback: consistent admin nav). */}
           <Link
             href="/admin"
-            className="font-heading text-2xl font-bold uppercase tracking-wide whitespace-nowrap"
+            className="flex items-center gap-2 font-heading text-2xl font-bold uppercase tracking-wide whitespace-nowrap"
           >
+            <BrandMark className="size-6 shrink-0" />
             Paulitakes Admin
           </Link>
           {/* Users link is admin-only and resolved server-side; the fallback
