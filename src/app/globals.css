@@ -125,7 +125,9 @@ lite-youtube.youtube-embed {
   --border: oklch(0.92 0.02 255 / 12%);
   --input: oklch(0.92 0.02 255 / 16%);
   --ring: oklch(0.68 0.17 45);
-  --chart-1: oklch(0.68 0.17 45);
+  /* 0.66 (not primary's 0.68): keeps chart marks inside the dark-mode
+     lightness band (a11y-validated) */
+  --chart-1: oklch(0.66 0.17 45);
   --chart-2: oklch(0.65 0.12 255);
   --chart-3: oklch(0.77 0.15 70);
   --chart-4: oklch(0.7 0.1 200);

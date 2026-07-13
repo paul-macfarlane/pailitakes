@@ -23,42 +23,52 @@ type NavLink = {
 };
 
 // In-shell admin navigation (Posts | Categories | Announcements | Moderation
-// | Users). Client-side only for active-route highlighting (usePathname).
-// `isAdmin`/`canManageCategories`/`canModerateComments`/
-// `canManageAnnouncements` are resolved on the server and passed in, so the
-// admin-only links are present in the initial HTML (no post-hydration
-// pop-in); requireAdmin() on /admin/users, requireCapability(ManageCategories)
-// on /admin/categories, requireCapability(ModerateComments) on
-// /admin/moderation, and requireCapability(ManageAnnouncements) on
-// /admin/announcements are still the real boundaries.
+// | Analytics | Users). Client-side only for active-route highlighting
+// (usePathname). `isAdmin`/`canManageCategories`/`canModerateComments`/
+// `canManageAnnouncements`/`canViewAnalytics` are resolved on the server and
+// passed in, so the admin-only links are present in the initial HTML (no
+// post-hydration pop-in); requireAdmin() on /admin/users,
+// requireCapability(ManageCategories) on /admin/categories,
+// requireCapability(ModerateComments) on /admin/moderation,
+// requireCapability(ManageAnnouncements) on /admin/announcements, and
+// requireCapability(ViewAnalytics) on /admin/analytics are still the real
+// boundaries.
 export function AdminNav({
   isAdmin,
   canManageCategories,
   canModerateComments,
   canManageAnnouncements,
+  canViewAnalytics,
 }: {
   isAdmin: boolean;
   canManageCategories: boolean;
   canModerateComments: boolean;
   canManageAnnouncements: boolean;
+  canViewAnalytics: boolean;
 }) {
   const pathname = usePathname();
   const [sheetOpen, setSheetOpen] = useState(false);
 
   // Users owns /admin/users, Categories owns /admin/categories, Moderation
-  // owns /admin/moderation, Announcements owns /admin/announcements;
-  // everything else under /admin (dashboard, post editor, preview) belongs
-  // to Posts.
+  // owns /admin/moderation, Announcements owns /admin/announcements,
+  // Analytics owns /admin/analytics; everything else under /admin
+  // (dashboard, post editor, preview) belongs to Posts.
   const onUsers = pathname.startsWith("/admin/users");
   const onCategories = pathname.startsWith("/admin/categories");
   const onModeration = pathname.startsWith("/admin/moderation");
   const onAnnouncements = pathname.startsWith("/admin/announcements");
+  const onAnalytics = pathname.startsWith("/admin/analytics");
 
   const links: NavLink[] = [
     {
       href: "/admin",
       label: "Posts",
-      active: !onUsers && !onCategories && !onModeration && !onAnnouncements,
+      active:
+        !onUsers &&
+        !onCategories &&
+        !onModeration &&
+        !onAnnouncements &&
+        !onAnalytics,
     },
     ...(canManageCategories
       ? [
@@ -84,6 +94,15 @@ export function AdminNav({
             href: "/admin/moderation",
             label: "Moderation",
             active: onModeration,
+          },
+        ]
+      : []),
+    ...(canViewAnalytics
+      ? [
+          {
+            href: "/admin/analytics",
+            label: "Analytics",
+            active: onAnalytics,
           },
         ]
       : []),
