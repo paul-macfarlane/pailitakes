@@ -6,6 +6,7 @@ import { cacheLife, cacheTag } from "next/cache";
 import { CommentsSection } from "@/app/(public)/posts/[slug]/_components/comments-section";
 import { PostLikeButton } from "@/app/(public)/posts/[slug]/_components/post-like-button";
 import { PostArticle } from "@/components/post-article";
+import { ViewBeacon } from "@/components/view-beacon";
 import { deriveExcerpt } from "@/lib/content/excerpt";
 import { renderMarkdown } from "@/lib/content/markdown";
 import { slugParamSchema } from "@/lib/posts/input";
@@ -91,6 +92,9 @@ export default async function PostPage({
         <PostLikeButton postId={post.id} />
       </div>
       <CommentsSection postId={post.id} postSlug={slugResult.data} />
+      {/* Client-ref-in-"use cache" island, same pattern as PostLikeButton
+          above — placed last so it never affects layout. */}
+      <ViewBeacon path={`/posts/${slugResult.data}`} postId={post.id} />
     </main>
   );
 }

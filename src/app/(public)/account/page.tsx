@@ -11,6 +11,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { ViewBeacon } from "@/components/view-beacon";
 import { getSession } from "@/lib/auth/session";
 
 export const metadata: Metadata = {
@@ -43,6 +44,7 @@ export default function AccountPage() {
       >
         <AccountCard />
       </Suspense>
+      <ViewBeacon path="/account" />
     </main>
   );
 }

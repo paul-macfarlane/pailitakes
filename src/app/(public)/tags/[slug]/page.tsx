@@ -6,6 +6,7 @@ import { Suspense } from "react";
 import { FeedPagination } from "@/app/(public)/_components/feed-pagination";
 import { PostCard } from "@/components/post-card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { ViewBeacon } from "@/components/view-beacon";
 import { getTagFeed, HOME_PAGE_SIZE } from "@/lib/posts/home-feed";
 import { slugParamSchema } from "@/lib/posts/input";
 import { pageParamsSchema } from "@/lib/posts/search-params";
@@ -114,6 +115,7 @@ async function TagSection({
           hasMore={hasMore}
         />
       </div>
+      <ViewBeacon path={`/tags/${slugResult.data}`} />
     </main>
   );
 }
