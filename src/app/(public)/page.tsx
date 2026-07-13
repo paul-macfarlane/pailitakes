@@ -50,7 +50,7 @@ export default function HomePage({
 }) {
   return (
     <main className="mx-auto w-full max-w-2xl flex-1 px-4 py-8">
-      <h1 className="text-2xl font-bold tracking-tight">Paulitakes</h1>
+      <h1 className="text-3xl font-bold uppercase tracking-wide">Paulitakes</h1>
       <p className="mt-1 text-sm text-muted-foreground">
         Hot takes, cold analysis.
       </p>

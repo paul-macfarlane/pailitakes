@@ -84,7 +84,7 @@ export function PostArticle({ post }: { post: PostArticleData }) {
               {post.category.name}
             </Link>
           </p>
-          <h1 className="text-3xl font-bold tracking-tight">{post.title}</h1>
+          <h1 className="text-4xl font-bold tracking-tight">{post.title}</h1>
           <p className="mt-2 text-sm text-muted-foreground">
             By {post.author.name}
             {post.publishAt && (

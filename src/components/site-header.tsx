@@ -16,7 +16,10 @@ export function SiteHeader() {
   return (
     <HeaderShell maxWidthClass="max-w-4xl">
       <div className="flex min-w-0 items-center gap-5">
-        <Link href="/" className="text-lg font-bold tracking-tight">
+        <Link
+          href="/"
+          className="font-heading text-2xl font-bold uppercase tracking-wide"
+        >
           Paulitakes
         </Link>
       </div>

@@ -32,7 +32,10 @@ export default function AdminLayout({
           {/* Brand names the area you're in and returns to the admin home;
               the in-shell nav toggles between the Posts/Categories/
               Moderation/Users sections (feedback: consistent admin nav). */}
-          <Link href="/admin" className="text-lg font-bold tracking-tight">
+          <Link
+            href="/admin"
+            className="font-heading text-2xl font-bold uppercase tracking-wide whitespace-nowrap"
+          >
             Paulitakes Admin
           </Link>
           {/* Users link is admin-only and resolved server-side; the fallback
