@@ -47,9 +47,28 @@ export async function generateMetadata({
 
   const post = await getRenderedPost(slugResult.data);
   if (!post) return {};
+
+  const description = deriveExcerpt(post.bodyMd);
   return {
     title: post.title,
-    description: deriveExcerpt(post.bodyMd),
+    description,
+    alternates: { canonical: `/posts/${post.slug}` },
+    // Next merges metadata shallowly per top-level key, so defining
+    // openGraph here replaces the root layout's object entirely — siteName
+    // and locale must be restated (design §5.8).
+    openGraph: {
+      siteName: "Paulitakes",
+      locale: "en_US",
+      type: "article",
+      title: post.title,
+      description,
+      url: `/posts/${post.slug}`,
+      publishedTime: post.publishAt.toISOString(),
+      modifiedTime: post.contentUpdatedAt?.toISOString(),
+      section: post.category.name,
+      tags: post.tags.map((tag) => tag.name),
+      images: [{ url: post.thumbnailUrl, alt: post.title }],
+    },
   };
 }
 
