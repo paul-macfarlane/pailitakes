@@ -19,7 +19,7 @@ export async function SiteFooter() {
     <footer className="border-t">
       <div className="mx-auto flex w-full max-w-2xl flex-wrap items-center justify-between gap-x-4 gap-y-2 px-4 py-6 text-sm text-muted-foreground">
         <span>© {currentYear} Paulitakes</span>
-        <nav aria-label="Legal" className="flex items-center gap-4">
+        <nav aria-label="Footer" className="flex items-center gap-4">
           <Link
             href="/privacy"
             className="transition-colors hover:text-foreground"
@@ -32,6 +32,14 @@ export async function SiteFooter() {
           >
             Terms
           </Link>
+          <a
+            href="https://github.com/paul-macfarlane/pailitakes"
+            target="_blank"
+            rel="noreferrer"
+            className="transition-colors hover:text-foreground"
+          >
+            GitHub
+          </a>
         </nav>
       </div>
     </footer>
