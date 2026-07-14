@@ -24,6 +24,26 @@ config({ quiet: true });
 // shape.
 const BEACON_POLL = { timeout: 20_000 };
 
+// Fail fast with a diagnosable message when ingest is disabled: without
+// ANALYTICS_SALT_SEED the endpoint 503s (feature off, ADR-0025) and every
+// beacon spec would instead time out on an opaque "0 rows" poll. A bot UA
+// makes this probe side-effect-free — 204 when enabled (dropped, no row),
+// 503 when disabled.
+test.beforeAll(async ({ request }) => {
+  const res = await request.post("/api/view", {
+    headers: {
+      "user-agent": "e2e-preflight-bot",
+      "content-type": "application/json",
+    },
+    data: { path: "/" },
+  });
+  if (res.status() === 503) {
+    throw new Error(
+      "Analytics ingest is disabled: ANALYTICS_SALT_SEED is not set for the app under test, so beacon specs cannot pass. Set it in the environment that starts the dev server (see .env.example / .github/workflows/ci.yml).",
+    );
+  }
+});
+
 function requireDatabaseUrl(): string {
   const databaseUrl = process.env.DATABASE_URL;
   if (!databaseUrl) {
