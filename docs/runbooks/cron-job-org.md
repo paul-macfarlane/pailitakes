@@ -1,11 +1,18 @@
 # cron-job.org setup runbook (SEO-5 / ADM-9)
 
-The app has exactly one cron: `GET /api/cron/revalidate`, hit ~every 5 minutes
+The app has exactly one cron: `GET /api/cron/revalidate`, hit **once a day**
 per environment by [cron-job.org](https://cron-job.org) (design doc §5,
 "Scheduled publish/archive"). It revalidates cache tags for posts whose
 `publish_at`/`archive_at` crossed since the last run and normalizes stored
 statuses (`scheduled → published`, `→ archived`). One job per deployed
-environment; local dev doesn't need one (the 60s ISR window covers it).
+environment; local dev doesn't need one.
+
+Cadence is a free choice (owner picked daily, 2026-07-14): public visibility
+never waits on the cron — the read-time predicate plus the 60s ISR windows
+put scheduled publishes/archives live within ~a minute on their own. The cron
+only affects how quickly admin status badges catch up and how soon an
+auto-archived post's staged draft is cleaned up, so run it as rarely as
+you're happy with those lagging.
 
 ## What the endpoint expects
 
@@ -31,7 +38,8 @@ For each of **prod** and **staging**, in cron-job.org → Create cronjob:
 1. **Title:** `paulitakes revalidate (prod)` / `... (staging)`.
 2. **URL:** `https://www.paulitakes.com/api/cron/revalidate` /
    `https://staging.paulitakes.com/api/cron/revalidate`.
-3. **Schedule:** every 5 minutes.
+3. **Schedule:** once daily (e.g. 06:00). Any cadence works — see the note
+   above about what lags at lower frequencies.
 4. **Advanced → Headers:** add `Authorization` =
    `Bearer <that environment's CRON_SECRET>` (include the word `Bearer` and
    the space).
@@ -53,16 +61,16 @@ curl -s -o /dev/null -w "%{http_code}\n" \
   https://www.paulitakes.com/api/cron/revalidate
 ```
 
-End-to-end check: schedule a post a few minutes out in `/admin`, wait for its
-`publish_at` to pass plus one cron interval, and confirm it appears on the
-home page and in `/sitemap.xml` (both hang off the `post-list` tag the cron
-revalidates) without any manual edit.
+End-to-end check: schedule a post a few minutes out in `/admin` and confirm
+it appears on the home page and in `/sitemap.xml` within ~a minute of its
+publish time (that's the 60s ISR window doing the work); after the next cron
+run, its `/admin` badge should read "Published" and the cron response's
+`normalized` count should reflect it.
 
 ## If cron-job.org is down or misfiring
 
 Nothing breaks visibly: public visibility is computed by the query predicate
 at read time, and every cached page has a 60s ISR window as the safety net.
-The cron only tightens cache freshness to ~5 min for scheduled transitions
-and keeps admin status badges honest. Fix the job at leisure; the next
-successful run self-heals (it targets every currently-stale row, not just
-the last window).
+The cron only keeps admin status badges honest and cleans up staged drafts
+on auto-archive. Fix the job at leisure; the next successful run self-heals
+(it targets every currently-stale row, not just the last window).
