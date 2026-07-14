@@ -30,6 +30,10 @@ jobs:
       GOOGLE_CLIENT_SECRET: ci-dummy
       DISCORD_CLIENT_ID: ci-dummy
       DISCORD_CLIENT_SECRET: ci-dummy
+      # Without a salt seed the view beacon 503s — feature off, ADR-0025 —
+      # and the analytics e2e beacon specs can never record a row. Any
+      # >=16-char value works; this one is CI-only and never deployed.
+      ANALYTICS_SALT_SEED: ci-only-analytics-salt-seed
     steps:
       - uses: actions/checkout@v5
 
