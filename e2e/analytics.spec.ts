@@ -15,10 +15,14 @@ config({ quiet: true });
 // Analytics (ANLY, design §5.6, ADR-0025): the view beacon is fire-and-forget
 // sendBeacon, whose Blob payload Playwright cannot introspect
 // (postDataJSON() is null) — so beacon assertions go through the DB instead:
-// count page_views rows for the page's unique path before and after the
-// visit. The dashboard spec seeds synthetic rows directly (tagged visitor
+// poll for the page_views row the beacon inserts (a row existing IS proof of
+// the whole 204 insert path). Deliberately no waitForResponse: the beacon
+// fires on island hydration, which can straggle under full-suite parallel
+// load, and a response listener that never matches burns the entire test
+// timeout. The dashboard spec seeds synthetic rows directly (tagged visitor
 // hashes) because organic traffic can't produce a deterministic multi-day
 // shape.
+const BEACON_POLL = { timeout: 20_000 };
 
 function requireDatabaseUrl(): string {
   const databaseUrl = process.env.DATABASE_URL;
@@ -48,19 +52,14 @@ test("view beacon records a post pageview with its post id", async ({
   const pool = new Pool({ connectionString: requireDatabaseUrl(), max: 1 });
   const path = `/posts/${post.slug}`;
   try {
-    const beacon = page.waitForResponse(
-      (res) =>
-        res.url().includes("/api/view") && res.request().method() === "POST",
-    );
     await page.goto(path);
-    expect((await beacon).status()).toBe(204);
     // >= 1 rather than exactly 1: dev-mode HMR can remount the island and
     // legitimately re-fire (a remount IS a new pageview to the ref guard);
     // the once-per-mount contract itself is pinned by the component's shape
     // and the ingest unit tests. E2e proves the wiring: a row lands, carrying
     // the post id.
     await expect
-      .poll(() => countViewsForPath(pool, path))
+      .poll(() => countViewsForPath(pool, path), BEACON_POLL)
       .toBeGreaterThanOrEqual(1);
     const row = await pool.query(
       `select post_id from page_views where path = $1`,
@@ -82,16 +81,11 @@ test("view beacon records a home pageview without a post id", async ({
   const pool = new Pool({ connectionString: requireDatabaseUrl(), max: 1 });
   try {
     const before = await countViewsForPath(pool, "/");
-    const beacon = page.waitForResponse(
-      (res) =>
-        res.url().includes("/api/view") && res.request().method() === "POST",
-    );
     await page.goto("/");
-    expect((await beacon).status()).toBe(204);
     // >= rather than exact: other concurrently-running specs may also visit
     // the home page and legitimately beacon "/".
     await expect
-      .poll(() => countViewsForPath(pool, "/"))
+      .poll(() => countViewsForPath(pool, "/"), BEACON_POLL)
       .toBeGreaterThanOrEqual(before + 1);
   } finally {
     await pool.end();
