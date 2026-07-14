@@ -37,6 +37,12 @@ function isForeignKeyViolation(err: unknown): boolean {
 // A cached post page (ISR, design §3) can beacon the id of a post that was
 // hard-deleted after the page was cached — the FK violation this produces is
 // an expected, non-error outcome (UnknownPost), not a bug to surface.
+//
+// Why insert-and-classify rather than upsert: ON CONFLICT can't help here —
+// Postgres upsert handles only unique/exclusion constraint conflicts, not FK
+// violations, and page_views is append-only with no conflict key — every
+// pageview is a new row. Catching 23503 keeps it a single atomic statement
+// (no check-then-act round trip).
 export async function insertPageView({
   postId,
   path,
