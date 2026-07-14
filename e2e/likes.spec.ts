@@ -204,4 +204,36 @@ test.describe("like buttons", () => {
       await reader.cleanup();
     }
   });
+
+  // SEO-1: one representative wiring case (not a matrix) for the post page's
+  // generateMetadata — reuses this describe block's already-seeded published
+  // post rather than seeding a dedicated fixture elsewhere.
+  test("post page exposes canonical URL and Open Graph/Twitter metadata", async ({
+    page,
+  }) => {
+    const response = await page.goto(`/posts/${post.slug}`);
+    expect(response?.status()).toBe(200);
+
+    await expect(page.locator('link[rel="canonical"]')).toHaveAttribute(
+      "href",
+      new RegExp(`/posts/${post.slug}$`),
+    );
+    // Fixed thumbnail seeded by createTestPost (helpers/session.ts).
+    await expect(page.locator('meta[property="og:image"]')).toHaveAttribute(
+      "content",
+      "https://example.com/e2e-thumb.png",
+    );
+    await expect(page.locator('meta[property="og:type"]')).toHaveAttribute(
+      "content",
+      "article",
+    );
+    await expect(page.locator('meta[name="description"]')).toHaveAttribute(
+      "content",
+      /.+/,
+    );
+    await expect(page.locator('meta[name="twitter:card"]')).toHaveAttribute(
+      "content",
+      "summary_large_image",
+    );
+  });
 });
