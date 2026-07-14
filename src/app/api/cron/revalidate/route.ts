@@ -18,10 +18,11 @@ function tokenMatches(provided: string, expected: string): boolean {
   return timingSafeEqual(a, b);
 }
 
-// ADM-9 revalidation cron (cron-job.org hits this ~every 5 min). Bearer-authed
-// with CRON_SECRET; idempotent and DB-tracked (see src/lib/revalidation.ts).
-// Makes scheduled publish/archive crossings cache-exact between the 60s ISR
-// windows. Reading the Authorization header keeps this handler dynamic.
+// ADM-9 revalidation cron (Vercel Cron, daily via vercel.json; Vercel sends
+// the Bearer CRON_SECRET header automatically because the env var is named
+// CRON_SECRET). Idempotent and DB-tracked (see src/lib/revalidation.ts), so
+// cadence is a free choice — visibility never waits on it (60s ISR + read-time
+// predicate). Reading the Authorization header keeps this handler dynamic.
 export async function GET(request: Request) {
   // Disabled rather than open when the secret isn't configured.
   if (!env.CRON_SECRET) {

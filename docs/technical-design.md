@@ -9,22 +9,22 @@
 
 ## 1. Stack Summary
 
-| Concern     | Choice                                                        | Notes                                                                                                                                              |
-| ----------- | ------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Framework   | **Next.js (App Router)**                                      | SSR/ISR for public pages, server actions for mutations                                                                                             |
-| Hosting     | **Vercel**                                                    | Image handling, AI Gateway                                                                                                                         |
-| Scheduler   | **cron-job.org**                                              | External cron hitting a secret-protected endpoint every 5 min (free at this frequency; Vercel Cron on Hobby is once/day)                           |
-| Database    | **Neon Postgres** (prod/staging), **Docker Postgres** (local) | Serverless driver in deployed envs                                                                                                                 |
-| ORM         | **Drizzle**                                                   | Schema-as-code, migrations via drizzle-kit                                                                                                         |
-| Auth        | **Better Auth**                                               | Google + Discord OAuth, Drizzle adapter, role field                                                                                                |
-| Styling     | **Tailwind CSS + shadcn/ui**                                  | shadcn chart components wrap Recharts                                                                                                              |
-| Client data | **TanStack Query** (comments + admin dashboard only)          | Likes use server actions + `useOptimistic`; beacon is plain `sendBeacon`                                                                           |
-| Markdown    | **unified** (remark/rehype)                                   | Server-side render, sanitized, YouTube embed transform                                                                                             |
-| Thumbnails  | **External public URLs**                                      | No storage in v1; `next/image` with `unoptimized`; Vercel Blob later if uploads wanted                                                             |
-| Moderation  | **Claude Haiku via Vercel AI Gateway**                        | AI SDK, model `anthropic/claude-haiku-4.5`; OIDC auth on Vercel (no key mgmt); optional fallback model; $5/mo included credits cover this workload |
-| Search      | **Postgres FTS**                                              | Generated `tsvector` + GIN index                                                                                                                   |
-| Analytics   | **Self-hosted in Postgres**                                   | Beacon endpoint + `page_views` table                                                                                                               |
-| Charts      | **Recharts** (via shadcn/ui charts)                           | Admin analytics dashboard                                                                                                                          |
+| Concern     | Choice                                                        | Notes                                                                                                                                                                        |
+| ----------- | ------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Framework   | **Next.js (App Router)**                                      | SSR/ISR for public pages, server actions for mutations                                                                                                                       |
+| Hosting     | **Vercel**                                                    | Image handling, AI Gateway                                                                                                                                                   |
+| Scheduler   | **Vercel Cron**                                               | Daily hit of the secret-protected endpoint (`vercel.json`). Swapped from cron-job.org 2026-07-14: once/day fits the Vercel free tier, and visibility never waits on the cron |
+| Database    | **Neon Postgres** (prod/staging), **Docker Postgres** (local) | Serverless driver in deployed envs                                                                                                                                           |
+| ORM         | **Drizzle**                                                   | Schema-as-code, migrations via drizzle-kit                                                                                                                                   |
+| Auth        | **Better Auth**                                               | Google + Discord OAuth, Drizzle adapter, role field                                                                                                                          |
+| Styling     | **Tailwind CSS + shadcn/ui**                                  | shadcn chart components wrap Recharts                                                                                                                                        |
+| Client data | **TanStack Query** (comments + admin dashboard only)          | Likes use server actions + `useOptimistic`; beacon is plain `sendBeacon`                                                                                                     |
+| Markdown    | **unified** (remark/rehype)                                   | Server-side render, sanitized, YouTube embed transform                                                                                                                       |
+| Thumbnails  | **External public URLs**                                      | No storage in v1; `next/image` with `unoptimized`; Vercel Blob later if uploads wanted                                                                                       |
+| Moderation  | **Claude Haiku via Vercel AI Gateway**                        | AI SDK, model `anthropic/claude-haiku-4.5`; OIDC auth on Vercel (no key mgmt); optional fallback model; $5/mo included credits cover this workload                           |
+| Search      | **Postgres FTS**                                              | Generated `tsvector` + GIN index                                                                                                                                             |
+| Analytics   | **Self-hosted in Postgres**                                   | Beacon endpoint + `page_views` table                                                                                                                                         |
+| Charts      | **Recharts** (via shadcn/ui charts)                           | Admin analytics dashboard                                                                                                                                                    |
 
 ---
 
@@ -48,7 +48,7 @@
                     │   moderation log, announcements         │
                     │                                         │
                     │  Route handlers + server actions        │
-                    │  /api/cron ◀── cron-job.org (5 min)     │
+                    │  /api/cron ◀── Vercel Cron (daily)      │
                     └──────┬──────────────┬───────────────────┘
                            │              │
                     Neon Postgres    Vercel AI Gateway → Haiku
@@ -75,7 +75,7 @@ Four layers, each with a distinct job:
 
 1. **Full Route Cache + Vercel CDN.** ISR pages render once and serve as cached HTML from the edge. Invalidated by (a) time — `revalidate: 60` regenerates in the background at most once per minute, stale-while-revalidate, so no visitor ever waits — or (b) on-demand invalidation from server actions.
 2. **Tag-based on-demand invalidation.** Pages declare cache tags (`post:{slug}`, `post-list`, `announcements`). Publish/edit/archive/announcement actions call `revalidateTag(...)`, which correctly invalidates the post page, home, category/tag listings, and sitemap in one shot — no path enumeration to forget.
-3. **Time as the scheduled-publish safety net.** Visibility is a query predicate (§4), so a scheduled post becomes queryable at `publish_at` automatically; the next time-based regeneration (≤60s later) surfaces it. The 5-minute cron (cron-job.org) makes it exact by revalidating tags when any `publish_at`/`archive_at` crosses.
+3. **Time as the scheduled-publish safety net.** Visibility is a query predicate (§4), so a scheduled post becomes queryable at `publish_at` automatically; the next time-based regeneration (≤60s later) surfaces it. The daily cron (Vercel Cron) trues it up by revalidating tags when any `publish_at`/`archive_at` crossed.
 4. **Deliberately uncached:** the home page's `?q=` search reads (ADR-0018), `/admin/**`, and all comment/like reads (`no-store`). Interactive reads (comments, likes, comment moderation, the analytics dashboard) are client-fetched with TanStack Query. Filtered admin _lists_ (e.g. the ADM-8 post list) are uncached via dynamic server rendering with URL-param filters instead — client fetching buys nothing for them (ADR-0010).
 
 ---
@@ -207,7 +207,7 @@ AND (archive_at IS NULL OR archive_at > now())
 
 "Publish now" sets `status='published', publish_at=now()`. "Schedule" sets `status='scheduled'` with a future `publish_at` — the post becomes visible at that instant with **no job required**. Scheduled archive works identically via `archive_at`. A helper (`visiblePostsWhere()`) encapsulates the predicate for every public query and search.
 
-The only cron (cron-job.org hitting `/api/cron/revalidate`; daily — cadence relaxed from every-5-min at launch, 2026-07-14, since public visibility never depends on it: the read-time predicate plus the 60s ISR windows make scheduled transitions live within ~a minute regardless, so the cron only affects admin-badge freshness and staged-draft cleanup on auto-archive): find posts whose `publish_at`/`archive_at` crossed since the last run → `revalidateTag` for the affected post, `post-list`, and sitemap. The endpoint should be idempotent and track "last run" in the DB rather than trusting call timing, so a missed or duplicated trigger is harmless. The same run also **normalizes stored statuses** to match the visibility predicate (`normalizePostStatuses`): `scheduled → published` once `publish_at` passes, and `published/scheduled → archived` once `archive_at` passes — so the admin badge isn't stuck showing "Scheduled" for a post that is already public. Self-healing (targets every currently-stale row, not just the last window); archiving also clears any staged draft (ADR-0011) so a pending snapshot isn't stranded on a now-hidden post.
+The only cron (Vercel Cron hitting `/api/cron/revalidate` daily via `vercel.json` — relaxed from the original every-5-min cron-job.org design at launch, 2026-07-14, since public visibility never depends on it: the read-time predicate plus the 60s ISR windows make scheduled transitions live within ~a minute regardless, so the cron only affects admin-badge freshness and staged-draft cleanup on auto-archive): find posts whose `publish_at`/`archive_at` crossed since the last run → `revalidateTag` for the affected post, `post-list`, and sitemap. The endpoint should be idempotent and track "last run" in the DB rather than trusting call timing, so a missed or duplicated trigger is harmless. The same run also **normalizes stored statuses** to match the visibility predicate (`normalizePostStatuses`): `scheduled → published` once `publish_at` passes, and `published/scheduled → archived` once `archive_at` passes — so the admin badge isn't stuck showing "Scheduled" for a post that is already public. Self-healing (targets every currently-stale row, not just the last window); archiving also clears any staged draft (ADR-0011) so a pending snapshot isn't stranded on a now-hidden post.
 
 ---
 
@@ -337,7 +337,7 @@ src/
       admin/analytics/route.ts    # dashboard aggregates (admin, no-store;
                                    # ADR-0025)
       comments/route.ts           # comment tree reads (no-store)
-      cron/revalidate/route.ts    # cron-job.org target (secret-protected)
+      cron/revalidate/route.ts    # Vercel Cron target (secret-protected)
                                    # route handlers: validate -> guard -> delegate
                                    # to a lib service, same as actions/
   components/                     # components shared across route segments
@@ -393,7 +393,7 @@ Each domain under `lib/` follows the same shape: `service*.ts` holds business lo
 - All mutations are server actions with per-action session + role + ownership checks; middleware is convenience only.
 - `rehype-sanitize` on all rendered markdown (posts _and_ announcements); comments are plain text with escaped output and auto-linked URLs (`rel="nofollow ugc"`).
 - Thumbnail URLs validated as `https://` image URLs; rendered `unoptimized` to avoid the open image-proxy problem with wildcard `remotePatterns`.
-- Cron endpoint requires an `Authorization: Bearer ${CRON_SECRET}` header, configured as a custom header on the cron-job.org job (it supports custom headers). Reject anything without it; the route does nothing destructive regardless (it only revalidates caches), so worst case for a leaked URL is extra cache churn.
+- Cron endpoint requires an `Authorization: Bearer ${CRON_SECRET}` header — Vercel Cron sends it automatically because the env var is named `CRON_SECRET`. Reject anything without it; the route does nothing destructive regardless (it only revalidates caches), so worst case for a leaked URL is extra cache churn.
 - Analytics stores only salted daily hashes — no IPs, no cookies, no cross-day correlation.
 - Banned users: checked on comment and like actions; sessions not revoked (they can still read).
 
