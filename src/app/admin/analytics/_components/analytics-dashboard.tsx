@@ -1,6 +1,7 @@
 "use client";
 
 import { useId, useState } from "react";
+import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import {
   Area,
@@ -437,8 +438,15 @@ function PostsTableCard({ posts }: { posts: PostEngagement[] }) {
               <tbody>
                 {posts.map((post) => (
                   <tr key={post.postId} className="border-b last:border-0">
-                    <td className="max-w-xs truncate py-2 pr-4">
-                      {post.title}
+                    <td className="max-w-xs py-2 pr-4">
+                      <Link
+                        href={`/posts/${post.slug}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="block truncate hover:underline"
+                      >
+                        {post.title}
+                      </Link>
                     </td>
                     <td className="py-2 pr-4 text-right tabular-nums">
                       {post.views.toLocaleString()}

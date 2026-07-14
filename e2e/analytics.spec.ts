@@ -24,6 +24,13 @@ config({ quiet: true });
 // shape.
 const BEACON_POLL = { timeout: 20_000 };
 
+// The suite-wide Playwright UA is deliberately bot-marked (see
+// playwright.config.ts) so incidental pageviews don't pollute analytics;
+// these two specs are the ones proving ingest works, so they need a
+// real-browser UA that survives the ingest's bot filter.
+const HUMAN_UA =
+  "Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1";
+
 // Fail fast with a diagnosable message when ingest is disabled: without
 // ANALYTICS_SALT_SEED the endpoint 503s (feature off, ADR-0025) and every
 // beacon spec would instead time out on an opaque "0 rows" poll. A bot UA
@@ -61,8 +68,10 @@ async function countViewsForPath(pool: Pool, path: string): Promise<number> {
 }
 
 test("view beacon records a post pageview with its post id", async ({
-  page,
+  browser,
 }) => {
+  const context = await browser.newContext({ userAgent: HUMAN_UA });
+  const page = await context.newPage();
   const session = await createTestSession({ role: "author" });
   const category = await createTestCategory();
   const post = await createTestPost({
@@ -92,12 +101,15 @@ test("view beacon records a post pageview with its post id", async ({
     await post.cleanup();
     await category.cleanup();
     await session.cleanup();
+    await context.close();
   }
 });
 
 test("view beacon records a home pageview without a post id", async ({
-  page,
+  browser,
 }) => {
+  const context = await browser.newContext({ userAgent: HUMAN_UA });
+  const page = await context.newPage();
   const pool = new Pool({ connectionString: requireDatabaseUrl(), max: 1 });
   try {
     const before = await countViewsForPath(pool, "/");
@@ -109,6 +121,7 @@ test("view beacon records a home pageview without a post id", async ({
       .toBeGreaterThanOrEqual(before + 1);
   } finally {
     await pool.end();
+    await context.close();
   }
 });
 

@@ -19,10 +19,27 @@ export default defineConfig({
     baseURL: "http://localhost:3000",
     trace: "on-first-retry",
   },
+  // The "...Bot" UA suffix below rides the ingest's existing bot filter
+  // (src/lib/analytics/bot.ts matches "bot" case-insensitively) so the
+  // suite's incidental view beacons get dropped instead of polluting
+  // dev-DB analytics. The two beacon specs in e2e/analytics.spec.ts opt
+  // back in with their own clean-UA context.
   projects: [
     // Mobile-first project (FR-9.4): critical flows must pass at phone width.
-    { name: "mobile-chrome", use: { ...devices["Pixel 7"] } },
-    { name: "chromium", use: { ...devices["Desktop Chrome"] } },
+    {
+      name: "mobile-chrome",
+      use: {
+        ...devices["Pixel 7"],
+        userAgent: `${devices["Pixel 7"].userAgent} PaulitakesE2EBot`,
+      },
+    },
+    {
+      name: "chromium",
+      use: {
+        ...devices["Desktop Chrome"],
+        userAgent: `${devices["Desktop Chrome"].userAgent} PaulitakesE2EBot`,
+      },
+    },
   ],
   webServer: {
     command: "pnpm dev",
