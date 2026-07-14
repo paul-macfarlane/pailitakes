@@ -51,6 +51,33 @@ async function seedCommentLike(
   await pool.end();
 }
 
+// The button's aria-pressed/count flip optimistically on click (like-button
+// useOptimistic) BEFORE the server action commits — reloading right after
+// the UI assertion can abort the in-flight action and lose the write. Poll
+// the DB for the committed row count before any reload so the persistence
+// assertions read settled state, not a race.
+async function pollLikeCount(
+  table: "post_likes" | "comment_likes",
+  targetId: string,
+  expected: number,
+): Promise<void> {
+  const column = table === "post_likes" ? "post_id" : "comment_id";
+  const pool = new Pool({ connectionString: requireDatabaseUrl(), max: 1 });
+  try {
+    await expect
+      .poll(async () => {
+        const res = await pool.query<{ n: number }>(
+          `select count(*)::int as n from ${table} where ${column} = $1`,
+          [targetId],
+        );
+        return res.rows[0]!.n;
+      })
+      .toBe(expected);
+  } finally {
+    await pool.end();
+  }
+}
+
 test.describe("like buttons", () => {
   let author: TestSession;
   let category: TestCategory;
@@ -123,6 +150,7 @@ test.describe("like buttons", () => {
       await postLikeButton.click();
       await expect(postLikeButton).toHaveAttribute("aria-pressed", "true");
       await expect(postLikeButton).toContainText("2");
+      await pollLikeCount("post_likes", post.id, 2);
 
       await page.reload();
       const reloadedButton = page.getByRole("button", {
@@ -134,6 +162,7 @@ test.describe("like buttons", () => {
       await reloadedButton.click();
       await expect(reloadedButton).toHaveAttribute("aria-pressed", "false");
       await expect(reloadedButton).toContainText("1");
+      await pollLikeCount("post_likes", post.id, 1);
 
       await page.reload();
       const untoggledButton = page.getByRole("button", {
@@ -163,6 +192,7 @@ test.describe("like buttons", () => {
       await commentLikeButton.click();
       await expect(commentLikeButton).toHaveAttribute("aria-pressed", "true");
       await expect(commentLikeButton).toContainText("2");
+      await pollLikeCount("comment_likes", comment.id, 2);
 
       await page.reload();
       const reloadedButton = page.getByRole("button", {
