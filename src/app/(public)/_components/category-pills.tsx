@@ -2,6 +2,8 @@ import Link from "next/link";
 
 import { cn } from "@/lib/utils";
 
+import { ScrollFadeRail } from "./scroll-fade-rail";
+
 function categoryHref(slug: string | undefined, q: string | undefined) {
   const params = new URLSearchParams();
   if (q) params.set("q", q);
@@ -21,7 +23,9 @@ const PILL_INACTIVE_CLASSES =
 // query param rather than its own cached route (owner-approved fold of
 // /search + /categories/[slug] into home, epic 03 SRCH). Every href
 // preserves `q` so a search and a category filter compose (`/?category=nba
-// &q=nuggets`) — that's the combinability the fold exists for.
+// &q=nuggets`) — that's the combinability the fold exists for. The scroll
+// affordance (edge fade + snap) is delegated to the ScrollFadeRail client
+// island so this component itself stays server-only (SEO-7).
 export function CategoryPills({
   categories,
   activeSlug,
@@ -34,38 +38,40 @@ export function CategoryPills({
   if (categories.length === 0) return null;
 
   return (
-    <nav aria-label="Categories" className="-mx-4 overflow-x-auto px-4">
-      <ul className="flex w-max gap-2">
-        <li>
-          <Link
-            href={categoryHref(undefined, q)}
-            className={cn(
-              PILL_CLASSES,
-              !activeSlug ? PILL_ACTIVE_CLASSES : PILL_INACTIVE_CLASSES,
-            )}
-            aria-current={!activeSlug ? "page" : undefined}
-          >
-            All
-          </Link>
-        </li>
-        {categories.map((category) => {
-          const active = category.slug === activeSlug;
-          return (
-            <li key={category.slug}>
-              <Link
-                href={categoryHref(category.slug, q)}
-                className={cn(
-                  PILL_CLASSES,
-                  active ? PILL_ACTIVE_CLASSES : PILL_INACTIVE_CLASSES,
-                )}
-                aria-current={active ? "page" : undefined}
-              >
-                {category.name}
-              </Link>
-            </li>
-          );
-        })}
-      </ul>
+    <nav aria-label="Categories" className="-mx-4">
+      <ScrollFadeRail className="px-4">
+        <ul className="flex w-max gap-2">
+          <li className="snap-start">
+            <Link
+              href={categoryHref(undefined, q)}
+              className={cn(
+                PILL_CLASSES,
+                !activeSlug ? PILL_ACTIVE_CLASSES : PILL_INACTIVE_CLASSES,
+              )}
+              aria-current={!activeSlug ? "page" : undefined}
+            >
+              All
+            </Link>
+          </li>
+          {categories.map((category) => {
+            const active = category.slug === activeSlug;
+            return (
+              <li key={category.slug} className="snap-start">
+                <Link
+                  href={categoryHref(category.slug, q)}
+                  className={cn(
+                    PILL_CLASSES,
+                    active ? PILL_ACTIVE_CLASSES : PILL_INACTIVE_CLASSES,
+                  )}
+                  aria-current={active ? "page" : undefined}
+                >
+                  {category.name}
+                </Link>
+              </li>
+            );
+          })}
+        </ul>
+      </ScrollFadeRail>
     </nav>
   );
 }
