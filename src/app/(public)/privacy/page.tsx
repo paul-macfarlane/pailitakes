@@ -73,7 +73,9 @@ export default function PrivacyPage() {
         <h2>Data retention &amp; deletion</h2>
         <p>
           There&apos;s no self-serve account deletion yet. If you&apos;d like
-          your account or data deleted, contact the site operator to request it.
+          your account or data deleted, email{" "}
+          <a href="mailto:paulitakesweb@gmail.com">paulitakesweb@gmail.com</a>{" "}
+          to request it.
         </p>
 
         <h2>Changes</h2>
@@ -83,7 +85,10 @@ export default function PrivacyPage() {
         </p>
 
         <h2>Contact</h2>
-        <p>Questions about this policy? Reach out to the site operator.</p>
+        <p>
+          Questions about this policy? Email{" "}
+          <a href="mailto:paulitakesweb@gmail.com">paulitakesweb@gmail.com</a>.
+        </p>
       </article>
     </main>
   );
