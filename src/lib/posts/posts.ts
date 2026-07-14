@@ -187,6 +187,22 @@ export async function getVisiblePostBySlug(
   return (rows[0] as PostDetail | undefined) ?? null;
 }
 
+// Site-wide enumeration for /sitemap.xml (SEO-2): every visible post, no
+// limit/offset — the sitemap is the one caller that wants the full set.
+export async function listVisiblePostsForSitemap(): Promise<
+  { slug: string; publishAt: Date | null; contentUpdatedAt: Date | null }[]
+> {
+  return db
+    .select({
+      slug: posts.slug,
+      publishAt: posts.publishAt,
+      contentUpdatedAt: posts.contentUpdatedAt,
+    })
+    .from(posts)
+    .where(visiblePostsWhere())
+    .orderBy(desc(posts.publishAt));
+}
+
 // Public read for the /tags/[slug] page (SRCH-2). Tags are a posts-domain
 // concept (no dedicated tags module exists), same as postTagsAgg above.
 export async function getTagBySlug(
