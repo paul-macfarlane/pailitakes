@@ -3,6 +3,7 @@ import { Pool } from "pg";
 import crypto from "node:crypto";
 import { expect, test } from "@playwright/test";
 
+import { openAdminNav } from "./helpers/interaction";
 import {
   createTestCategory,
   createTestPost,
@@ -130,11 +131,6 @@ test("admin sees the analytics dashboard: charts, table, mobile fit", async ({
     await expect(
       page.getByRole("heading", { name: /analytics/i }),
     ).toBeVisible();
-    await expect(
-      page
-        .getByRole("navigation", { name: "Admin" })
-        .getByRole("link", { name: "Analytics" }),
-    ).toBeVisible();
     await expect(page.locator("svg.recharts-surface").first()).toBeVisible({
       timeout: 15_000,
     });
@@ -148,6 +144,11 @@ test("admin sees the analytics dashboard: charts, table, mobile fit", async ({
       () => document.body.scrollWidth - window.innerWidth,
     );
     expect(overflow).toBeLessThanOrEqual(0);
+
+    // Nav entry last: on phone widths the links live in the hamburger sheet
+    // (a dialog, not the nav landmark), which overlays the page once open.
+    await openAdminNav(page);
+    await expect(page.getByRole("link", { name: "Analytics" })).toBeVisible();
   } finally {
     await pool.query(`delete from page_views where visitor_hash like $1`, [
       `${hashTag}-%`,
@@ -172,12 +173,11 @@ test("author gets no analytics nav, page, or endpoint access", async ({
   try {
     await context.addCookies([session.cookie]);
     await page.goto("/admin");
-    await expect(page.getByRole("navigation", { name: "Admin" })).toBeVisible();
-    await expect(
-      page
-        .getByRole("navigation", { name: "Admin" })
-        .getByRole("link", { name: "Analytics" }),
-    ).toHaveCount(0);
+    // Open the hamburger sheet on phone widths (no-op on desktop) so the
+    // absence check below inspects rendered nav links, not a hidden nav.
+    await openAdminNav(page);
+    await expect(page.getByRole("link", { name: "Posts" })).toBeVisible();
+    await expect(page.getByRole("link", { name: "Analytics" })).toHaveCount(0);
 
     await page.goto("/admin/analytics");
     await expect(page.getByRole("heading", { name: /analytics/i })).toHaveCount(
