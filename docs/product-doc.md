@@ -39,12 +39,12 @@ The homepage features recent posts alongside a dedicated announcements section f
 
 ## 2. Users & Roles
 
-| Role                       | Description                             | Capabilities                                                                                                                                                   |
-| -------------------------- | --------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Visitor**                | Anyone, no account                      | Browse, read posts, view announcements, search, filter by category/tag, view comments and like counts                                                          |
-| **Reader** (authenticated) | Signed in via Google or Discord         | Everything a Visitor can do, plus: comment, reply in threads, edit/delete own comments, like/unlike posts and comments                                         |
-| **Author**                 | Contributor account designated by admin | Everything a Reader can do, plus: create, edit, preview, draft, schedule publish, and schedule archive **their own** posts                                     |
-| **Admin** (Paul)           | Site owner                              | Everything an Author can do on **all** posts, plus: announcements, comment moderation, user management (roles, bans), category management, analytics dashboard |
+| Role                       | Description                             | Capabilities                                                                                                                                                                                                        |
+| -------------------------- | --------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Visitor**                | Anyone, no account                      | Browse, read posts, view announcements, search, filter by category/tag, view comments and like counts                                                                                                               |
+| **Reader** (authenticated) | Signed in via Google or Discord         | Everything a Visitor can do, plus: comment, reply in threads, edit/delete own comments, like/unlike posts and comments                                                                                              |
+| **Author**                 | Contributor account designated by admin | Everything a Reader can do, plus: create, edit, preview, draft, schedule publish, schedule archive, and permanently delete **their own** never-published posts                                                      |
+| **Admin** (Paul)           | Site owner                              | Everything an Author can do on **all** posts, plus: announcements, comment moderation, user management (roles, bans), transferring a user's posts to another staff member, category management, analytics dashboard |
 
 ---
 
@@ -108,6 +108,8 @@ The homepage features recent posts alongside a dedicated announcements section f
 - **FR-7.6** — Schedule archive: set a future date/time on a published post; the post automatically becomes Archived at that time.
 - **FR-7.7** — Preview: any Draft or Scheduled post can be viewed rendered as it will appear publicly, via a private preview.
 - **FR-7.8** — Authoring and admin routes are restricted to the appropriate roles.
+- **FR-7.9** — An author may permanently delete one of their own posts that has never been public: Draft, or Scheduled with a future publish time, and only if the post has no comments. Admin may permanently delete any post regardless of status.
+- **FR-7.10** — Admin can transfer all of a user's posts to another active staff member (Author or Admin, not banned), e.g. to unblock that user's account deletion or reassign ownership.
 
 ### 3.8 Analytics
 
@@ -128,7 +130,7 @@ The homepage features recent posts alongside a dedicated announcements section f
 - **FR-10.1** — Sign in with Google or Discord only. No email/password.
 - **FR-10.2** — Accounts store: display name (editable), avatar (from provider), linked provider identity, and role (Reader by default; Author/Admin assigned by admin).
 - **FR-10.3** — Reader accounts exist to enable commenting and liking; no public profiles in v1.
-- **FR-10.4** — Self-serve account deletion: a signed-in user can delete their own account after confirmation. Deletion removes the account, provider identities, sessions, and likes; comments are anonymized thread-preservingly (authorless "[deleted]" placeholders). Refused for staff with authored posts (transfer/delete first) and for the last active admin.
+- **FR-10.4** — Self-serve account deletion: a signed-in user can delete their own account after confirmation. Deletion removes the account, provider identities, sessions, and likes; comments are anonymized thread-preservingly (authorless "[deleted]" placeholders). Any never-published posts the user authored (see FR-7.9) are deleted automatically as part of account deletion. Refused only for a staff member whose remaining posts were ever published or have comments (admin can transfer those posts to another staff member first, per FR-7.10, or delete them) and for the last active admin.
 
 ---
 

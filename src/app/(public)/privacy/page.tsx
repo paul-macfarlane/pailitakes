@@ -84,6 +84,11 @@ export default function PrivacyPage() {
           otherwise the comment disappears from display entirely.
         </p>
         <p>
+          If you&apos;re an author, any unpublished drafts you wrote are deleted
+          along with your account; published articles must first be transferred
+          or removed by the site owner.
+        </p>
+        <p>
           If you have any other questions or requests about your data, email{" "}
           <a href="mailto:paulitakesweb@gmail.com">paulitakesweb@gmail.com</a>.
         </p>

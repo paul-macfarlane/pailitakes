@@ -13,7 +13,7 @@ ACCT-1 adds self-service account deletion. The `comments.author_id` and `posts.a
 - Deletion goes through Better Auth's `user.deleteUser` (client `authClient.deleteUser()` from a confirm dialog); a `beforeDelete` hook runs the guards and anonymization, and a thrown `APIError` blocks the deletion with a user-facing message.
 - Anonymization is **one uniform UPDATE** over all the user's comments: `author_id = NULL`, `status = 'deleted'`, `body = ''`, `mod_verdict = NULL`. No childless-hard-delete loop: the ADR-0020 prune rule already hides placeholder rows without visible descendants, so the display is identical and the retained rows hold no PII.
 - `comments.author_id` becomes **nullable** (NULL = author deleted their account); the FK keeps RESTRICT so any non-anonymized row still blocks a user delete loudly. The comment-tree read becomes a `leftJoin`; null-author rows are redacted like non-visible ones. `posts.author_id` is unchanged.
-- **Refusals:** staff with authored posts (transfer-first is deferred), and the last active admin (`wouldOrphanAdmins` under `withLockedUserMutation`). Banned users may delete their own account.
+- **Refusals:** staff with authored posts (transfer-first is deferred), and the last active admin (`wouldOrphanAdmins` under `withLockedUserMutation`). Banned users may delete their own account. (Amended by 0027: never-public comment-free posts are now auto-deleted; transfer exists.)
 - Likes disappear via the existing `ON DELETE CASCADE` on the like tables; Better Auth's own cascade covers sessions/accounts.
 - OAuth-only users have no password, so Better Auth's fresh-session check (24h `freshAge` default) applies; the UI maps `SESSION_EXPIRED` to "sign out and back in" copy.
 
