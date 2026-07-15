@@ -72,8 +72,10 @@ export async function deletePost(
   // Session/role checked before parsing the id (engineering rules: session
   // -> role -> everything else) — an unauthenticated or unauthorized caller
   // gets only "Not authorized.", never id-format validation feedback.
-  // Hard delete is admin-only; authors archive instead, which is
-  // recoverable (ADM-4/FR-7.6) — deletion is not.
+  // Admins hard-delete any post; authors may hard-delete only their own
+  // never-public, comment-free posts (draft/scheduled, never actually gone
+  // live) — otherwise they archive instead, which is recoverable
+  // (ADM-4/FR-7.6). deletePostService enforces the exact scoping.
   const session = await actionSession(Action.DeletePost);
   if (!session) {
     return { ok: false, error: NOT_AUTHORIZED_ERROR };
@@ -84,5 +86,5 @@ export async function deletePost(
     return { ok: false, error: idResult.error.issues[0]!.message };
   }
 
-  return deletePostService(idResult.data);
+  return deletePostService(session, idResult.data);
 }

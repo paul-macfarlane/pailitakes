@@ -31,14 +31,18 @@ describe("canPerformAction", () => {
     ["reader", reader, Action.ModerateComments, false],
     ["reader", reader, Action.LikeContent, true],
 
-    // Author: create/edit/publish/preview/access-admin/comment, but not the
-    // admin-only ownership bypass, delete, user management, category
+    // Author: create/edit/publish/preview/access-admin/comment/delete(-own),
+    // but not the admin-only ownership bypass, user management, category
     // management (FR-2.1: categories are admin-managed), announcement
     // management (FR-6.1: admin-only), or comment moderation/manage-any.
+    // DeletePost here only says the CAPABILITY is granted — the service
+    // (deleteOwnNeverPublicPost) further scopes an author to their own
+    // never-public, comment-free posts; see src/lib/posts/service/crud.test.ts
+    // (or crud.test.ts under actions) for that scoping.
     ["author", author, Action.CreatePost, true],
     ["author", author, Action.EditPost, true],
     ["author", author, Action.ManageAnyPost, false],
-    ["author", author, Action.DeletePost, false],
+    ["author", author, Action.DeletePost, true],
     ["author", author, Action.PublishPost, true],
     ["author", author, Action.PreviewPost, true],
     ["author", author, Action.AccessAdmin, true],
@@ -112,6 +116,13 @@ describe("rolesWithAction", () => {
 
   it("returns only admin for ManageAnyPost", () => {
     expect(rolesWithAction(Action.ManageAnyPost)).toEqual(["admin"]);
+  });
+
+  it("returns author and admin for DeletePost", () => {
+    expect(rolesWithAction(Action.DeletePost).sort()).toEqual([
+      "admin",
+      "author",
+    ]);
   });
 
   it("returns only admin for ManageCategories", () => {

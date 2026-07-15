@@ -14,6 +14,7 @@ import { isRenderableImageSrc } from "@/lib/content/image-src";
 import {
   categoryExists,
   clearStagedDraft,
+  deleteOwnNeverPublicPost,
   deletePostRow,
   findSlugClash,
   insertPost,
@@ -321,16 +322,37 @@ export async function updatePostService(
   }
 }
 
+// An author's delete is scoped to their own never-public, comment-free
+// posts (deleteOwnNeverPublicPost enforces the exact predicate) — the same
+// message covers every way that predicate can fail (not theirs, already
+// public/was-public, or has a comment) since the DB gives back only
+// "matched" or "didn't", not which guard tripped.
+export const AUTHOR_DELETE_REFUSED_ERROR =
+  "You can only delete your own drafts or scheduled posts, and only before anyone has commented. Ask an admin otherwise.";
+
 export async function deletePostService(
+  session: StaffSession,
   id: string,
 ): Promise<ActionResult<{ id: string }>> {
   try {
-    const deleted = await deletePostRow(id);
+    // ManageAnyPost (admin) hard-deletes any post unconditionally; everyone
+    // else goes through the narrower own-never-public-post path (§5.7's
+    // ownership bypass idiom).
+    const deleted = canPerformAction(session.user, Action.ManageAnyPost)
+      ? await deletePostRow(id)
+      : await deleteOwnNeverPublicPost(id, session.user.id);
 
     if (!deleted) {
-      return { ok: false, error: "Post not found." };
+      return canPerformAction(session.user, Action.ManageAnyPost)
+        ? { ok: false, error: "Post not found." }
+        : { ok: false, error: AUTHOR_DELETE_REFUSED_ERROR };
     }
 
+    // Revalidated on every success path, including the never-cached
+    // author-owned deletes: harmless (revalidating a tag nobody cached is a
+    // no-op) and kills a stale-cache class outright — a post an author
+    // deleted right after it briefly went public then reverted to draft
+    // could otherwise leave a stale post:{slug} cache entry behind.
     revalidateTag("post-list", IMMEDIATE);
     revalidateTag(`post:${deleted.slug}`, IMMEDIATE);
 
