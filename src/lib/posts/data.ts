@@ -8,18 +8,27 @@ import "server-only";
 import {
   and,
   eq,
+  gt,
   inArray,
   isNull,
   ne,
   notExists,
   notInArray,
+  or,
   sql,
   type SQL,
 } from "drizzle-orm";
 import type { PgColumn } from "drizzle-orm/pg-core";
 
 import { db, type Db } from "@/db";
-import { categories, postDrafts, posts, postTags, tags } from "@/db/schema";
+import {
+  categories,
+  comments,
+  postDrafts,
+  posts,
+  postTags,
+  tags,
+} from "@/db/schema";
 import type { StaffSession } from "@/lib/auth/guards";
 import { Action, canPerformAction } from "@/lib/auth/permissions";
 import { tagToSlug, type PostDraft, type PostInput } from "@/lib/posts/input";
@@ -29,6 +38,12 @@ import {
   usesDraftBuffer,
 } from "@/lib/posts/status";
 import { NOT_AUTHORIZED_ERROR } from "@/lib/shared/action-result";
+// Cross-domain tx type (mirrors how comments/data.ts's
+// anonymizeCommentsForUser types its `tx` param): deleteNeverPublicPostsForUser
+// is composed inside the users domain's account-deletion transaction, not a
+// posts-domain-internal one, so it borrows that domain's Tx alias rather than
+// the local `Tx` below (which is for posts-internal multi-step writes).
+import type { Tx as UsersTx } from "@/lib/users/data";
 
 // node-postgres surfaces Postgres error codes (and the violated constraint
 // name) as `.code`/`.constraint` on the thrown error; drizzle's
@@ -64,8 +79,14 @@ export function isPostSlugCollision(err: unknown): boolean {
 
 // Self-service account deletion (ACCT-1) refuses to anonymize/delete a user
 // who has authored any post, regardless of status (draft/published/
-// archived/scheduled all count) — unlike comments, a post has no
-// anonymization path, so the only safe outcome is to block the delete.
+// archived/scheduled all count). A transfer flow (transferPostsOwnership)
+// and a never-public hard-delete flow (deleteNeverPublicPostsForUser) exist
+// now, but this pre-check still blocks outright rather than trying to
+// determine here whether the caller already resolved every post — the real
+// backstop is posts.authorId's FK staying RESTRICT (no onDelete, schema.ts):
+// a post transferred to this user mid-deletion (a race with another admin
+// action) makes the user-row delete fail loudly instead of silently
+// orphaning it.
 export async function userHasAuthoredPosts(userId: string): Promise<boolean> {
   const [row] = await db
     .select({ id: posts.id })
@@ -270,6 +291,101 @@ export async function deletePostRow(
     .where(eq(posts.id, id))
     .returning({ id: posts.id, slug: posts.slug });
   return deleted;
+}
+
+// Never-public predicate shared by deleteOwnNeverPublicPost (below) and
+// deleteNeverPublicPostsForUser: status alone can't prove "never public" —
+// published -> draft is a legal transition (ALLOWED_TRANSITIONS, status.ts)
+// leaving a formerly-live post sitting in `draft`, and a scheduled post
+// whose publish_at has already arrived is live right now even though its
+// status is still `scheduled` until the cron normalizes it. So a post only
+// counts as never-public when it's draft/scheduled AND its publish_at is
+// either unset or still in the future.
+function neverPublicGuard(now: Date): SQL {
+  return and(
+    inArray(posts.status, [PostStatus.Draft, PostStatus.Scheduled]),
+    or(isNull(posts.publishAt), gt(posts.publishAt, now)),
+  )!;
+}
+
+// Guards a post delete against a bystander comment thread: a formerly-public
+// post that was reverted to draft (see neverPublicGuard above) may still
+// have real reader comments on it, and deleting the post would cascade-
+// delete those (comments.postId onDelete: "cascade", schema.ts) — so a
+// never-public post with any comment at all is excluded from both delete
+// paths below.
+function noCommentsGuard(): SQL {
+  return notExists(
+    db
+      .select({ id: comments.id })
+      .from(comments)
+      .where(eq(comments.postId, posts.id)),
+  );
+}
+
+// Author-initiated hard delete (ACCT-1's sibling feature): authors may only
+// remove their OWN posts that have never gone public and have no comments —
+// see neverPublicGuard/noCommentsGuard above for why status alone isn't
+// enough. Postgres evaluates the whole WHERE atomically with the DELETE, so
+// this is race-safe with no separate existence check or transaction (house
+// style, cf. hardDeleteCommentIfChildless in src/lib/comments/data.ts).
+export async function deleteOwnNeverPublicPost(
+  id: string,
+  authorId: string,
+): Promise<{ id: string; slug: string } | undefined> {
+  const [deleted] = await db
+    .delete(posts)
+    .where(
+      and(
+        eq(posts.id, id),
+        eq(posts.authorId, authorId),
+        neverPublicGuard(new Date()),
+        noCommentsGuard(),
+      ),
+    )
+    .returning({ id: posts.id, slug: posts.slug });
+  return deleted;
+}
+
+// Bulk-reassigns every post authored by `fromUserId` to `toUserId` — the
+// account-deletion ownership-transfer flow (ACCT-1 follow-up) and the first
+// bulk post UPDATE in the codebase. Returns the affected slugs so the caller
+// can revalidate their `post:{slug}` cache tags (a transferred post may have
+// been public at some point and still be cached under its old tag, even
+// though the tag's key — the slug — doesn't change).
+export async function transferPostsOwnership(
+  fromUserId: string,
+  toUserId: string,
+): Promise<{ slug: string }[]> {
+  return db
+    .update(posts)
+    .set({ authorId: toUserId })
+    .where(eq(posts.authorId, fromUserId))
+    .returning({ slug: posts.slug });
+}
+
+// Same never-public + no-comments predicate as deleteOwnNeverPublicPost,
+// scoped by `userId` rather than an acting session's ownership check (there
+// is no acting session — this runs as part of the account-deletion flow
+// deleting the user's OWN posts). Takes `tx` because it's composed inside
+// the users domain's account-deletion transaction (wave 2), matching how
+// anonymizeCommentsForUser (src/lib/comments/data.ts) is tx-composed for the
+// same flow. No cache revalidation here: a never-public post was never
+// visible, so it was never cached under any tag — nothing to invalidate.
+export async function deleteNeverPublicPostsForUser(
+  tx: UsersTx,
+  userId: string,
+): Promise<{ id: string }[]> {
+  return tx
+    .delete(posts)
+    .where(
+      and(
+        eq(posts.authorId, userId),
+        neverPublicGuard(new Date()),
+        noCommentsGuard(),
+      ),
+    )
+    .returning({ id: posts.id });
 }
 
 // Column selection for a LEFT JOINed post_drafts row, reused by every read

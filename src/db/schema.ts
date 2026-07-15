@@ -133,8 +133,10 @@ export const posts = pgTable(
   "posts",
   {
     id: uuid("id").primaryKey().defaultRandom(),
-    // No onDelete: deleting a user with authored posts should fail loudly;
-    // there is no user-deletion flow in v1.
+    // RESTRICT (no onDelete) is deliberate: account deletion must explicitly
+    // transfer (transferPostsOwnership) or delete (deleteNeverPublicPostsForUser)
+    // a user's authored posts first — the FK fails loudly if a post still
+    // references the user mid-deletion, rather than silently orphaning it.
     authorId: text("author_id")
       .notNull()
       .references(() => user.id),

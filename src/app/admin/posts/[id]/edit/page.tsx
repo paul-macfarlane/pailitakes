@@ -13,6 +13,7 @@ import { listActiveCategories } from "@/lib/categories/data";
 import { requirePostIdParam } from "@/lib/admin/route-params";
 import { Action, canPerformAction } from "@/lib/auth/permissions";
 import { requireStaff } from "@/lib/auth/session";
+import { PostStatus } from "@/lib/posts/status";
 
 export const metadata: Metadata = {
   title: "Edit post",
@@ -70,7 +71,15 @@ export default async function EditPostPage({
           {canPerformAction(session.user, Action.ManageAnyComment) ? (
             <CommentLockToggle postId={post.id} locked={post.commentsLocked} />
           ) : null}
-          {canPerformAction(session.user, Action.DeletePost) ? (
+          {canPerformAction(session.user, Action.ManageAnyPost) ||
+          (post.authorId === session.user.id &&
+            (post.status === PostStatus.Draft ||
+              post.status === PostStatus.Scheduled)) ? (
+            // Visibility hint only — deletePostService (and, underneath it,
+            // deleteOwnNeverPublicPost's guarded DELETE) enforces the exact
+            // never-public/comment-free predicate server-side, so showing
+            // this button on a post that fails that predicate just surfaces
+            // AUTHOR_DELETE_REFUSED_ERROR on click rather than being a hole.
             <div className="border-t pt-4">
               <PostDeleteControls postId={post.id} postTitle={post.title} />
             </div>

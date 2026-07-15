@@ -31,6 +31,10 @@ export type EditablePost = {
   slug: string;
   bodyMd: string;
   status: PostStatus;
+  // Exposed only for UI gating (ADM-4/ACCT-1's author-hard-delete affordance)
+  // — the delete server action re-checks ownership itself, so this is a
+  // visibility hint, not a security boundary.
+  authorId: string;
   categoryId: number;
   thumbnailUrl: string;
   bannerUrl: string | null;
@@ -106,6 +110,7 @@ export async function getEditablePost(
     slug: draft?.slug ?? first.slug,
     bodyMd: draft?.bodyMd ?? first.bodyMd,
     status: first.status,
+    authorId: first.authorId,
     categoryId: draft?.categoryId ?? first.categoryId,
     thumbnailUrl: draft?.thumbnailUrl ?? first.thumbnailUrl,
     // banner/video can legitimately be null in the snapshot — pick from the

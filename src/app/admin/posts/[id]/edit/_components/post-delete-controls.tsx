@@ -18,10 +18,14 @@ import {
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
-// Admin-only hard delete (ADM-4): unlike Archive (recoverable), this
-// permanently removes the post row and, via FK cascade, its staged draft and
-// tag links. No EditorFlushContext interaction — deleting discards any
-// in-progress edits anyway, so there's nothing worth saving first.
+// Hard delete (ADM-4): unlike Archive (recoverable), this permanently
+// removes the post row and, via FK cascade, its staged draft and tag links.
+// Admins can hard-delete any post; authors can hard-delete only their own
+// never-public, comment-free posts (ACCT-1's sibling feature) — the parent
+// page only renders this for a post that's plausibly eligible, and the
+// server action re-enforces the exact predicate regardless. No
+// EditorFlushContext interaction — deleting discards any in-progress edits
+// anyway, so there's nothing worth saving first.
 export function PostDeleteControls({
   postId,
   postTitle,

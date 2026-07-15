@@ -2,7 +2,9 @@ import { eq, like } from "drizzle-orm";
 import { describe, expect, it, vi } from "vitest";
 
 import * as schema from "@/db/schema";
+import { CommentStatus } from "@/lib/comments/status";
 import { slugifyTitle } from "@/lib/posts/input";
+import { AUTHOR_DELETE_REFUSED_ERROR } from "@/lib/posts/service/crud";
 import {
   draftRowLoader,
   registerPostSuiteLifecycle,
@@ -605,13 +607,13 @@ describe("staged draft edits (draft-of-published, ADR-0011)", () => {
 });
 
 describe("deletePost", () => {
-  it("rejects an author but allows an admin, removing the post and its tags", async () => {
+  it("lets an author hard-delete their own never-public draft, removing the post and its tags", async () => {
     const [post] = await testDb
       .insert(posts)
       .values({
         authorId: ids.authorId,
-        title: `${runId} delete target`,
-        slug: `${runId}-delete-target`,
+        title: `${runId} delete own draft`,
+        slug: `${runId}-delete-own-draft`,
         bodyMd: "Body.",
         thumbnailUrl: "",
         categoryId: ids.categoryId,
@@ -627,13 +629,9 @@ describe("deletePost", () => {
       .values({ postId: post!.id, tagId: tagRow!.id });
 
     authorSession();
-    const authorResult = await deletePost(post!.id);
-    expect(authorResult).toEqual({ ok: false, error: "Not authorized." });
-
     vi.mocked(revalidateTag).mockClear();
-    adminSession();
-    const adminResult = await deletePost(post!.id);
-    expect(adminResult).toEqual({ ok: true, data: { id: post!.id } });
+    const result = await deletePost(post!.id);
+    expect(result).toEqual({ ok: true, data: { id: post!.id } });
 
     const remainingPosts = await testDb
       .select({ id: posts.id })
@@ -647,6 +645,98 @@ describe("deletePost", () => {
       .where(eq(postTags.postId, post!.id));
     expect(remainingPostTags).toHaveLength(0);
 
+    expect(revalidateTag).toHaveBeenCalledWith("post-list", expect.anything());
+  });
+
+  it("refuses an author deleting ANOTHER author's draft, leaving the row intact", async () => {
+    const post = await seedPostFixture(testDb, {
+      runId,
+      suffix: "delete-non-owner",
+      authorId: ids.authorId,
+      categoryId: ids.categoryId,
+    });
+
+    // A non-owner AUTHOR (not a reader) — passes the staff gate, fails the
+    // own-never-public-post scoping enforced by deleteOwnNeverPublicPost.
+    sessionMock.current = sessionUser(ids.readerId, "author");
+    const result = await deletePost(post.id);
+    expect(result).toEqual({ ok: false, error: AUTHOR_DELETE_REFUSED_ERROR });
+
+    const remaining = await testDb
+      .select({ id: posts.id })
+      .from(posts)
+      .where(eq(posts.id, post.id));
+    expect(remaining).toHaveLength(1);
+  });
+
+  it("refuses an author deleting their own PUBLISHED post", async () => {
+    const post = await seedPostFixture(testDb, {
+      runId,
+      suffix: "delete-published",
+      authorId: ids.authorId,
+      categoryId: ids.categoryId,
+      thumbnailUrl: "https://img.example.com/t.jpg",
+      status: "published",
+      publishAt: new Date(Date.now() - 1000),
+    });
+
+    authorSession();
+    const result = await deletePost(post.id);
+    expect(result).toEqual({ ok: false, error: AUTHOR_DELETE_REFUSED_ERROR });
+
+    const remaining = await testDb
+      .select({ id: posts.id })
+      .from(posts)
+      .where(eq(posts.id, post.id));
+    expect(remaining).toHaveLength(1);
+  });
+
+  it("refuses an author deleting their own draft that already has a comment", async () => {
+    const post = await seedPostFixture(testDb, {
+      runId,
+      suffix: "delete-has-comment",
+      authorId: ids.authorId,
+      categoryId: ids.categoryId,
+    });
+    // A draft can carry a bystander comment thread left over from when it
+    // was briefly public and got reverted (published -> draft is a legal
+    // transition) — deleting must not cascade-delete that thread.
+    await testDb.insert(schema.comments).values({
+      postId: post.id,
+      authorId: ids.readerId,
+      body: "A comment on a formerly-public post.",
+      status: CommentStatus.Visible,
+    });
+
+    authorSession();
+    const result = await deletePost(post.id);
+    expect(result).toEqual({ ok: false, error: AUTHOR_DELETE_REFUSED_ERROR });
+
+    const remaining = await testDb
+      .select({ id: posts.id })
+      .from(posts)
+      .where(eq(posts.id, post.id));
+    expect(remaining).toHaveLength(1);
+  });
+
+  it("lets an admin hard-delete any post, including another author's", async () => {
+    const post = await seedPostFixture(testDb, {
+      runId,
+      suffix: "delete-admin",
+      authorId: ids.authorId,
+      categoryId: ids.categoryId,
+    });
+
+    vi.mocked(revalidateTag).mockClear();
+    adminSession();
+    const result = await deletePost(post.id);
+    expect(result).toEqual({ ok: true, data: { id: post.id } });
+
+    const remainingPosts = await testDb
+      .select({ id: posts.id })
+      .from(posts)
+      .where(eq(posts.id, post.id));
+    expect(remainingPosts).toHaveLength(0);
     expect(revalidateTag).toHaveBeenCalledWith("post-list", expect.anything());
   });
 

@@ -51,6 +51,10 @@ const ROLE_ACTIONS: Record<Role, readonly Action[]> = {
   [Role.Author]: [
     Action.CreatePost,
     Action.EditPost,
+    // The capability only admits an author to the delete action; the
+    // service further scopes them to their own never-public, comment-free
+    // posts (ManageAnyPost is the bypass, standing idiom — §5.7).
+    Action.DeletePost,
     Action.PublishPost,
     Action.PreviewPost,
     Action.AccessAdmin,
