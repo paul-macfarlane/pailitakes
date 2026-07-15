@@ -70,9 +70,12 @@ test.describe("authoring lifecycle", () => {
     // A single filled form + "Save now" must persist the draft. clickUntil only
     // re-clicks (never re-edits), so if the editor regressed to skipping the
     // first save until a post-hydration field change, this would time out.
-    const status = page.getByRole("status");
+    // Filtered because the save navigates (router.replace) to the edit route,
+    // where more aria-live regions mount (delete controls, route announcer) —
+    // a bare role lookup races that navigation and trips strict mode.
+    const status = page.getByRole("status").filter({ hasText: "Saved" });
     await clickUntil(page.getByRole("button", { name: "Save now" }), () =>
-      expect(status).toContainText("Saved"),
+      expect(status).toBeVisible(),
     );
 
     await page.waitForURL(/\/admin\/posts\/[^/]+\/edit/);
