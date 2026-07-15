@@ -7,7 +7,7 @@ import "server-only";
 import { and, eq, isNull } from "drizzle-orm";
 
 import { db, type Db } from "@/db";
-import { user } from "@/db/schema";
+import { posts, user } from "@/db/schema";
 import { Role } from "@/lib/auth/roles";
 
 export type Tx = Parameters<Parameters<Db["transaction"]>[0]>[0];
@@ -47,6 +47,45 @@ export async function withLockedUserMutation<T>(
 
     return fn(tx, activeAdminIds, target);
   });
+}
+
+// Plain (non-tx) target-user read for flows that don't need the full
+// active-admin lock withLockedUserMutation takes — e.g.
+// transferUserPostsService (src/lib/users/service.ts), which is a single
+// UPDATE with no transaction. Shares TargetUserState's shape with the locked
+// read above so callers can reuse the same role/bannedAt checks either way.
+export async function loadUserState(
+  id: string,
+): Promise<TargetUserState | undefined> {
+  const [row] = await db
+    .select({ role: user.role, bannedAt: user.bannedAt })
+    .from(user)
+    .where(eq(user.id, id))
+    .limit(1);
+  return row;
+}
+
+// Tx-scoped mirror of posts/data.ts's userHasAuthoredPosts, needed only
+// inside prepareAccountDeletion's transaction (service.ts): that flow first
+// purges the user's never-public posts (deleteNeverPublicPostsForUser, same
+// tx) and then must see the effect of that delete before deciding whether
+// any posts remain — a plain `db.select` opens a fresh session and, under
+// READ COMMITTED, would still see the pre-purge rows because the delete
+// hasn't committed yet. This belongs conceptually beside userHasAuthoredPosts
+// in posts/data.ts (same predicate, tx-aware sibling); it's implemented here
+// instead purely because this task's diff is scoped to the users domain —
+// cross-domain direct reads of another domain's table already exist at this
+// layer (posts/admin.ts reads the `user` table the same way).
+export async function userHasAuthoredPostsTx(
+  tx: Tx,
+  userId: string,
+): Promise<boolean> {
+  const [row] = await tx
+    .select({ id: posts.id })
+    .from(posts)
+    .where(eq(posts.authorId, userId))
+    .limit(1);
+  return row !== undefined;
 }
 
 export async function updateUserRole(

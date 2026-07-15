@@ -21,6 +21,7 @@ const { pool, testDb } = await vi.hoisted(async () => {
 });
 
 vi.mock("@/db", () => ({ db: testDb }));
+vi.mock("next/cache", () => ({ revalidateTag: vi.fn() }));
 
 // withLockedUserMutation's activeAdminIds is a site-wide scan of EVERY admin
 // row in the table (src/lib/users/data.ts) — on a shared local Postgres that
@@ -55,8 +56,12 @@ vi.mock("@/lib/users/data", async () => {
 const {
   ACCOUNT_HAS_POSTS_ERROR,
   ACCOUNT_LAST_ADMIN_ERROR,
+  TRANSFER_SAME_USER_ERROR,
+  TRANSFER_TARGET_INVALID_ERROR,
   prepareAccountDeletion,
+  transferUserPostsService,
 } = await import("./service");
+const { revalidateTag } = await import("next/cache");
 const { loadCommentRowsForPost } = await import("@/lib/comments/data");
 const { buildCommentTree } = await import("@/lib/comments/tree");
 
@@ -72,6 +77,9 @@ const authoredPostsId = `user-${runId}-hasposts`;
 const soleAdminId = `user-${runId}-soleadmin`;
 const peerAdminId = `user-${runId}-peeradmin`;
 const bannedReaderId = `user-${runId}-banned`;
+const transferSourceId = `user-${runId}-transfersource`;
+const transferAdminTargetId = `user-${runId}-transfertarget`;
+const missingUserId = `user-${runId}-missing`;
 const ALL_USER_IDS = [
   deletingId,
   otherId,
@@ -80,6 +88,8 @@ const ALL_USER_IDS = [
   soleAdminId,
   peerAdminId,
   bannedReaderId,
+  transferSourceId,
+  transferAdminTargetId,
 ];
 
 let categoryId: number;
@@ -147,6 +157,18 @@ beforeAll(async () => {
       role: "reader",
       bannedAt: new Date("2026-01-01T00:00:00Z"),
     },
+    {
+      id: transferSourceId,
+      name: "Transfer Source",
+      email: `ts-${runId}@e.com`,
+      role: "author",
+    },
+    {
+      id: transferAdminTargetId,
+      name: "Transfer Target",
+      email: `tt-${runId}@e.com`,
+      role: "admin",
+    },
   ]);
 
   const [category] = await testDb
@@ -171,17 +193,41 @@ beforeEach(() => {
 });
 
 describe("prepareAccountDeletion", () => {
-  it("refuses when the user has authored a post (any status counts)", async () => {
+  it("purges a never-public, comment-free draft and allows the delete", async () => {
     const [post] = await testDb
       .insert(posts)
       .values({
         authorId: authoredPostsId,
-        title: `${runId} authored`,
-        slug: `${runId}-authored`,
+        title: `${runId} draft-only`,
+        slug: `${runId}-draft-only`,
         bodyMd: "Body.",
         thumbnailUrl: "",
         categoryId,
-        // Default status (draft) — the refusal doesn't care about status.
+        // Default status (draft), no publishAt — never public, no comments.
+      })
+      .returning({ id: posts.id });
+
+    expect(await prepareAccountDeletion(authoredPostsId)).toEqual({ ok: true });
+
+    const [row] = await testDb
+      .select({ id: posts.id })
+      .from(posts)
+      .where(eq(posts.id, post!.id));
+    expect(row).toBeUndefined();
+  });
+
+  it("refuses when the user has a published post", async () => {
+    const [post] = await testDb
+      .insert(posts)
+      .values({
+        authorId: authoredPostsId,
+        title: `${runId} published`,
+        slug: `${runId}-published`,
+        bodyMd: "Body.",
+        thumbnailUrl: "https://example.com/thumb.jpg",
+        categoryId,
+        status: "published",
+        publishAt: new Date("2026-01-01T00:00:00Z"),
       })
       .returning({ id: posts.id });
 
@@ -190,6 +236,47 @@ describe("prepareAccountDeletion", () => {
       error: ACCOUNT_HAS_POSTS_ERROR,
     });
 
+    await testDb.delete(posts).where(eq(posts.id, post!.id));
+  });
+
+  it("refuses when a never-public draft has a comment", async () => {
+    const [post] = await testDb
+      .insert(posts)
+      .values({
+        authorId: authoredPostsId,
+        title: `${runId} draft-commented`,
+        slug: `${runId}-draft-commented`,
+        bodyMd: "Body.",
+        thumbnailUrl: "",
+        categoryId,
+        // Default status (draft), no publishAt — never public, but a real
+        // comment thread blocks the purge (noCommentsGuard, posts/data.ts).
+      })
+      .returning({ id: posts.id });
+
+    const [comment] = await testDb
+      .insert(comments)
+      .values({
+        postId: post!.id,
+        authorId: otherId,
+        parentId: null,
+        body: "A stray comment on a reverted-to-draft post.",
+        status: "visible",
+        modVerdict: {
+          verdict: "allow",
+          reason: "fine",
+          model: "m",
+          latencyMs: 1,
+        },
+      })
+      .returning({ id: comments.id });
+
+    expect(await prepareAccountDeletion(authoredPostsId)).toEqual({
+      ok: false,
+      error: ACCOUNT_HAS_POSTS_ERROR,
+    });
+
+    await testDb.delete(comments).where(eq(comments.id, comment!.id));
     await testDb.delete(posts).where(eq(posts.id, post!.id));
   });
 
@@ -394,5 +481,93 @@ describe("prepareAccountDeletion — comment anonymization", () => {
       status: "visible",
       body: "Another user's own untouched comment.",
     });
+  });
+});
+
+describe("transferUserPostsService", () => {
+  beforeEach(() => {
+    vi.mocked(revalidateTag).mockClear();
+  });
+
+  it("moves every post from one user to another and returns the count", async () => {
+    const inserted = await testDb
+      .insert(posts)
+      .values([
+        {
+          authorId: transferSourceId,
+          title: `${runId} transfer-a`,
+          slug: `${runId}-transfer-a`,
+          bodyMd: "Body.",
+          thumbnailUrl: "",
+          categoryId,
+        },
+        {
+          authorId: transferSourceId,
+          title: `${runId} transfer-b`,
+          slug: `${runId}-transfer-b`,
+          bodyMd: "Body.",
+          thumbnailUrl: "",
+          categoryId,
+        },
+      ])
+      .returning({ id: posts.id, slug: posts.slug });
+
+    expect(
+      await transferUserPostsService(transferSourceId, transferAdminTargetId),
+    ).toEqual({ ok: true, data: { transferred: 2 } });
+
+    const rows = await testDb
+      .select({ authorId: posts.authorId })
+      .from(posts)
+      .where(
+        inArray(
+          posts.id,
+          inserted.map((p) => p.id),
+        ),
+      );
+    expect(rows).toEqual([
+      { authorId: transferAdminTargetId },
+      { authorId: transferAdminTargetId },
+    ]);
+
+    expect(revalidateTag).toHaveBeenCalledWith("post-list", expect.anything());
+    for (const { slug } of inserted) {
+      expect(revalidateTag).toHaveBeenCalledWith(
+        `post:${slug}`,
+        expect.anything(),
+      );
+    }
+
+    await testDb.delete(posts).where(
+      inArray(
+        posts.id,
+        inserted.map((p) => p.id),
+      ),
+    );
+  });
+
+  it("refuses transferring a user's posts to themselves", async () => {
+    expect(
+      await transferUserPostsService(transferSourceId, transferSourceId),
+    ).toEqual({ ok: false, error: TRANSFER_SAME_USER_ERROR });
+  });
+
+  it("refuses a banned target", async () => {
+    expect(
+      await transferUserPostsService(transferSourceId, bannedReaderId),
+    ).toEqual({ ok: false, error: TRANSFER_TARGET_INVALID_ERROR });
+  });
+
+  it("refuses a target without AccessAdmin (reader)", async () => {
+    expect(await transferUserPostsService(transferSourceId, otherId)).toEqual({
+      ok: false,
+      error: TRANSFER_TARGET_INVALID_ERROR,
+    });
+  });
+
+  it("refuses a missing target", async () => {
+    expect(
+      await transferUserPostsService(transferSourceId, missingUserId),
+    ).toEqual({ ok: false, error: TRANSFER_TARGET_INVALID_ERROR });
   });
 });
