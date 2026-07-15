@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 
 export const metadata: Metadata = {
   title: "Terms of Service",
@@ -25,6 +26,11 @@ export default function TermsPage() {
           You sign in with Google or Discord. You&apos;re responsible for
           activity on your account. We may suspend or ban accounts that violate
           these terms.
+        </p>
+        <p>
+          You may delete your account at any time from your account page. What
+          happens to your data when you do is described in the{" "}
+          <Link href="/privacy">Privacy Policy</Link>.
         </p>
 
         <h2>User content</h2>

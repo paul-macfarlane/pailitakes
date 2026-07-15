@@ -72,10 +72,20 @@ export default function PrivacyPage() {
 
         <h2>Data retention &amp; deletion</h2>
         <p>
-          There&apos;s no self-serve account deletion yet. If you&apos;d like
-          your account or data deleted, email{" "}
-          <a href="mailto:paulitakesweb@gmail.com">paulitakesweb@gmail.com</a>{" "}
-          to request it.
+          You can delete your own account at any time from your account page.
+          Deleting your account permanently removes your account, your sign-in
+          identity, and your likes.
+        </p>
+        <p>
+          Your comments aren&apos;t deleted outright — they&apos;re anonymized.
+          We clear the author, the comment text, and the moderation record,
+          leaving an authorless &quot;[deleted]&quot; placeholder only where
+          it&apos;s needed to keep other people&apos;s reply threads intact;
+          otherwise the comment disappears from display entirely.
+        </p>
+        <p>
+          If you have any other questions or requests about your data, email{" "}
+          <a href="mailto:paulitakesweb@gmail.com">paulitakesweb@gmail.com</a>.
         </p>
 
         <h2>Changes</h2>
