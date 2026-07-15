@@ -24,7 +24,13 @@ const { announcements } = schema;
 const SEED_PREFIX = "t-ann-data-";
 const runId = `${SEED_PREFIX}${crypto.randomUUID().slice(0, 8)}`;
 
-const NOW = new Date("2026-02-01T12:00:00Z");
+// NOW is far in the future because this suite runs against the shared local
+// DB, which also holds rows created through the real dev app. The limit test
+// applies LIMIT before the ownRows() prefix filter, so any non-seeded row
+// that is active at NOW and newer than the seeds would silently consume a
+// limit slot. Seeding a century ahead guarantees the seeds are always the
+// newest rows table-wide without touching (or depending on) real dev data.
+const NOW = new Date("2126-02-01T12:00:00Z");
 const seconds = (n: number) => new Date(NOW.getTime() + n * 1000);
 
 const seededIds: string[] = [];
