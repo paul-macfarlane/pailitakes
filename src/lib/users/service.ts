@@ -7,16 +7,25 @@ import "server-only";
 // the UI disables the self-row controls). DB access lives in
 // src/lib/users/data.ts.
 
-import { anonymizeCommentsForUser } from "@/lib/comments/data";
+import { revalidateTag } from "next/cache";
+
+import { Action, canPerformAction } from "@/lib/auth/permissions";
 import { Role } from "@/lib/auth/roles";
-import { userHasAuthoredPosts } from "@/lib/posts/data";
+import { anonymizeCommentsForUser } from "@/lib/comments/data";
+import {
+  deleteNeverPublicPostsForUser,
+  transferPostsOwnership,
+} from "@/lib/posts/data";
 import { GENERIC_ERROR, type ActionResult } from "@/lib/shared/action-result";
+import { IMMEDIATE } from "@/lib/shared/cache";
 import { wouldOrphanAdmins } from "@/lib/users/admin";
 import {
+  loadUserState,
   type TargetUserState,
   type Tx,
   updateUserBanned,
   updateUserRole,
+  userHasAuthoredPostsTx,
   withLockedUserMutation,
 } from "@/lib/users/data";
 
@@ -92,20 +101,70 @@ export async function setUserBannedService(
   });
 }
 
+// Refusal copy for transferUserPostsService, surfaced verbatim by the
+// admin users screen's "Transfer posts" control.
+export const TRANSFER_SAME_USER_ERROR =
+  "Choose a different staff member to transfer posts to.";
+export const TRANSFER_TARGET_INVALID_ERROR =
+  "Posts can only be transferred to an active staff member.";
+
+// Admin-only bulk post reassignment (ACCT-1 follow-up): moves every post
+// authored by `fromUserId` to `toUserId`, both for the users screen's
+// standalone "Transfer posts" control and as the escape hatch
+// prepareAccountDeletion's refusal (below) points admins at for a departing
+// author's ever-public/commented posts. Single UPDATE
+// (transferPostsOwnership) — no lock/transaction: the accepted race is a
+// concurrent role change or ban on the target between the read below and the
+// write, which could leave posts owned by someone who no longer has
+// AccessAdmin; that's self-correcting (re-run the transfer) and not worth a
+// row lock for an admin-only, low-frequency action.
+export async function transferUserPostsService(
+  fromUserId: string,
+  toUserId: string,
+): Promise<ActionResult<{ transferred: number }>> {
+  if (fromUserId === toUserId) {
+    return { ok: false, error: TRANSFER_SAME_USER_ERROR };
+  }
+
+  try {
+    const target = await loadUserState(toUserId);
+    if (!target || !canPerformAction(target, Action.AccessAdmin)) {
+      return { ok: false, error: TRANSFER_TARGET_INVALID_ERROR };
+    }
+
+    const affected = await transferPostsOwnership(fromUserId, toUserId);
+    if (affected.length > 0) {
+      // Public post pages render "By {author name}", so every affected
+      // slug's cache must be busted, plus post-list (author shows up in
+      // list/preview cards too).
+      revalidateTag("post-list", IMMEDIATE);
+      for (const { slug } of affected) {
+        revalidateTag(`post:${slug}`, IMMEDIATE);
+      }
+    }
+
+    return { ok: true, data: { transferred: affected.length } };
+  } catch (err) {
+    console.error("transferUserPostsService failed", err);
+    return { ok: false, error: GENERIC_ERROR };
+  }
+}
+
 // Refusal copy for prepareAccountDeletion (ACCT-1) — exported because these
 // strings surface verbatim in the account-deletion dialog (Better Auth's
 // beforeDelete hook throws an APIError carrying one of them, and the client
 // displays whatever message the API returns).
 export const ACCOUNT_HAS_POSTS_ERROR =
-  "Your account has authored posts. Contact the site owner to transfer or delete them first.";
+  "Your account has published posts or posts with comments. Contact the site owner to transfer or delete them first.";
 export const ACCOUNT_LAST_ADMIN_ERROR =
   "You're the last active admin. Promote another admin before deleting your account.";
 
 // Self-service account deletion guard + anonymization (ACCT-1), called from
 // Better Auth's user.deleteUser.beforeDelete hook (src/lib/auth/auth.ts).
-// Banned users may delete their own account — only authored posts and the
-// last-active-admin invariant block a delete; comments are anonymized
-// in-place rather than blocking on them (design decision, see backlog).
+// Banned users may delete their own account — only surviving posts (see
+// below) and the last-active-admin invariant block a delete; comments are
+// anonymized in-place rather than blocking on them (design decision, see
+// backlog).
 export async function prepareAccountDeletion(
   userId: string,
 ): Promise<{ ok: true } | { ok: false; error: string }> {
@@ -117,11 +176,29 @@ export async function prepareAccountDeletion(
           return { ok: false, error: "User not found." };
         }
 
-        // Plain (non-tx) read: no existing flow reassigns a post's author,
-        // so authorship can't change concurrently with an account deletion —
-        // nothing here needs the row lock withLockedUserMutation already
-        // holds on the target user.
-        if (await userHasAuthoredPosts(userId)) {
+        // Purge never-public, comment-free posts first (tx-composed, same
+        // predicate as the author's own hard-delete) so the refusal below
+        // only blocks on what actually survives — a draft-only author must
+        // be able to delete their account outright. No cache revalidation
+        // for this purge: a never-public post was never visible, so it was
+        // never cached under any tag.
+        await deleteNeverPublicPostsForUser(tx, userId);
+
+        // Tx-scoped read (userHasAuthoredPostsTx, users/data.ts) rather than
+        // posts/data.ts's plain userHasAuthoredPosts: the purge above ran on
+        // this same `tx` and hasn't committed, so a plain `db.select` (a
+        // fresh session) would still see the pre-purge rows under READ
+        // COMMITTED — this check must run on `tx` to observe its own
+        // transaction's uncommitted delete. Whatever survives the purge
+        // (an ever-public post, or a never-public one with a real comment
+        // thread) still blocks the delete; there's no flow that reassigns a
+        // post's author concurrently with this transaction (the admin
+        // transfer flow above is a plain UPDATE with no lock on this row),
+        // and posts.authorId's FK stays RESTRICT (no onDelete, schema.ts) as
+        // the backstop — a post transferred to this user mid-deletion (the
+        // race that lock doesn't cover) makes the user-row delete below fail
+        // loudly instead of silently orphaning it.
+        if (await userHasAuthoredPostsTx(tx, userId)) {
           return { ok: false, error: ACCOUNT_HAS_POSTS_ERROR };
         }
 

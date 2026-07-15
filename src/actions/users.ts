@@ -13,7 +13,11 @@ import {
   NOT_AUTHORIZED_ERROR,
   type ActionResult,
 } from "@/lib/shared/action-result";
-import { setUserBannedService, setUserRoleService } from "@/lib/users/service";
+import {
+  setUserBannedService,
+  setUserRoleService,
+  transferUserPostsService,
+} from "@/lib/users/service";
 
 // Better Auth ids are short opaque strings, not necessarily uuids — bound
 // the length without forcing a specific format.
@@ -58,4 +62,29 @@ export async function setUserBanned(
   }
 
   return setUserBannedService(idResult.data, bannedResult.data);
+}
+
+// Gated on ManageAnyPost, not ManageUsers: this mutates posts.authorId, not
+// the user row (the target's own role/ban state is untouched) — it's a
+// posts mutation reachable from the users screen, so it takes the posts
+// ownership-bypass capability the same as any other admin-acts-on-any-post
+// action (§5.7).
+export async function transferUserPosts(
+  fromUserId: unknown,
+  toUserId: unknown,
+): Promise<ActionResult<{ transferred: number }>> {
+  if (!(await actionSession(Action.ManageAnyPost))) {
+    return { ok: false, error: NOT_AUTHORIZED_ERROR };
+  }
+
+  const fromResult = userIdSchema.safeParse(fromUserId);
+  if (!fromResult.success) {
+    return { ok: false, error: "Invalid user." };
+  }
+  const toResult = userIdSchema.safeParse(toUserId);
+  if (!toResult.success) {
+    return { ok: false, error: "Invalid user." };
+  }
+
+  return transferUserPostsService(fromResult.data, toResult.data);
 }

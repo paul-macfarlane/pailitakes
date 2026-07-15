@@ -1,9 +1,20 @@
 import "server-only";
 
-import { and, desc, eq, ilike, or, type SQL } from "drizzle-orm";
+import {
+  and,
+  asc,
+  desc,
+  eq,
+  ilike,
+  inArray,
+  isNull,
+  or,
+  type SQL,
+} from "drizzle-orm";
 
 import { db } from "@/db";
 import { user } from "@/db/schema";
+import { Action, rolesWithAction } from "@/lib/auth/permissions";
 import type { Role } from "@/lib/auth/roles";
 import { escapeLike } from "@/lib/shared/sql-like";
 
@@ -75,4 +86,26 @@ export async function listUsers(params: {
 
   const hasMore = rows.length > limit;
   return { rows: hasMore ? rows.slice(0, limit) : rows, hasMore };
+}
+
+// Transfer-target candidates for the admin "Transfer posts" control (ACCT-1
+// follow-up). Near-twin of posts/admin.ts's listAuthorOptions (dashboard
+// author filter): same staff-role predicate, but additionally excludes
+// banned users. The dashboard filter only needs to enumerate authors of
+// existing posts, whereas a transfer target must actually be able to act on
+// the posts it receives afterward — a banned staff member fails
+// canPerformAction on every action, so they're not a valid destination.
+export async function listActiveStaffOptions(): Promise<
+  { id: string; name: string }[]
+> {
+  return db
+    .select({ id: user.id, name: user.name })
+    .from(user)
+    .where(
+      and(
+        inArray(user.role, rolesWithAction(Action.AccessAdmin)),
+        isNull(user.bannedAt),
+      ),
+    )
+    .orderBy(asc(user.name));
 }

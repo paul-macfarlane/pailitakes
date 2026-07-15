@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { z } from "zod";
 
+import { TransferPostsControl } from "@/app/admin/users/_components/transfer-posts-control";
 import { UserManagementControls } from "@/app/admin/users/_components/user-management-controls";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -9,6 +10,7 @@ import { Label } from "@/components/ui/label";
 import { SEARCH_QUERY_MAX, searchQuerySchema } from "@/lib/admin/search";
 import {
   ADMIN_USERS_PAGE_SIZE,
+  listActiveStaffOptions,
   listUsers,
   type AdminUserRow,
 } from "@/lib/users/admin";
@@ -61,12 +63,15 @@ export default async function AdminUsersPage({
   const filters = filterSchema.parse(await searchParams);
   const offset = (filters.page - 1) * ADMIN_USERS_PAGE_SIZE;
 
-  const { rows, hasMore } = await listUsers({
-    role: filters.role,
-    q: filters.q,
-    limit: ADMIN_USERS_PAGE_SIZE,
-    offset,
-  });
+  const [{ rows, hasMore }, staffOptions] = await Promise.all([
+    listUsers({
+      role: filters.role,
+      q: filters.q,
+      limit: ADMIN_USERS_PAGE_SIZE,
+      offset,
+    }),
+    listActiveStaffOptions(),
+  ]);
 
   const hasActiveFilters = Boolean(filters.role) || Boolean(filters.q);
 
@@ -166,12 +171,22 @@ export default async function AdminUsersPage({
                   </p>
                   <RoleBadge user={u} />
                 </div>
-                <UserManagementControls
-                  userId={u.id}
-                  role={u.role}
-                  banned={u.bannedAt !== null}
-                  isSelf={isSelf}
-                />
+                {/* flex-wrap here (not just on the <li>): role select + ban
+                    + transfer are three independent controls that can
+                    together exceed a 375px row, so each wraps onto its own
+                    line rather than forcing horizontal scroll. */}
+                <div className="flex flex-wrap items-start justify-end gap-3">
+                  <UserManagementControls
+                    userId={u.id}
+                    role={u.role}
+                    banned={u.bannedAt !== null}
+                    isSelf={isSelf}
+                  />
+                  <TransferPostsControl
+                    userId={u.id}
+                    staffOptions={staffOptions}
+                  />
+                </div>
               </li>
             );
           })}
