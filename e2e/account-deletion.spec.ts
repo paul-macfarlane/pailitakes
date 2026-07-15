@@ -1,4 +1,6 @@
 import { expect, test } from "@playwright/test";
+import { config } from "dotenv";
+import { Pool } from "pg";
 
 import { clickUntil } from "./helpers/interaction";
 import {
@@ -13,16 +15,37 @@ import {
   type TestUser,
 } from "./helpers/session";
 
-// Self-service account deletion (ACCT-1 / FR-10.4) through the /account
-// AlertDialog. The refusal matrix and anonymization column-by-column
-// semantics are proven exhaustively in src/lib/users/service.test.ts
-// (ADR-0003: lib tests prove the rule, e2e proves the wiring once) — these
-// specs cover the two wirings a unit test can't: the browser flow ending
-// signed-out, and a beforeDelete refusal surfacing inside the dialog.
+config({ quiet: true });
 
-// Both specs rely on the minted session being fresh (created just now):
+// Self-service account deletion (ACCT-1 / FR-10.4) through the /account
+// AlertDialog. The refusal matrix, the never-public-post auto-purge, and
+// anonymization column-by-column semantics are proven exhaustively in
+// src/lib/users/service.test.ts (ADR-0003: lib tests prove the rule, e2e
+// proves the wiring once) — these specs cover the wirings a unit test can't:
+// the browser flow ending signed-out (with a purge of the account's own
+// never-public posts along the way), and a beforeDelete refusal surfacing
+// inside the dialog when a post survives the purge.
+
+// All specs rely on the minted session being fresh (created just now):
 // Better Auth's /delete-user freshness check (24h) passes, so no password
 // or re-auth is involved — same as a user who just signed in via OAuth.
+
+function requireDatabaseUrl(): string {
+  const databaseUrl = process.env.DATABASE_URL;
+  if (!databaseUrl) {
+    throw new Error("DATABASE_URL must be set (see .env.example)");
+  }
+  return databaseUrl;
+}
+
+async function postExists(postId: string): Promise<boolean> {
+  const pool = new Pool({ connectionString: requireDatabaseUrl(), max: 1 });
+  const { rows } = await pool.query(`select 1 from posts where id = $1`, [
+    postId,
+  ]);
+  await pool.end();
+  return rows.length > 0;
+}
 
 test.describe("account deletion (reader)", () => {
   let reader: TestSession;
@@ -108,7 +131,7 @@ test.describe("account deletion (reader)", () => {
   });
 });
 
-test.describe("account deletion refusal (author with posts)", () => {
+test.describe("account deletion refusal (author with a published post)", () => {
   let author: TestSession;
   let category: TestCategory;
   let post: TestPost;
@@ -119,10 +142,14 @@ test.describe("account deletion refusal (author with posts)", () => {
       userName: "E2E RefusedAuthor",
     });
     category = await createTestCategory();
+    // Published (ever-public), not draft: prepareAccountDeletion now
+    // auto-purges never-public, comment-free posts before this check runs
+    // (deleteNeverPublicPostsForUser, src/lib/users/service.ts), so only an
+    // ever-public or commented post still trips the refusal.
     post = await createTestPost({
       authorId: author.userId,
       categoryId: category.id,
-      status: "draft",
+      status: "published",
     });
     await context.addCookies([author.cookie]);
   });
@@ -145,14 +172,66 @@ test.describe("account deletion refusal (author with posts)", () => {
     );
     await dialog.getByRole("button", { name: "Delete account" }).click();
 
-    // The hook's message surfaces verbatim in the page's alert region.
+    // The hook's message surfaces verbatim in the page's alert region
+    // (ACCOUNT_HAS_POSTS_ERROR, src/lib/users/service.ts).
     await expect(page.getByRole("alert")).toHaveText(
-      "Your account has authored posts. Contact the site owner to transfer or delete them first.",
+      "Your account has published posts or posts with comments. Contact the site owner to transfer or delete them first.",
     );
 
     // Still signed in with an intact account: /account keeps rendering the
     // form instead of bouncing to sign-in.
     await page.goto("/account");
     await expect(page.getByLabel("Display name")).toBeVisible();
+  });
+});
+
+test.describe("account deletion (author with only a never-public draft)", () => {
+  let author: TestSession;
+  let category: TestCategory;
+  let post: TestPost;
+
+  test.beforeEach(async ({ context }) => {
+    author = await createTestSession({
+      role: "author",
+      userName: "E2E DraftOnlyAuthor",
+    });
+    category = await createTestCategory();
+    post = await createTestPost({
+      authorId: author.userId,
+      categoryId: category.id,
+      status: "draft",
+    });
+    await context.addCookies([author.cookie]);
+  });
+
+  test.afterEach(async () => {
+    // A successful run purges the post as part of deletion; this is a no-op
+    // safety net for a failed run that never reached the confirm step.
+    await post.cleanup();
+    await category.cleanup();
+    await author.cleanup();
+  });
+
+  test("purges the never-public draft and deletes the account", async ({
+    page,
+  }) => {
+    await page.goto("/account");
+    const dialog = page.getByRole("alertdialog", {
+      name: "Delete your account?",
+    });
+    await clickUntil(page.getByRole("button", { name: "Delete account" }), () =>
+      expect(dialog).toBeVisible(),
+    );
+    await dialog.getByRole("button", { name: "Delete account" }).click();
+
+    // Same signed-out wiring as the reader spec above, now reached by an
+    // author whose only post never went public — the purge runs ahead of
+    // the has-posts refusal check, so nothing blocks the delete.
+    await page.waitForURL((url) => new URL(url).pathname === "/");
+    await expect(page.getByRole("link", { name: "Sign in" })).toBeVisible();
+
+    // A never-public post is never rendered on any public page, so the
+    // purge has no browser-visible signal — assert it directly at the DB.
+    expect(await postExists(post.id)).toBe(false);
   });
 });

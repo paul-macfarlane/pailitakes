@@ -1,17 +1,44 @@
+import crypto from "node:crypto";
+
 import { expect, test } from "@playwright/test";
+import { config } from "dotenv";
+import { Pool } from "pg";
 
 import { clickUntil } from "./helpers/interaction";
 import {
+  createTestCategory,
+  createTestPost,
   createTestSession,
   createTestUser,
   type TestSession,
   type TestUser,
 } from "./helpers/session";
 
-// Admin user-management screen (ADM-10): an admin changes another user's role
-// and ban state through the real controls + server actions, and can't act on
-// their own row (the self-lock that backs the "never leave zero admins"
-// invariant). Both actors are freshly seeded, so they sort to the first page.
+config({ quiet: true });
+
+function requireDatabaseUrl(): string {
+  const databaseUrl = process.env.DATABASE_URL;
+  if (!databaseUrl) {
+    throw new Error("DATABASE_URL must be set (see .env.example)");
+  }
+  return databaseUrl;
+}
+
+async function postAuthorId(postId: string): Promise<string | undefined> {
+  const pool = new Pool({ connectionString: requireDatabaseUrl(), max: 1 });
+  const { rows } = await pool.query<{ author_id: string }>(
+    `select author_id from posts where id = $1`,
+    [postId],
+  );
+  await pool.end();
+  return rows[0]?.author_id;
+}
+
+// Admin user-management screen (ADM-10): an admin changes another user's
+// role and ban state through the real controls + server actions, transfers
+// a user's posts to another staff member (ACCT-1 follow-up), and can't act
+// on their own row (the self-lock that backs the "never leave zero admins"
+// invariant). Actors are freshly seeded, so they sort to the first page.
 
 test.describe("admin user management", () => {
   let admin: TestSession;
@@ -107,6 +134,55 @@ test.describe("admin user management", () => {
       selfRow.getByRole("combobox", { name: "Role" }),
     ).toBeDisabled();
     await expect(selfRow.getByRole("button", { name: "Ban" })).toBeDisabled();
+  });
+
+  test("transfers a user's posts to another staff member", async ({ page }) => {
+    // A unique target name (unlike the describe-level `admin`'s reused "E2E
+    // Admin"): listActiveStaffOptions lists every active staff member
+    // site-wide, so a fullyParallel run can have several "E2E Admin" rows
+    // live at once — the Select option below is matched by name, which must
+    // be unambiguous. No session/cookie needed; the target never signs in.
+    const target = await createTestUser({
+      role: "admin",
+      name: `E2E Transfer Target ${crypto.randomUUID().slice(0, 8)}`,
+    });
+    const category = await createTestCategory();
+    const post = await createTestPost({
+      authorId: subject.id,
+      categoryId: category.id,
+      status: "draft",
+    });
+
+    try {
+      await page.goto("/admin/users");
+      const row = page.locator("li", { hasText: `${subject.id}@e2e.test` });
+      const dialog = page.getByRole("alertdialog", { name: "Transfer posts" });
+
+      await clickUntil(
+        row.getByRole("button", { name: "Transfer posts" }),
+        () => expect(dialog).toBeVisible(),
+      );
+
+      const transferTo = dialog.getByRole("combobox", { name: "Transfer to" });
+      const options = page.locator('[data-slot="select-content"]');
+      await transferTo.click();
+      await options.getByRole("option", { name: target.name }).click();
+      await dialog.getByRole("button", { name: "Transfer" }).click();
+      await expect(dialog).toBeHidden();
+
+      // DB-level assertion: the dashboard's author filter (src/app/admin/
+      // page.tsx) isn't exercised by any existing spec, so reusing it here
+      // would add a second unproven UI surface to this test rather than
+      // reading back the one column the action actually writes — the least
+      // brittle signal for a bulk reassignment.
+      await expect(async () => {
+        expect(await postAuthorId(post.id)).toBe(target.id);
+      }).toPass();
+    } finally {
+      await post.cleanup();
+      await category.cleanup();
+      await target.cleanup();
+    }
   });
 });
 
