@@ -128,6 +128,7 @@ The homepage features recent posts alongside a dedicated announcements section f
 - **FR-10.1** — Sign in with Google or Discord only. No email/password.
 - **FR-10.2** — Accounts store: display name (editable), avatar (from provider), linked provider identity, and role (Reader by default; Author/Admin assigned by admin).
 - **FR-10.3** — Reader accounts exist to enable commenting and liking; no public profiles in v1.
+- **FR-10.4** — Self-serve account deletion: a signed-in user can delete their own account after confirmation. Deletion removes the account, provider identities, sessions, and likes; comments are anonymized thread-preservingly (authorless "[deleted]" placeholders). Refused for staff with authored posts (transfer/delete first) and for the last active admin.
 
 ---
 

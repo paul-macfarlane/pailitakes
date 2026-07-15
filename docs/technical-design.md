@@ -158,7 +158,11 @@ post_tags
 comments
   id            uuid PK
   post_id       uuid FK -> posts.id
-  author_id     text FK -> user.id
+  author_id     text FK -> user.id null      -- null = author deleted their
+                                              -- account (anonymized, ADR-0026);
+                                              -- FK stays RESTRICT otherwise, so
+                                              -- a user delete loudly fails if a
+                                              -- non-anonymized comment remains
   parent_id     uuid FK -> comments.id null   -- null = top level
   body          text
   status        enum('visible','held','rejected','deleted')
@@ -307,6 +311,17 @@ ORDER BY rank DESC, publish_at DESC
 - `sitemap.xml` route handler over visible posts, revalidated by tag
 - `robots.txt` disallows `/admin`
 
+### 5.9 Account deletion (FR-10.4)
+
+A confirm `AlertDialog` on `/account` calls Better Auth's `authClient.deleteUser()`. Guards and anonymization run server-side in a `beforeDelete` hook, not the client:
+
+1. **Refuse if staff with authored posts** — a staff account (Author/Admin) that has authored any post must transfer or delete those posts first.
+2. **Refuse if the deleting user is the last active admin** — same locked-admin-set machinery the users domain's ban service uses for the last-active-admin invariant (§5.2), so a concurrent ban/role change can't race a delete into leaving zero admins.
+3. **Anonymize comments in one UPDATE**: `author_id = NULL, status = 'deleted', body = '', mod_verdict = NULL` for every comment authored by the user — a single statement, no transaction needed. Placeholder-vs-hidden display is unchanged (§5.3): the row still renders as an authorless "[deleted]" placeholder only where it has visible descendants, otherwise it disappears.
+4. Better Auth then deletes the `user` row; `account` (OAuth identities), `session`, `post_likes`, and `comment_likes` rows cascade via FK.
+
+**Accepted race:** the admin-set lock used in step 2 releases before Better Auth performs the row delete in step 4, so two admins self-deleting at the same instant could theoretically both pass the last-active-admin check and leave zero admins. Accepted for this site's scale (ADR-0026, account deletion & anonymization) — not worth a cross-request lock for a single-operator blog.
+
 ---
 
 ## 6. Project Structure (sketch)
@@ -396,6 +411,7 @@ Each domain under `lib/` follows the same shape: `service*.ts` holds business lo
 - Cron endpoint requires an `Authorization: Bearer ${CRON_SECRET}` header — Vercel Cron sends it automatically because the env var is named `CRON_SECRET`. Reject anything without it; the route does nothing destructive regardless (it only revalidates caches), so worst case for a leaked URL is extra cache churn.
 - Analytics stores only salted daily hashes — no IPs, no cookies, no cross-day correlation.
 - Banned users: checked on comment and like actions; sessions not revoked (they can still read).
+- Account deletion is self-serve (§5.9); anonymization leaves no PII on retained comment rows — author, body, and moderation verdict are all cleared.
 
 ---
 
