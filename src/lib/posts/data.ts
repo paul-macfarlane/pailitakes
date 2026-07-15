@@ -62,6 +62,19 @@ export function isPostSlugCollision(err: unknown): boolean {
   return constraint === "posts_slug_unique" || constraint === "";
 }
 
+// Self-service account deletion (ACCT-1) refuses to anonymize/delete a user
+// who has authored any post, regardless of status (draft/published/
+// archived/scheduled all count) — unlike comments, a post has no
+// anonymization path, so the only safe outcome is to block the delete.
+export async function userHasAuthoredPosts(userId: string): Promise<boolean> {
+  const [row] = await db
+    .select({ id: posts.id })
+    .from(posts)
+    .where(eq(posts.authorId, userId))
+    .limit(1);
+  return row !== undefined;
+}
+
 export async function categoryExists(categoryId: number): Promise<boolean> {
   const [row] = await db
     .select({ id: categories.id })

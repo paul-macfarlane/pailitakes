@@ -260,11 +260,13 @@ export const comments = pgTable(
     postId: uuid("post_id")
       .notNull()
       .references(() => posts.id, { onDelete: "cascade" }),
-    // No onDelete, matching posts.authorId: deleting a user with comments
-    // should fail loudly; there is no user-deletion flow in v1.
-    authorId: text("author_id")
-      .notNull()
-      .references(() => user.id),
+    // Nullable (unlike posts.authorId): self-service account deletion
+    // (ACCT-1) anonymizes a deleting user's comments to author_id = NULL
+    // rather than blocking on them. No onDelete though — the FK deliberately
+    // stays RESTRICT, so any comment that ISN'T anonymized first (a bug, or a
+    // row inserted mid-anonymize) still fails the user delete loudly instead
+    // of silently orphaning it.
+    authorId: text("author_id").references(() => user.id),
     // Self-FK, null = top-level (design §4). No cascade: hard deletes are
     // only ever performed on childless comments — the child-existence check
     // and delete semantics live in the service layer, not the FK.

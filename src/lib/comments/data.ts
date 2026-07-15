@@ -13,6 +13,7 @@ import { visiblePostsWhere } from "@/lib/posts/posts";
 import { CommentStatus } from "@/lib/comments/status";
 import type { CommentRow } from "@/lib/comments/tree";
 import type { ModVerdictRecord } from "@/lib/comments/verdict";
+import type { Tx } from "@/lib/users/data";
 
 // Reused (not duplicated — engineering rule) from the posts domain: a
 // comment can only land on a post that's publicly visible right now (design
@@ -158,9 +159,12 @@ export async function insertComment(input: {
   return row!;
 }
 
+// authorId is nullable (ACCT-1 anonymization): a null never equals a real
+// session id, so the ownership check in the edit service naturally denies
+// editing an anonymized comment rather than needing a special case.
 export type OwnedCommentForEdit = {
   id: string;
-  authorId: string;
+  authorId: string | null;
   postId: string;
   parentId: string | null;
   status: CommentStatus;
@@ -205,9 +209,12 @@ export async function applyCommentEdit(
   return row!.editedAt!;
 }
 
+// authorId is nullable (ACCT-1 anonymization) — same reasoning as
+// OwnedCommentForEdit above; a null authorId can never match the acting
+// user, so the ownership check falls through to the ManageAnyComment check.
 export type CommentForDelete = {
   id: string;
-  authorId: string;
+  authorId: string | null;
   postId: string;
 };
 
@@ -243,6 +250,29 @@ export async function softDeleteComment(id: string): Promise<void> {
     .update(comments)
     .set({ status: CommentStatus.Deleted, body: "" })
     .where(eq(comments.id, id));
+}
+
+// Self-service account deletion (ACCT-1): ONE uniform update over every
+// comment the deleting user authored, regardless of current status — the
+// existing placeholder/prune rule in tree.ts (ADR-0020) already renders a
+// `deleted` row with no author identically whether it got there via
+// softDeleteComment or here, so there's no per-status branching to do.
+// Takes `tx` because it's composed inside the caller's
+// withLockedUserMutation transaction (src/lib/users/service.ts) — it must
+// commit or roll back atomically with the user-row delete/guard checks.
+export async function anonymizeCommentsForUser(
+  tx: Tx,
+  userId: string,
+): Promise<void> {
+  await tx
+    .update(comments)
+    .set({
+      authorId: null,
+      status: CommentStatus.Deleted,
+      body: "",
+      modVerdict: null,
+    })
+    .where(eq(comments.authorId, userId));
 }
 
 // Self-join alias for the NOT EXISTS guard below — deleting FROM comments
@@ -285,6 +315,13 @@ export async function hardDeleteCommentIfChildless(
 // would hand back for an int8/bigint. viewerId null (signed-out reader)
 // skips the EXISTS entirely via a `false` literal rather than parameterizing
 // a viewer that can never match.
+//
+// leftJoin (not innerJoin): an anonymized row (ACCT-1, author_id NULL) has
+// no user to inner-join against — dropping it here would silently orphan
+// any of its still-visible children too (buildCommentTree needs the parent
+// row present to attach them). The row's redacted (body/author already
+// stripped at rest) so nothing leaks; authorName/authorImage are nullable to
+// match.
 export async function loadCommentRowsForPost(
   postId: string,
   viewerId: string | null,
@@ -308,7 +345,7 @@ export async function loadCommentRowsForPost(
       likedByMe,
     })
     .from(comments)
-    .innerJoin(user, eq(user.id, comments.authorId))
+    .leftJoin(user, eq(user.id, comments.authorId))
     .where(eq(comments.postId, postId))
     .orderBy(asc(comments.createdAt), asc(comments.id));
 }
@@ -363,6 +400,10 @@ export async function listModerationLogRows(params: {
     })
     .from(comments)
     .innerJoin(posts, eq(posts.id, comments.postId))
+    // innerJoin is safe here (unlike loadCommentRowsForPost's leftJoin):
+    // this query is scoped to held/rejected, and account-deletion
+    // anonymization (ACCT-1) always sets author_id NULL together with
+    // status='deleted' — a NULL-author row can never match this filter.
     .innerJoin(user, eq(user.id, comments.authorId))
     .where(eq(comments.status, params.status))
     .orderBy(desc(comments.createdAt), desc(comments.id))

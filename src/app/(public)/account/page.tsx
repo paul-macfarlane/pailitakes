@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { Suspense } from "react";
 
+import { DeleteAccount } from "@/app/(public)/account/_components/delete-account";
 import { DisplayNameForm } from "@/app/(public)/account/_components/display-name-form";
 import {
   Card,
@@ -64,8 +65,14 @@ async function AccountCard() {
         <CardTitle>Account</CardTitle>
         <CardDescription>Signed in as {session.user.email}.</CardDescription>
       </CardHeader>
-      <CardContent>
+      <CardContent className="flex flex-col gap-6">
         <DisplayNameForm initialName={session.user.name} />
+        {/* Visually separated at the same 375px width the form above is
+            verified at — a border-t plus label reads as "different kind of
+            action" without a second Card's extra chrome. */}
+        <div className="border-t pt-6">
+          <DeleteAccount />
+        </div>
       </CardContent>
     </Card>
   );

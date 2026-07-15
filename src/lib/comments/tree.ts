@@ -7,12 +7,15 @@
 import { CommentStatus } from "@/lib/comments/status";
 
 // Raw row shape read by src/lib/comments/data.ts's thread query (one row per
-// comment, author joined in) — the input to buildCommentTree.
+// comment, author left-joined in) — the input to buildCommentTree.
+// authorId/authorName are nullable: an anonymized row (ACCT-1, the deleting
+// user's account is gone) has no user to join against, but the comment row
+// itself — and any visible descendants — must still load.
 export type CommentRow = {
   id: string;
   parentId: string | null;
-  authorId: string;
-  authorName: string;
+  authorId: string | null;
+  authorName: string | null;
   authorImage: string | null;
   body: string;
   status: CommentStatus;
@@ -47,11 +50,15 @@ export type CommentNode = {
 //     generalizing beyond just "deleted" placeholders covers the race where
 //     an edit flags a parent (turning it `rejected`) that still has visible
 //     replies — those replies must not be orphaned.
+//   - A row with no author (ACCT-1 anonymization) is redacted exactly like a
+//     non-visible row, even in the defensive case its status were somehow
+//     `visible` — in practice only `deleted` rows have a null author.
 // Children are ordered createdAt asc, id as a stable tiebreak.
 export function buildCommentTree(rows: CommentRow[]): CommentNode[] {
   const nodesById = new Map<string, CommentNode>();
   for (const row of rows) {
-    const visible = row.status === CommentStatus.Visible;
+    const visible =
+      row.status === CommentStatus.Visible && row.authorId !== null;
     nodesById.set(row.id, {
       id: row.id,
       parentId: row.parentId,
@@ -60,7 +67,7 @@ export function buildCommentTree(rows: CommentRow[]): CommentNode[] {
       createdAt: row.createdAt.toISOString(),
       editedAt: row.editedAt ? row.editedAt.toISOString() : null,
       author: visible
-        ? { id: row.authorId, name: row.authorName, image: row.authorImage }
+        ? { id: row.authorId!, name: row.authorName!, image: row.authorImage }
         : null,
       // A redacted placeholder renders no like button — zeroing these
       // alongside body/author keeps a non-visible node from leaking a like

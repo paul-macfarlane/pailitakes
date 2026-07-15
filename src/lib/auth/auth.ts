@@ -13,6 +13,7 @@ import {
   MAX_DISPLAY_NAME_LENGTH,
   normalizeDisplayName,
 } from "@/lib/users/display-name";
+import { prepareAccountDeletion } from "@/lib/users/service";
 
 export const auth = betterAuth({
   baseURL: env.BETTER_AUTH_URL,
@@ -76,6 +77,23 @@ export const auth = betterAuth({
         type: "date",
         required: false,
         input: false,
+      },
+    },
+    // Self-service account deletion (ACCT-1). beforeDelete is the single
+    // enforcement point for the refusal rules (authored posts, would-orphan-
+    // admins) and for anonymizing the user's comments — better-auth calls it
+    // synchronously before internalAdapter.deleteUser, so throwing here
+    // aborts the delete before any row is removed. Client freshness note:
+    // the /delete-user endpoint itself (not this hook) rejects a stale
+    // session with APIError(BAD_REQUEST, SESSION_EXPIRED) — see ACCT-1
+    // handoff notes for the exact string.
+    deleteUser: {
+      enabled: true,
+      beforeDelete: async (user) => {
+        const result = await prepareAccountDeletion(user.id);
+        if (!result.ok) {
+          throw new APIError("BAD_REQUEST", { message: result.error });
+        }
       },
     },
   },
