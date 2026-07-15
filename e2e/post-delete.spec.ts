@@ -10,9 +10,10 @@ import {
   type TestSession,
 } from "./helpers/session";
 
-// Admin-only hard delete (ADM-4) through the edit page's AlertDialog. Posts
-// are seeded directly (createTestPost) rather than driven through the editor
-// — the delete flow itself is what's under test, not authoring.
+// Hard delete (ADM-4, and its ACCT-1 sibling widening the capability to
+// authors) through the edit page's AlertDialog. Posts are seeded directly
+// (createTestPost) rather than driven through the editor — the delete flow
+// itself is what's under test, not authoring.
 
 test.describe("post delete (admin)", () => {
   let admin: TestSession;
@@ -74,7 +75,7 @@ test.describe("post delete (admin)", () => {
   });
 });
 
-test.describe("post delete visibility (author)", () => {
+test.describe("post delete (author)", () => {
   let author: TestSession;
   let category: TestCategory;
   let post: TestPost;
@@ -86,11 +87,6 @@ test.describe("post delete visibility (author)", () => {
       userName: "E2E Author",
     });
     await context.addCookies([author.cookie]);
-    post = await createTestPost({
-      authorId: author.userId,
-      categoryId: category.id,
-      status: "draft",
-    });
   });
 
   test.afterEach(async () => {
@@ -99,12 +95,51 @@ test.describe("post delete visibility (author)", () => {
     await author.cleanup();
   });
 
-  test("an author sees no delete control on their own post's edit page", async ({
+  test("author deletes their own draft through the confirmation dialog", async ({
     page,
   }) => {
+    post = await createTestPost({
+      authorId: author.userId,
+      categoryId: category.id,
+      status: "draft",
+    });
+
     await page.goto(`/admin/posts/${post.id}/edit`);
     await expect(page.locator("#title")).toHaveValue(post.title);
 
+    // Same dialog flow as the admin spec above — Action.DeletePost now
+    // covers an author's own never-public, comment-free post
+    // (deleteOwnNeverPublicPost, src/lib/posts/service/crud.ts).
+    await clickUntil(page.getByRole("button", { name: "Delete post" }), () =>
+      expect(
+        page.getByRole("alertdialog", {
+          name: `Delete “${post.title}”?`,
+        }),
+      ).toBeVisible(),
+    );
+
+    await page.getByRole("button", { name: "Delete permanently" }).click();
+    await page.waitForURL((url) => new URL(url).pathname === "/admin");
+
+    await expect(page.getByRole("link", { name: post.title })).toHaveCount(0);
+  });
+
+  test("author sees no delete control on their own published post", async ({
+    page,
+  }) => {
+    post = await createTestPost({
+      authorId: author.userId,
+      categoryId: category.id,
+      status: "published",
+    });
+
+    await page.goto(`/admin/posts/${post.id}/edit`);
+    await expect(page.locator("#title")).toHaveValue(post.title);
+
+    // Once-public posts stay outside the author's delete predicate — the
+    // edit page only renders PostDeleteControls for a draft/scheduled own
+    // post (page.tsx), so this is the same visibility hint the admin
+    // dashboard relies on, not the server-side guard itself.
     await expect(page.getByRole("button", { name: "Delete post" })).toHaveCount(
       0,
     );
