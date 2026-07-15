@@ -350,9 +350,10 @@ export async function deletePostService(
 
     // Revalidated on every success path, including the never-cached
     // author-owned deletes: harmless (revalidating a tag nobody cached is a
-    // no-op) and kills a stale-cache class outright — a post an author
-    // deleted right after it briefly went public then reverted to draft
-    // could otherwise leave a stale post:{slug} cache entry behind.
+    // no-op) — belt-and-braces, not load-bearing. A published->draft revert
+    // already busts post:{slug} at the point of that transition
+    // (lifecycle.ts), so a deleted never-public post's tag was never left
+    // stale by the time it gets here; this call is just cheap insurance.
     revalidateTag("post-list", IMMEDIATE);
     revalidateTag(`post:${deleted.slug}`, IMMEDIATE);
 

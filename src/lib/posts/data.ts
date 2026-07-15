@@ -12,6 +12,7 @@ import {
   inArray,
   isNull,
   ne,
+  not,
   notExists,
   notInArray,
   or,
@@ -75,25 +76,6 @@ function uniqueViolationConstraint(err: unknown): string | null {
 export function isPostSlugCollision(err: unknown): boolean {
   const constraint = uniqueViolationConstraint(err);
   return constraint === "posts_slug_unique" || constraint === "";
-}
-
-// Self-service account deletion (ACCT-1) refuses to anonymize/delete a user
-// who has authored any post, regardless of status (draft/published/
-// archived/scheduled all count). A transfer flow (transferPostsOwnership)
-// and a never-public hard-delete flow (deleteNeverPublicPostsForUser) exist
-// now, but this pre-check still blocks outright rather than trying to
-// determine here whether the caller already resolved every post — the real
-// backstop is posts.authorId's FK staying RESTRICT (no onDelete, schema.ts):
-// a post transferred to this user mid-deletion (a race with another admin
-// action) makes the user-row delete fail loudly instead of silently
-// orphaning it.
-export async function userHasAuthoredPosts(userId: string): Promise<boolean> {
-  const [row] = await db
-    .select({ id: posts.id })
-    .from(posts)
-    .where(eq(posts.authorId, userId))
-    .limit(1);
-  return row !== undefined;
 }
 
 export async function categoryExists(categoryId: number): Promise<boolean> {
@@ -323,6 +305,17 @@ function noCommentsGuard(): SQL {
   );
 }
 
+// "This post is eligible for the never-public purge" — the single predicate
+// shared by deleteNeverPublicPostsForUser (the purge) and
+// userHasUndeletablePosts (its refusal-check complement, below) so the two
+// can never drift apart. Both take the SAME `now` from their caller
+// (prepareAccountDeletion, src/lib/users/service.ts) so the refusal check
+// and the purge agree on "now" even though they run as separate statements
+// inside the same transaction.
+function purgeablePostGuard(now: Date): SQL {
+  return and(neverPublicGuard(now), noCommentsGuard())!;
+}
+
 // Author-initiated hard delete (ACCT-1's sibling feature): authors may only
 // remove their OWN posts that have never gone public and have no comments —
 // see neverPublicGuard/noCommentsGuard above for why status alone isn't
@@ -364,28 +357,58 @@ export async function transferPostsOwnership(
     .returning({ slug: posts.slug });
 }
 
-// Same never-public + no-comments predicate as deleteOwnNeverPublicPost,
-// scoped by `userId` rather than an acting session's ownership check (there
-// is no acting session — this runs as part of the account-deletion flow
-// deleting the user's OWN posts). Takes `tx` because it's composed inside
-// the users domain's account-deletion transaction (wave 2), matching how
-// anonymizeCommentsForUser (src/lib/comments/data.ts) is tx-composed for the
-// same flow. No cache revalidation here: a never-public post was never
-// visible, so it was never cached under any tag — nothing to invalidate.
+// Same never-public + no-comments predicate as deleteOwnNeverPublicPost
+// (via purgeablePostGuard), scoped by `userId` rather than an acting
+// session's ownership check (there is no acting session — this runs as part
+// of the account-deletion flow deleting the user's OWN posts). Takes `tx`
+// because it's composed inside the users domain's account-deletion
+// transaction, matching how anonymizeCommentsForUser (src/lib/comments/data.ts)
+// is tx-composed for the same flow. No cache revalidation here: a
+// never-public post was never visible, so it was never cached under any tag
+// — nothing to invalidate. Callers MUST run userHasUndeletablePosts (below)
+// against the same `now` and get a clean refusal-free result BEFORE calling
+// this — see that function's comment for why (prepareAccountDeletion,
+// src/lib/users/service.ts, is the only caller and enforces the order).
 export async function deleteNeverPublicPostsForUser(
   tx: UsersTx,
   userId: string,
+  now: Date,
 ): Promise<{ id: string }[]> {
   return tx
     .delete(posts)
-    .where(
-      and(
-        eq(posts.authorId, userId),
-        neverPublicGuard(new Date()),
-        noCommentsGuard(),
-      ),
-    )
+    .where(and(eq(posts.authorId, userId), purgeablePostGuard(now)))
     .returning({ id: posts.id });
+}
+
+// The account-deletion refusal check (prepareAccountDeletion,
+// src/lib/users/service.ts): true when this user has authored at least one
+// post that would SURVIVE deleteNeverPublicPostsForUser's purge (an
+// ever-public post, or a never-public one with a real comment thread) — the
+// exact negation of purgeablePostGuard, so the two can't drift.
+//
+// INVARIANT: this must run, and the delete must be refused, BEFORE any write
+// happens — including the purge itself. All of prepareAccountDeletion's
+// refusal checks run before any write because withLockedUserMutation's
+// transaction COMMITS when its callback resolves normally and only
+// ROLLBACKs on throw; a refusal that returned `{ ok: false }` after the
+// purge had already run would still commit the purge (drafts permanently
+// gone from a deletion the caller was told was refused). Takes the same
+// `now` the caller passes to deleteNeverPublicPostsForUser so the check and
+// the purge agree on "now" even though they're separate statements in the
+// same tx; if publish_at flips between them anyway, a surviving post still
+// blocks the user-row delete via posts.authorId's FK staying RESTRICT (no
+// onDelete, schema.ts) — a backstop, not the primary guard.
+export async function userHasUndeletablePosts(
+  tx: UsersTx,
+  userId: string,
+  now: Date,
+): Promise<boolean> {
+  const [row] = await tx
+    .select({ id: posts.id })
+    .from(posts)
+    .where(and(eq(posts.authorId, userId), not(purgeablePostGuard(now))))
+    .limit(1);
+  return row !== undefined;
 }
 
 // Column selection for a LEFT JOINed post_drafts row, reused by every read
