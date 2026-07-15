@@ -50,7 +50,12 @@ test.describe("signed-in user", () => {
     await gotoAccountHydrated(page);
     await page.getByLabel("Display name").fill("Renamed Tester");
     await page.getByRole("button", { name: "Save" }).click();
-    await expect(page.getByRole("status")).toHaveText("Saved.");
+    // Filtered because the account page holds a second, idle aria-live
+    // region (the delete-account flow's, ACCT-1) — a bare role lookup is
+    // ambiguous under strict mode.
+    await expect(
+      page.getByRole("status").filter({ hasText: "Saved." }),
+    ).toBeVisible();
   });
 
   test("rejects a whitespace-only display name", async ({ page }) => {
