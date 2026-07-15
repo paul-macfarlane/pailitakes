@@ -15,6 +15,7 @@ import { anonymizeCommentsForUser } from "@/lib/comments/data";
 import {
   deleteNeverPublicPostsForUser,
   transferPostsOwnership,
+  userHasUndeletablePosts,
 } from "@/lib/posts/data";
 import { GENERIC_ERROR, type ActionResult } from "@/lib/shared/action-result";
 import { IMMEDIATE } from "@/lib/shared/cache";
@@ -25,7 +26,6 @@ import {
   type Tx,
   updateUserBanned,
   updateUserRole,
-  userHasAuthoredPostsTx,
   withLockedUserMutation,
 } from "@/lib/users/data";
 
@@ -165,6 +165,15 @@ export const ACCOUNT_LAST_ADMIN_ERROR =
 // below) and the last-active-admin invariant block a delete; comments are
 // anonymized in-place rather than blocking on them (design decision, see
 // backlog).
+//
+// ORDERING INVARIANT: every refusal check below runs BEFORE any write.
+// withLockedUserMutation's transaction COMMITS when its callback resolves
+// normally and only ROLLBACKs on throw — there is no rollback-on-`{ ok:
+// false }`. A refusal that ran after a write (e.g. the never-public purge)
+// would still commit that write despite reporting the deletion as refused.
+// So: (1) target exists, (2) no undeletable posts, (3) not the last active
+// admin — all pure reads, nothing written — and only once every refusal has
+// passed do the purge + anonymize writes run.
 export async function prepareAccountDeletion(
   userId: string,
 ): Promise<{ ok: true } | { ok: false; error: string }> {
@@ -176,29 +185,13 @@ export async function prepareAccountDeletion(
           return { ok: false, error: "User not found." };
         }
 
-        // Purge never-public, comment-free posts first (tx-composed, same
-        // predicate as the author's own hard-delete) so the refusal below
-        // only blocks on what actually survives — a draft-only author must
-        // be able to delete their account outright. No cache revalidation
-        // for this purge: a never-public post was never visible, so it was
-        // never cached under any tag.
-        await deleteNeverPublicPostsForUser(tx, userId);
+        // Same `now` is threaded through this check and the purge below so
+        // both evaluate purgeablePostGuard (posts/data.ts) at the same
+        // instant — see userHasUndeletablePosts's comment for the invariant
+        // and the FK-RESTRICT backstop if publish_at flips between them.
+        const now = new Date();
 
-        // Tx-scoped read (userHasAuthoredPostsTx, users/data.ts) rather than
-        // posts/data.ts's plain userHasAuthoredPosts: the purge above ran on
-        // this same `tx` and hasn't committed, so a plain `db.select` (a
-        // fresh session) would still see the pre-purge rows under READ
-        // COMMITTED — this check must run on `tx` to observe its own
-        // transaction's uncommitted delete. Whatever survives the purge
-        // (an ever-public post, or a never-public one with a real comment
-        // thread) still blocks the delete; there's no flow that reassigns a
-        // post's author concurrently with this transaction (the admin
-        // transfer flow above is a plain UPDATE with no lock on this row),
-        // and posts.authorId's FK stays RESTRICT (no onDelete, schema.ts) as
-        // the backstop — a post transferred to this user mid-deletion (the
-        // race that lock doesn't cover) makes the user-row delete below fail
-        // loudly instead of silently orphaning it.
-        if (await userHasAuthoredPostsTx(tx, userId)) {
+        if (await userHasUndeletablePosts(tx, userId, now)) {
           return { ok: false, error: ACCOUNT_HAS_POSTS_ERROR };
         }
 
@@ -208,6 +201,10 @@ export async function prepareAccountDeletion(
           return { ok: false, error: ACCOUNT_LAST_ADMIN_ERROR };
         }
 
+        // Every refusal above passed with no writes — safe to purge and
+        // anonymize now. No cache revalidation for the purge: a never-public
+        // post was never visible, so it was never cached under any tag.
+        await deleteNeverPublicPostsForUser(tx, userId, now);
         await anonymizeCommentsForUser(tx, userId);
         return { ok: true };
       },

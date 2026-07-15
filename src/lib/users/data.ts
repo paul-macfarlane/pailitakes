@@ -7,7 +7,7 @@ import "server-only";
 import { and, eq, isNull } from "drizzle-orm";
 
 import { db, type Db } from "@/db";
-import { posts, user } from "@/db/schema";
+import { user } from "@/db/schema";
 import { Role } from "@/lib/auth/roles";
 
 export type Tx = Parameters<Parameters<Db["transaction"]>[0]>[0];
@@ -63,29 +63,6 @@ export async function loadUserState(
     .where(eq(user.id, id))
     .limit(1);
   return row;
-}
-
-// Tx-scoped mirror of posts/data.ts's userHasAuthoredPosts, needed only
-// inside prepareAccountDeletion's transaction (service.ts): that flow first
-// purges the user's never-public posts (deleteNeverPublicPostsForUser, same
-// tx) and then must see the effect of that delete before deciding whether
-// any posts remain — a plain `db.select` opens a fresh session and, under
-// READ COMMITTED, would still see the pre-purge rows because the delete
-// hasn't committed yet. This belongs conceptually beside userHasAuthoredPosts
-// in posts/data.ts (same predicate, tx-aware sibling); it's implemented here
-// instead purely because this task's diff is scoped to the users domain —
-// cross-domain direct reads of another domain's table already exist at this
-// layer (posts/admin.ts reads the `user` table the same way).
-export async function userHasAuthoredPostsTx(
-  tx: Tx,
-  userId: string,
-): Promise<boolean> {
-  const [row] = await tx
-    .select({ id: posts.id })
-    .from(posts)
-    .where(eq(posts.authorId, userId))
-    .limit(1);
-  return row !== undefined;
 }
 
 export async function updateUserRole(

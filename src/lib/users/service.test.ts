@@ -280,6 +280,57 @@ describe("prepareAccountDeletion", () => {
     await testDb.delete(posts).where(eq(posts.id, post!.id));
   });
 
+  // Regression test for the ordering bug: prepareAccountDeletion used to run
+  // the never-public purge BEFORE this refusal check, and because the
+  // transaction commits on normal return (not on `{ ok: false }`), a refused
+  // deletion still permanently purged the draft. Asserting the draft still
+  // exists after the refusal is the whole point of this case.
+  it("refuses when the user has a never-public draft AND a published post, and does not purge the draft", async () => {
+    const [draft] = await testDb
+      .insert(posts)
+      .values({
+        authorId: authoredPostsId,
+        title: `${runId} mixed-draft`,
+        slug: `${runId}-mixed-draft`,
+        bodyMd: "Body.",
+        thumbnailUrl: "",
+        categoryId,
+        // Default status (draft), no publishAt — never public, no comments;
+        // purgeable on its own, but the published post below must still
+        // block the whole delete before any purge runs.
+      })
+      .returning({ id: posts.id });
+
+    const [published] = await testDb
+      .insert(posts)
+      .values({
+        authorId: authoredPostsId,
+        title: `${runId} mixed-published`,
+        slug: `${runId}-mixed-published`,
+        bodyMd: "Body.",
+        thumbnailUrl: "https://example.com/thumb.jpg",
+        categoryId,
+        status: "published",
+        publishAt: new Date("2026-01-01T00:00:00Z"),
+      })
+      .returning({ id: posts.id });
+
+    expect(await prepareAccountDeletion(authoredPostsId)).toEqual({
+      ok: false,
+      error: ACCOUNT_HAS_POSTS_ERROR,
+    });
+
+    const [draftRow] = await testDb
+      .select({ id: posts.id })
+      .from(posts)
+      .where(eq(posts.id, draft!.id));
+    expect(draftRow).toBeDefined();
+
+    await testDb
+      .delete(posts)
+      .where(inArray(posts.id, [draft!.id, published!.id]));
+  });
+
   it("refuses when the user is the last active admin", async () => {
     activeAdminIdsOverride.current = [soleAdminId];
 
@@ -287,6 +338,40 @@ describe("prepareAccountDeletion", () => {
       ok: false,
       error: ACCOUNT_LAST_ADMIN_ERROR,
     });
+  });
+
+  // Same ordering regression as the mixed-posts case above, for the
+  // last-admin refusal path: the never-public draft would otherwise be
+  // purged before the last-admin check has a chance to refuse.
+  it("refuses when the last active admin has only never-public drafts, and does not purge them", async () => {
+    activeAdminIdsOverride.current = [soleAdminId];
+
+    const [draft] = await testDb
+      .insert(posts)
+      .values({
+        authorId: soleAdminId,
+        title: `${runId} admin-draft`,
+        slug: `${runId}-admin-draft`,
+        bodyMd: "Body.",
+        thumbnailUrl: "",
+        categoryId,
+        // Never-public, commentless — passes the has-posts check on its
+        // own, so only the last-admin refusal blocks this delete.
+      })
+      .returning({ id: posts.id });
+
+    expect(await prepareAccountDeletion(soleAdminId)).toEqual({
+      ok: false,
+      error: ACCOUNT_LAST_ADMIN_ERROR,
+    });
+
+    const [row] = await testDb
+      .select({ id: posts.id })
+      .from(posts)
+      .where(eq(posts.id, draft!.id));
+    expect(row).toBeDefined();
+
+    await testDb.delete(posts).where(eq(posts.id, draft!.id));
   });
 
   it("allows an admin to delete when another active admin exists", async () => {
