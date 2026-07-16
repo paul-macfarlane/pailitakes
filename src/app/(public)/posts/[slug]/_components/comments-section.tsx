@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useState, useSyncExternalStore } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { createComment } from "@/actions/comments";
@@ -38,6 +38,10 @@ type CommentThreadResponse = {
   meta: { commentsLocked: boolean };
   comments: CommentNode[];
 };
+
+// Stable no-op subscription for the useSyncExternalStore hydration flag
+// below — the "store" never changes; only the server/client snapshots differ.
+const noopSubscribe = () => () => {};
 
 const COMMENTS_QUERY_KEY = (postId: string) => ["comments", postId] as const;
 
@@ -82,13 +86,30 @@ function CommentsSectionInner({
 }) {
   const client = useQueryClient();
   const { data: session, isPending: sessionPending } = authClient.useSession();
+  // authClient.useSession() disagrees with itself across the hydration
+  // boundary: SSR yields { isPending: false, data: null } (reads as signed
+  // out) while the client's first render is pending — gating on isPending
+  // alone renders the sign-in prompt on the server and the skeleton on the
+  // client, a hydration mismatch that regenerates the island. `hydrated`
+  // pins both sides of the first paint to the skeleton; the real session
+  // branch takes over after mount.
+  const hydrated = useSyncExternalStore(
+    noopSubscribe,
+    () => true,
+    () => false,
+  );
   // A `locked`/`archived` denial from an in-flight submission means the
   // post's comment state changed after this page loaded (an admin locked
   // it, or it got archived) — sticks for the rest of this visit rather than
   // letting every further attempt fail the same way silently.
   const [lockMessage, setLockMessage] = useState<string | null>(null);
 
-  const { data, isLoading, isError, refetch } = useQuery({
+  // isPending (no data yet), NOT isLoading (= isPending && isFetching):
+  // during SSR nothing fetches, so isLoading is false and the server would
+  // render the "No comments yet." branch while the hydrating client renders
+  // the skeleton — a hydration mismatch that re-renders the whole island
+  // (and briefly shows "No comments yet." on posts that have comments).
+  const { data, isPending, isError, refetch } = useQuery({
     queryKey: COMMENTS_QUERY_KEY(postId),
     queryFn: () => fetchCommentThread(postId),
   });
@@ -165,7 +186,7 @@ function CommentsSectionInner({
           Comments{visibleCount !== null ? ` (${visibleCount})` : ""}
         </h2>
 
-        {sessionPending ? (
+        {!hydrated || sessionPending ? (
           <Skeleton className="h-20 w-full" />
         ) : !session ? (
           <p className="text-sm text-muted-foreground">
@@ -204,7 +225,7 @@ function CommentsSectionInner({
           />
         )}
 
-        {isLoading ? (
+        {isPending ? (
           <div className="flex flex-col gap-4">
             <Skeleton className="h-14 w-full" />
             <Skeleton className="h-14 w-full" />
