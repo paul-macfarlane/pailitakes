@@ -349,18 +349,36 @@ describe("transitionPostStatus", () => {
       await client.query("select id from posts where id = $1 for update", [
         post.id,
       ]);
+      const { rows: pidRows } = await client.query<{ pid: number }>(
+        "select pg_backend_pid() as pid",
+      );
+      const holderPid = pidRows[0]!.pid;
 
       const actionPromise = transitionPostStatus(post.id, "published");
 
       // Deterministic (not a timing guess): wait until the action's guarded
-      // UPDATE is actually blocked on our row lock — by then its non-locking
-      // SELECT has already read 'draft'. A row-lock wait shows up as an
-      // ungranted transactionid/tuple lock in pg_locks.
+      // UPDATE is actually blocked on OUR row lock — by then its non-locking
+      // SELECT has already read 'draft'. Scoped via pg_blocking_pids to
+      // backends blocked by this connection specifically: a global "any
+      // ungranted lock" check (the previous version) could be satisfied by a
+      // concurrently running test file's transient lock, releasing the flip
+      // too early and letting the CAS succeed instead of conflicting.
+      // Two constraints shape the polling:
+      // - it MUST run on `client`: the shared test pool is max:2, and with
+      //   the lock holder + the blocked action both checked out, a
+      //   pool.query() poll would queue forever behind the very statement
+      //   it's waiting on;
+      // - `client` has a transaction open, and pg_stat_activity freezes to a
+      //   snapshot at its first in-transaction read — the action's backend
+      //   may be a pool connection created after that snapshot, so each
+      //   iteration clears it first.
       for (let i = 0; ; i++) {
-        const { rows } = await client.query(
-          "select count(*)::int as n from pg_locks where not granted and locktype in ('transactionid','tuple')",
+        await client.query("select pg_stat_clear_snapshot()");
+        const { rows } = await client.query<{ n: number }>(
+          "select count(*)::int as n from pg_stat_activity where $1 = any(pg_blocking_pids(pid))",
+          [holderPid],
         );
-        if (rows[0].n > 0) break;
+        if (rows[0]!.n > 0) break;
         if (i >= 400)
           throw new Error("action UPDATE never blocked on the lock");
         await new Promise((resolve) => setTimeout(resolve, 25));
