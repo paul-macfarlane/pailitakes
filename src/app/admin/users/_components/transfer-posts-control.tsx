@@ -44,7 +44,11 @@ export function TransferPostsControl({
   const selectId = useId();
   const candidates = staffOptions.filter((option) => option.id !== userId);
   const [open, setOpen] = useState(false);
-  const [targetId, setTargetId] = useState<string | undefined>(undefined);
+  // null, not undefined: Base UI decides controlled-vs-uncontrolled from the
+  // FIRST render's value, and undefined reads as uncontrolled — the first
+  // selection would then flip the Select to controlled (console error). null
+  // is the controlled-empty sentinel that keeps the placeholder showing.
+  const [targetId, setTargetId] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
 
@@ -56,7 +60,7 @@ export function TransferPostsControl({
     setOpen(next);
     if (!next) {
       setError(null);
-      setTargetId(undefined);
+      setTargetId(null);
     }
   }
 
@@ -106,7 +110,7 @@ export function TransferPostsControl({
             <Select
               items={candidates.map((c) => ({ value: c.id, label: c.name }))}
               value={targetId}
-              onValueChange={(value) => setTargetId(value ?? undefined)}
+              onValueChange={(value) => setTargetId(value)}
             >
               <SelectTrigger id={selectId} className="w-full">
                 <SelectValue placeholder="Choose a staff member" />
@@ -120,6 +124,14 @@ export function TransferPostsControl({
               </SelectContent>
             </Select>
           </Label>
+          {/* Failures keep the dialog open, so the message must render
+              INSIDE it — a paragraph outside sits behind the dialog overlay
+              where the user can't see it (same fix as the delete dialogs). */}
+          {error && (
+            <p role="alert" className="text-sm text-destructive">
+              {error}
+            </p>
+          )}
           <AlertDialogFooter>
             <AlertDialogCancel disabled={isPending}>Cancel</AlertDialogCancel>
             <AlertDialogAction
@@ -131,11 +143,6 @@ export function TransferPostsControl({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-      {error ? (
-        <p role="alert" className="text-xs text-destructive">
-          {error}
-        </p>
-      ) : null}
     </div>
   );
 }
