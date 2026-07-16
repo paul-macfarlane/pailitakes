@@ -279,7 +279,15 @@ export function CommentItem({
                 </Button>
               )}
               {canDelete && (
-                <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}>
+                <AlertDialog
+                  open={deleteOpen}
+                  onOpenChange={(next) => {
+                    setDeleteOpen(next);
+                    // A failure message belongs to the attempt it answered —
+                    // reopening the dialog later starts clean.
+                    if (!next) setDeleteError(null);
+                  }}
+                >
                   <AlertDialogTrigger
                     render={<Button type="button" variant="ghost" size="xs" />}
                   >
@@ -294,6 +302,14 @@ export function CommentItem({
                         instead of removed outright.
                       </AlertDialogDescription>
                     </AlertDialogHeader>
+                    {/* Failures keep the dialog open, so the message must
+                        render INSIDE it — a paragraph outside sits behind
+                        the dialog overlay where the user can't see it. */}
+                    {deleteError && (
+                      <p role="alert" className="text-sm text-destructive">
+                        {deleteError}
+                      </p>
+                    )}
                     <AlertDialogFooter>
                       <AlertDialogCancel disabled={isDeleting}>
                         Cancel
@@ -310,12 +326,6 @@ export function CommentItem({
                 </AlertDialog>
               )}
             </div>
-          )}
-
-          {deleteError && (
-            <p role="alert" className="mt-1 text-xs text-destructive">
-              {deleteError}
-            </p>
           )}
 
           {isReplying && (

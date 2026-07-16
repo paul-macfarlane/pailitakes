@@ -172,9 +172,10 @@ test.describe("account deletion refusal (author with a published post)", () => {
     );
     await dialog.getByRole("button", { name: "Delete account" }).click();
 
-    // The hook's message surfaces verbatim in the page's alert region
-    // (ACCOUNT_HAS_POSTS_ERROR, src/lib/users/service.ts).
-    await expect(page.getByRole("alert")).toHaveText(
+    // The hook's message surfaces verbatim INSIDE the still-open dialog
+    // (ACCOUNT_HAS_POSTS_ERROR, src/lib/users/service.ts) — a page-level
+    // region would sit invisibly behind the overlay.
+    await expect(dialog.getByRole("alert")).toHaveText(
       "Your account has published posts or posts with comments. Contact the site owner to transfer or delete them first.",
     );
 

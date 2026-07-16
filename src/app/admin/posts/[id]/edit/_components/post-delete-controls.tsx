@@ -16,7 +16,6 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
-import { cn } from "@/lib/utils";
 
 // Hard delete (ADM-4): unlike Archive (recoverable), this permanently
 // removes the post row and, via FK cascade, its staged draft and tag links.
@@ -66,7 +65,15 @@ export function PostDeleteControls({
           Permanently delete this post. This cannot be undone.
         </p>
       </div>
-      <AlertDialog open={open} onOpenChange={setOpen}>
+      <AlertDialog
+        open={open}
+        onOpenChange={(next) => {
+          setOpen(next);
+          // A refusal message belongs to the attempt it answered — reopening
+          // the dialog later starts clean.
+          if (!next) setError(null);
+        }}
+      >
         <AlertDialogTrigger
           render={
             <Button
@@ -90,6 +97,15 @@ export function PostDeleteControls({
               archiving, this cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
+          {/* Refusals (e.g. the author-scoped predicate rejecting a stale
+              page's delete) keep the dialog open, so the message must render
+              INSIDE it — a page-level region sits behind the dialog overlay
+              where the user can't see it. */}
+          {error && (
+            <p role="alert" className="text-sm text-destructive">
+              {error}
+            </p>
+          )}
           <AlertDialogFooter>
             <AlertDialogCancel disabled={isPending}>Cancel</AlertDialogCancel>
             <AlertDialogAction
@@ -104,13 +120,10 @@ export function PostDeleteControls({
       </AlertDialog>
       <p
         aria-live="polite"
-        role={error ? "alert" : "status"}
-        className={cn(
-          "text-sm",
-          error ? "text-destructive" : "text-muted-foreground",
-        )}
+        role="status"
+        className="text-sm text-muted-foreground"
       >
-        {error ?? (isPending ? "Deleting…" : "")}
+        {isPending ? "Deleting…" : ""}
       </p>
     </div>
   );

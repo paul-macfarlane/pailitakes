@@ -16,7 +16,6 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { authClient } from "@/lib/auth/client";
-import { cn } from "@/lib/utils";
 
 // Better Auth throws this code (BASE_ERROR_CODES.SESSION_EXPIRED, see
 // node_modules/better-auth .../dist/api/routes/update-user.mjs deleteUser
@@ -70,7 +69,15 @@ export function DeleteAccount() {
           Permanently delete your account. This cannot be undone.
         </p>
       </div>
-      <AlertDialog open={open} onOpenChange={setOpen}>
+      <AlertDialog
+        open={open}
+        onOpenChange={(next) => {
+          setOpen(next);
+          // A refusal message belongs to the attempt it answered — reopening
+          // the dialog later starts clean.
+          if (!next) setError(null);
+        }}
+      >
         <AlertDialogTrigger
           render={
             <Button
@@ -93,6 +100,15 @@ export function DeleteAccount() {
               placeholders so reply threads survive. This cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
+          {/* Refusals (server beforeDelete guards, stale-session) keep the
+              dialog open, so the message must render INSIDE it — a page-level
+              region sits behind the dialog overlay where the user can't see
+              it. */}
+          {error && (
+            <p role="alert" className="text-sm text-destructive">
+              {error}
+            </p>
+          )}
           <AlertDialogFooter>
             <AlertDialogCancel disabled={isPending}>Cancel</AlertDialogCancel>
             <AlertDialogAction
@@ -107,13 +123,10 @@ export function DeleteAccount() {
       </AlertDialog>
       <p
         aria-live="polite"
-        role={error ? "alert" : "status"}
-        className={cn(
-          "text-sm",
-          error ? "text-destructive" : "text-muted-foreground",
-        )}
+        role="status"
+        className="text-sm text-muted-foreground"
       >
-        {error ?? (isPending ? "Deleting…" : "")}
+        {isPending ? "Deleting…" : ""}
       </p>
     </div>
   );
