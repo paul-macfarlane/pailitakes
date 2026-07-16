@@ -445,8 +445,14 @@ describe("listAdminPosts", () => {
   });
 
   it("lets an admin see all authors' posts and filter by author", async () => {
+    // q scopes the admin-wide read to this run's fixtures (titles start with
+    // runId): the shared local DB accumulates rows across runs, and an
+    // unscoped read capped at 100 silently drops this run's posts once the
+    // table outgrows the cap — a pollution flake, not a rule failure. The
+    // rule under test (admin sees BOTH authors) is unaffected by the scoping.
     const all = await listAdminPosts({
       user: { id: adminId, role: "admin" },
+      q: runId,
       limit: 100,
     });
     const allIds = all.rows.map((r) => r.id);
@@ -464,9 +470,11 @@ describe("listAdminPosts", () => {
   });
 
   it("filters by status", async () => {
+    // q-scoped for the same pollution reason as the admin-view test above.
     const { rows } = await listAdminPosts({
       user: { id: adminId, role: "admin" },
       status: "draft",
+      q: runId,
       limit: 100,
     });
     const ids = rows.map((r) => r.id);
