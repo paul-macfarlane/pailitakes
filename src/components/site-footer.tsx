@@ -21,6 +21,12 @@ export async function SiteFooter() {
         <span>© {currentYear} Paulitakes</span>
         <nav aria-label="Footer" className="flex items-center gap-4">
           <Link
+            href="/about"
+            className="transition-colors hover:text-foreground"
+          >
+            About
+          </Link>
+          <Link
             href="/privacy"
             className="transition-colors hover:text-foreground"
           >
@@ -32,6 +38,7 @@ export async function SiteFooter() {
           >
             Terms
           </Link>
+          {/* Not a typo: the GitHub repo really is named "pailitakes". */}
           <a
             href="https://github.com/paul-macfarlane/pailitakes"
             target="_blank"
