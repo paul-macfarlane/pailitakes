@@ -46,7 +46,8 @@ export const metadata: Metadata = {
     default: "Paulitakes",
     template: "%s · Paulitakes",
   },
-  description: "Hot takes, cold analysis. A mobile-first sports blog.",
+  description:
+    "Paulitakes is a mobile-first sports blog — hot takes, cold analysis, and reactions from Paul and guest authors.",
   openGraph: {
     siteName: "Paulitakes",
     type: "website",
