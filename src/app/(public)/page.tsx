@@ -55,6 +55,20 @@ export default function HomePage({
       <p className="mt-1 text-sm text-muted-foreground">
         Hot takes, cold analysis.
       </p>
+      {/* Purpose blurb required on the home page itself by Google's OAuth
+          branding review (BRAND-4) — the footer's privacy link alone wasn't
+          enough for the reviewer. */}
+      <p className="mt-3 max-w-prose text-sm text-muted-foreground">
+        Paulitakes is a sports blog where Paul — and guest authors — publish
+        takes: opinion pieces, analysis, and reactions. Sign in with Google or
+        Discord to join in with comments and likes.{" "}
+        <Link
+          href="/about"
+          className="underline underline-offset-2 transition-colors hover:text-foreground"
+        >
+          About the site
+        </Link>
+      </p>
       <Suspense fallback={<HomeSkeleton />}>
         <HomeSection searchParams={searchParams} />
       </Suspense>
