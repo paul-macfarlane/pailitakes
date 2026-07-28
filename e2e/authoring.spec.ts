@@ -37,6 +37,22 @@ test.describe("authoring lifecycle", () => {
     await category.cleanup();
   });
 
+  // Pick THIS test's own category in the currently-visible editor. The editor
+  // otherwise defaults to a shared first category, so the post wouldn't be
+  // isolated to a category only this test cleans up — and a concurrent test's
+  // category cleanup could delete the post (404-ing its edit page). Retry
+  // covers pre-hydration clicks on the Base UI Select.
+  async function selectOwnCategory(page: Page): Promise<void> {
+    const categoryTrigger = page.locator("#category:visible");
+    await expect(async () => {
+      await categoryTrigger.click({ timeout: 3000 });
+      await page
+        .getByRole("option", { name: category.name })
+        .click({ timeout: 3000 });
+      await expect(categoryTrigger).toContainText(category.name);
+    }).toPass({ timeout: 15000 });
+  }
+
   // Creates a draft through the editor and returns its id + resolved slug.
   // The editor assigns the id on first (explicit) save and navigates to the
   // edit route (router.replace), so we read the id back from the URL.
@@ -47,19 +63,7 @@ test.describe("authoring lifecycle", () => {
     await page.goto("/admin/posts/new");
     await expect(page.getByRole("heading", { name: "New post" })).toBeVisible();
 
-    // Pick THIS test's own category. The editor otherwise defaults to a shared
-    // first category, so the post wouldn't be isolated to a category only this
-    // test cleans up — and a concurrent test's category cleanup could delete
-    // the post (404-ing its edit page). Retry covers pre-hydration clicks on
-    // the Base UI Select.
-    const categoryTrigger = page.locator("#category");
-    await expect(async () => {
-      await categoryTrigger.click({ timeout: 3000 });
-      await page
-        .getByRole("option", { name: category.name })
-        .click({ timeout: 3000 });
-      await expect(categoryTrigger).toContainText(category.name);
-    }).toPass({ timeout: 15000 });
+    await selectOwnCategory(page);
 
     // Target editor fields by id — getByLabel("Body") is ambiguous (the
     // Write/Preview toggle group is aria-label="Body view").
@@ -258,6 +262,11 @@ test.describe("authoring lifecycle", () => {
     const title = `E2E Reuse ${crypto.randomUUID().slice(0, 8)}`;
     await createDraft(page, title);
 
+    // NOTE: createDraft ends on a full page load (page.goto of the edit
+    // route), which tears the SPA tree down — so this spec exercises the
+    // post-reload path only. The soft-nav-only path is covered separately by
+    // "new post is a clean slate after creating one in the same session".
+
     // Client-side navigation back to the dashboard and on to a fresh "New
     // post" — no full page load in between, so a stale form/postId would
     // carry over here if create didn't hand off via a real navigation
@@ -275,6 +284,67 @@ test.describe("authoring lifecycle", () => {
     // rather than unmounting it on this soft nav.
     await expect(page.locator("#title:visible")).toHaveValue("");
     await expect(page.locator("#bodyMd:visible")).toHaveValue("");
+  });
+
+  // Regression: creating a post on /new hands off with router.replace, a SOFT
+  // navigation — Next keeps the /new segment mounted-but-hidden (React
+  // Activity) and reveals that same client instance on the next visit. The
+  // server re-renders /new with initialPost={null}, but useForm's
+  // defaultValues only run on mount, so without the per-render key in
+  // new/page.tsx the author came back to the post they had just created —
+  // and, because postIdRef survived too, the next save silently UPDATED that
+  // post instead of creating another one. Everything here stays on soft
+  // navigation: any page.goto() would tear the SPA tree down and hide the bug.
+  test("new post is a clean slate after creating one in the same session", async ({
+    page,
+  }) => {
+    await page.goto("/admin/posts/new");
+    await expect(page.getByRole("heading", { name: "New post" })).toBeVisible();
+
+    await selectOwnCategory(page);
+    const title = `E2E CleanSlate ${crypto.randomUUID().slice(0, 8)}`;
+    await page.locator("#title").fill(title);
+    await page.locator("#bodyMd").fill("Body of the first post.");
+    const status = page.getByRole("status").filter({ hasText: "Saved" });
+    await clickUntil(page.getByRole("button", { name: "Save now" }), () =>
+      expect(status).toBeVisible(),
+    );
+    await page.waitForURL(/\/admin\/posts\/[^/]+\/edit/);
+    const firstId = page.url().match(/\/admin\/posts\/([^/]+)\/edit/)?.[1];
+    expect(firstId, "post id in edit URL").toBeTruthy();
+
+    await page.getByRole("link", { name: "← Posts" }).click();
+    await page.waitForURL((url) => new URL(url).pathname === "/admin");
+    await page.locator('a[href="/admin/posts/new"]').click();
+    await page.waitForURL(
+      (url) => new URL(url).pathname === "/admin/posts/new",
+    );
+    await expect(page.getByRole("heading", { name: "New post" })).toBeVisible();
+
+    // ":visible" excludes the hidden edit-page form Next retains for instant
+    // back-navigation.
+    await expect(page.locator("#title:visible")).toHaveValue("");
+    await expect(page.locator("#bodyMd:visible")).toHaveValue("");
+    await expect(page.locator("#slug:visible")).toHaveValue("");
+    await expect(page.locator("#thumbnailUrl:visible")).toHaveValue("");
+    await expect(
+      page.getByRole("status").filter({ hasText: "Draft not saved yet" }),
+    ).toBeVisible();
+
+    // The decisive assertion: saving here must CREATE a second post, not
+    // update the first one.
+    await selectOwnCategory(page);
+    const secondTitle = `${title} SECOND`;
+    await page.locator("#title:visible").fill(secondTitle);
+    await clickUntil(page.getByRole("button", { name: "Save now" }), () =>
+      expect(page).toHaveURL(/\/admin\/posts\/[^/]+\/edit/),
+    );
+    const secondId = page.url().match(/\/admin\/posts\/([^/]+)\/edit/)?.[1];
+    expect(secondId).not.toBe(firstId);
+
+    // And the first post kept its own title (it was never hijacked).
+    await page.goto(`/admin/posts/${firstId}/edit`);
+    await expect(page.locator("#title")).toHaveValue(title);
   });
 
   test("publishing includes keystrokes typed just before publish", async ({
