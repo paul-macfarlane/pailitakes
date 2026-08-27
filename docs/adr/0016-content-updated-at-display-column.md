@@ -22,6 +22,6 @@ Options considered: (a) render `updated_at` with a threshold heuristic — rejec
 ## Consequences
 
 - Easier: honest reader-facing edit signal with zero coupling to lifecycle code — the guard absorbs every status-machine path, so future transitions can't silently break the display. No cache changes: promote already revalidates `post:{slug}`.
-- Harder: two timestamp columns with adjacent names (`updated_at` vs `content_updated_at`) invite misuse — the schema comments state which is which; `updated_at` remains admin-dashboard-only. Same-day edits render an "Updated" date identical to the publish date (accepted; granularity is date-only by design).
+- Harder: two timestamp columns with adjacent names (`updated_at` vs `content_updated_at`) invite misuse — the schema comments state which is which; `updated_at` remains admin-dashboard-only. Same-day edits render an "Updated" date identical to the publish date (accepted at the time; reversed by ADR-0028 — same-local-day edits are now suppressed).
 - Deviation from the locked design doc's data model (v0.3) — approved by the owner 2026-07-11; data-model section amended alongside this ADR.
 - Revisit if: an edit-history requirement arrives (this column keeps only the latest stamp), or authors want a "minor edit, don't bump" flag.

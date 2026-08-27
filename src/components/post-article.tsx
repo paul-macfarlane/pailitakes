@@ -5,10 +5,10 @@ import Link from "next/link";
 import { ExternalImage } from "@/components/external-image";
 import { LiteYouTubeActivation } from "@/components/lite-youtube-activation";
 import { PostBody } from "@/components/post-body";
+import { PostDates } from "@/components/post-dates";
 import { YouTubeEmbed } from "@/components/youtube-embed";
 import { postHeroSrc } from "@/lib/content/image-src";
 import { extractYouTubeId } from "@/lib/content/markdown";
-import { showsUpdatedDate } from "@/lib/posts/status";
 
 // One source of truth for how a rendered post looks (hero, byline, video,
 // body, tags) — the public post page and the ADM-7 admin preview both use it,
@@ -23,7 +23,7 @@ export type PostArticleData = {
   // byline date is simply omitted then.
   publishAt: Date | null;
   // Null unless the post's staged edits have been promoted since publishAt
-  // (POST-10); see showsUpdatedDate for when this actually renders.
+  // (POST-10); see showsUpdatedDate (via PostDates) for when this renders.
   contentUpdatedAt: Date | null;
   thumbnailUrl: string;
   bannerUrl: string | null;
@@ -31,13 +31,6 @@ export type PostArticleData = {
   author: { name: string };
   tags: { slug: string; name: string }[];
 };
-
-// UTC-pinned so a cached server render and any client render of the same date
-// can never disagree across timezones.
-const dateFormat = new Intl.DateTimeFormat("en-US", {
-  dateStyle: "medium",
-  timeZone: "UTC",
-});
 
 export function PostArticle({ post }: { post: PostArticleData }) {
   const videoId = post.videoUrl ? extractYouTubeId(post.videoUrl) : null;
@@ -56,12 +49,6 @@ export function PostArticle({ post }: { post: PostArticleData }) {
   }
   const bodyHasEmbeds = post.bodyHtml.includes("<lite-youtube");
   const heroSrc = postHeroSrc(post);
-  // showsUpdatedDate doesn't narrow post.contentUpdatedAt for the compiler
-  // (it's a plain boolean predicate, not an inline null check) — a local
-  // const lets the truthy check below narrow it instead of a `!` assertion.
-  const updatedAt = showsUpdatedDate(post.publishAt, post.contentUpdatedAt)
-    ? post.contentUpdatedAt
-    : null;
 
   return (
     <>
@@ -88,20 +75,10 @@ export function PostArticle({ post }: { post: PostArticleData }) {
           <p className="mt-2 text-sm text-muted-foreground">
             By {post.author.name}
             {post.publishAt && (
-              <>
-                {" · "}
-                <time dateTime={post.publishAt.toISOString()}>
-                  {dateFormat.format(post.publishAt)}
-                </time>
-              </>
-            )}
-            {updatedAt && (
-              <>
-                {" · Updated "}
-                <time dateTime={updatedAt.toISOString()}>
-                  {dateFormat.format(updatedAt)}
-                </time>
-              </>
+              <PostDates
+                publishAt={post.publishAt.toISOString()}
+                contentUpdatedAt={post.contentUpdatedAt?.toISOString() ?? null}
+              />
             )}
           </p>
         </header>

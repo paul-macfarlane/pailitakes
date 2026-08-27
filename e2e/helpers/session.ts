@@ -214,6 +214,29 @@ export async function createTestPost(options: {
   };
 }
 
+// Moves a post's publish_at into the past by whole days, straight in the DB.
+// The public "Updated" byline is suppressed when the edit lands on the same
+// calendar day as the publish (showsUpdatedDate, ADR-0028), so a spec that
+// publishes and promotes within seconds needs the publish pushed back to see
+// it. Bypasses the cache on purpose: call it BEFORE a mutation that
+// revalidates the post (promote does), never expect the page to update on
+// its own.
+export async function backdatePostPublishAt(
+  postId: string,
+  days: number,
+): Promise<void> {
+  const { databaseUrl } = requireEnv();
+  const pool = new Pool({ connectionString: databaseUrl, max: 1 });
+  try {
+    await pool.query(
+      `update posts set publish_at = publish_at - make_interval(days => $2) where id = $1`,
+      [postId, days],
+    );
+  } finally {
+    await pool.end();
+  }
+}
+
 export interface TestComment {
   id: string;
 }

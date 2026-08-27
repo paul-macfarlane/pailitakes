@@ -150,6 +150,8 @@ describe("showsUpdatedDate", () => {
   const publishAt = new Date("2026-06-01T00:00:00Z");
   const earlier = new Date("2026-05-01T00:00:00Z");
   const later = new Date("2026-07-01T00:00:00Z");
+  // Same UTC day as publishAt but the previous evening in New York.
+  const laterSameUtcDay = new Date("2026-06-01T03:00:00Z");
 
   it.each([
     ["both null (never-published, never-edited preview)", null, null, false],
@@ -178,13 +180,27 @@ describe("showsUpdatedDate", () => {
       later,
       true,
     ],
+    [
+      "same-day edit (date-only byline would repeat the publish date, SEO-9)",
+      publishAt,
+      laterSameUtcDay,
+      false,
+    ],
   ] satisfies [
     name: string,
     publishAt: Date | null,
     contentUpdatedAt: Date | null,
     expected: boolean,
-  ][])("%s", (_name, publishAtArg, contentUpdatedAtArg, expected) => {
-    expect(showsUpdatedDate(publishAtArg, contentUpdatedAtArg)).toBe(expected);
+  ][])("%s → %s", (_name, publish, updated, expected) => {
+    expect(showsUpdatedDate(publish, updated, "UTC")).toBe(expected);
+  });
+
+  it("judges 'same day' in the given zone, not UTC (SEO-9)", () => {
+    // An edit at 23:00Z Jun 1 is still Jun 1 in UTC but already Jun 2 in
+    // Tokyo (UTC+9), so only the Tokyo viewer sees "Updated".
+    const lateEdit = new Date("2026-06-01T23:00:00Z");
+    expect(showsUpdatedDate(publishAt, lateEdit, "UTC")).toBe(false);
+    expect(showsUpdatedDate(publishAt, lateEdit, "Asia/Tokyo")).toBe(true);
   });
 });
 

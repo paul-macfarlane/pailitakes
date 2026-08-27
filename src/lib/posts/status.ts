@@ -5,6 +5,8 @@
 // (archive is recoverable), design §4 (visibility is a query over status +
 // timestamps).
 
+import { isSameCalendarDay } from "@/lib/shared/datetime";
+
 export const PostStatus = {
   Draft: "draft",
   Scheduled: "scheduled",
@@ -90,14 +92,21 @@ export function isPubliclyVisible(
 // post even went live. An archived -> published restore instead reuses the
 // ORIGINAL publishAt, so a content edit made before the archive still counts
 // as an update relative to that original publish time.
+//
+// The byline is date-only, so an edit on the same calendar day as the publish
+// would render "Updated Aug 27" beside "Aug 27" — noise, not signal — and is
+// suppressed (SEO-9). "Same day" is judged in the viewer's zone: the server
+// fallback passes "UTC", the client re-decides with the real zone (ADR-0028).
 export function showsUpdatedDate(
   publishAt: Date | null,
   contentUpdatedAt: Date | null,
+  timeZone: string,
 ): boolean {
   return (
     publishAt !== null &&
     contentUpdatedAt !== null &&
-    contentUpdatedAt > publishAt
+    contentUpdatedAt > publishAt &&
+    !isSameCalendarDay(publishAt, contentUpdatedAt, timeZone)
   );
 }
 
