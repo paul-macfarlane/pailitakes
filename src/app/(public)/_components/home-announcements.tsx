@@ -1,12 +1,5 @@
+import { LocalDate } from "@/components/local-date";
 import { getHomeAnnouncements } from "@/lib/announcements/home";
-
-// UTC-pinned, same rationale as PostCard (src/components/post-card.tsx):
-// server-rendered results must show the same date regardless of viewer
-// timezone.
-const dateFormat = new Intl.DateTimeFormat("en-US", {
-  dateStyle: "medium",
-  timeZone: "UTC",
-});
 
 // Homepage announcements section (FR-6.2): a dedicated, newest-first section
 // showing the most recent few active announcements. Ordering/limit/hiding of
@@ -42,9 +35,7 @@ export async function HomeAnnouncements() {
               dangerouslySetInnerHTML={{ __html: announcement.html }}
             />
             <p className="mt-1 text-xs text-muted-foreground">
-              <time dateTime={announcement.createdAt.toISOString()}>
-                {dateFormat.format(announcement.createdAt)}
-              </time>
+              <LocalDate iso={announcement.createdAt.toISOString()} />
             </p>
           </li>
         ))}

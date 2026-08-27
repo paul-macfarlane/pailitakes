@@ -40,9 +40,8 @@ Write tasks as **goals**: the outcome plus the FR-x.y / technical-design § that
 
 Open work, in the order to pick it up. Overrides the epic-table order while any of these are open.
 
-1. **SEO-8** — local-timezone dates. A visible correctness bug; bugs before features.
-2. **FEED-1..3** — RSS feed. Small, reader-facing; bank it before the big epic.
-3. **REV-1..6** — revisions. Largest open epic and author-only; nothing is blocked on it.
+1. **FEED-1..3** — RSS feed. Small, reader-facing; bank it before the big epic.
+2. **REV-1..6** — revisions. Largest open epic and author-only; nothing is blocked on it.
 
 Tie-break rules Paul set: bugs before features, then small before large.
 

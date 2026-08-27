@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { z } from "zod";
 
+import { LocalDate } from "@/components/local-date";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -29,12 +30,6 @@ const filterSchema = z.object({
   q: searchQuerySchema,
   sort: z.enum(ADMIN_POST_SORTS).catch(SORT_UPDATED),
   page: z.coerce.number().int().min(1).catch(1),
-});
-
-// UTC-pinned to match the rest of the app's date rendering.
-const dateFormat = new Intl.DateTimeFormat("en-US", {
-  dateStyle: "medium",
-  timeZone: "UTC",
 });
 
 function StatusBadge({ status }: { status: AdminPostRow["status"] }) {
@@ -252,7 +247,7 @@ export default async function AdminPage({
                 <p className="text-xs text-muted-foreground">
                   {post.category.name}
                   {isAdmin ? ` · ${post.author.name}` : ""} · Updated{" "}
-                  {dateFormat.format(post.updatedAt)}
+                  <LocalDate iso={post.updatedAt.toISOString()} />
                 </p>
               </div>
               <StatusBadge status={post.status} />

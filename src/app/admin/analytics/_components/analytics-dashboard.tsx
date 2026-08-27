@@ -15,7 +15,13 @@ import {
 
 import { QueryProvider } from "@/components/query-provider";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import {
   ChartContainer,
   ChartLegend,
@@ -75,10 +81,10 @@ const GRANULARITY_LABELS: Record<AnalyticsGranularity, string> = {
   [AnalyticsGranularity.Month]: "Monthly",
 };
 
-// UTC-pinned, mirroring src/app/admin/page.tsx's dateFormat: bucket strings
-// are UTC calendar dates (src/lib/analytics/data.ts), so the tick label must
-// render in UTC too or it'd disagree with the bucket boundary on some
-// viewers' clocks.
+// Deliberately NOT the viewer-zone LocalDate island (SEO-8, ADR-0028): bucket
+// strings are UTC calendar-day aggregates (src/lib/analytics/data.ts), so the
+// tick label must render in UTC too or it'd disagree with the bucket boundary
+// on some viewers' clocks. The chart title says so.
 const axisDateFormat = new Intl.DateTimeFormat("en-US", {
   month: "short",
   day: "numeric",
@@ -267,6 +273,7 @@ function TrafficCard({ traffic }: { traffic: TrafficBucket[] }) {
     <Card>
       <CardHeader>
         <CardTitle>Traffic over time</CardTitle>
+        <CardDescription>Buckets are UTC calendar days.</CardDescription>
       </CardHeader>
       <CardContent>
         {traffic.length === 0 ? (

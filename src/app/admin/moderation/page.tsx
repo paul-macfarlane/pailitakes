@@ -3,12 +3,14 @@ import Link from "next/link";
 import { z } from "zod";
 
 import { ModerationRowControls } from "@/app/admin/moderation/_components/moderation-row-controls";
+import { LocalDate } from "@/components/local-date";
 import { Button } from "@/components/ui/button";
 import type { ModerationLogRow } from "@/lib/comments/data";
 import { listModerationLog } from "@/lib/comments/service/moderation-log";
 import { CommentStatus } from "@/lib/comments/status";
 import { Action } from "@/lib/auth/permissions";
 import { requireCapability } from "@/lib/auth/session";
+import { DateDisplay } from "@/lib/shared/datetime";
 
 export const metadata: Metadata = {
   title: "Moderation log",
@@ -22,12 +24,6 @@ const filterSchema = z.object({
     .enum([CommentStatus.Held, CommentStatus.Rejected])
     .catch(CommentStatus.Held),
   page: z.coerce.number().int().min(1).catch(1),
-});
-
-const dateFormat = new Intl.DateTimeFormat("en-US", {
-  dateStyle: "medium",
-  timeStyle: "short",
-  timeZone: "UTC",
 });
 
 const STATUS_LABELS: Record<
@@ -164,7 +160,10 @@ export default async function AdminModerationPage({
                     {row.author.email}
                   </p>
                   <p className="text-xs text-muted-foreground">
-                    {dateFormat.format(row.createdAt)} UTC
+                    <LocalDate
+                      iso={row.createdAt.toISOString()}
+                      display={DateDisplay.DateTime}
+                    />
                   </p>
                 </div>
                 <span className="rounded-full bg-muted px-2.5 py-0.5 text-xs font-medium">
