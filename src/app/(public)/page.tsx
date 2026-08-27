@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { Suspense } from "react";
 
@@ -23,9 +24,27 @@ import {
   type SearchResult,
 } from "@/lib/posts/search";
 import {
+  homeCanonical,
   searchParamsSchema,
   type SearchPageParams,
 } from "@/lib/posts/search-params";
+
+// Canonical/robots derived from the same parsed params the page renders from
+// (SEO-10; rules in homeCanonical). Title/description/OG stay inherited from
+// the root layout.
+export async function generateMetadata({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}): Promise<Metadata> {
+  const { canonical, noindex } = homeCanonical(
+    searchParamsSchema.parse(await searchParams),
+  );
+  return {
+    alternates: { canonical },
+    ...(noindex ? { robots: { index: false, follow: true } } : {}),
+  };
+}
 
 // `/` is the single browse/search surface (owner-approved fold of /search and
 // /categories/[slug] into home, epic 03 SRCH): optional, combinable `q` and
