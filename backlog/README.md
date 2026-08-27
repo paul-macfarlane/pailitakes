@@ -33,6 +33,7 @@ Write tasks as **goals**: the outcome plus the FR-x.y / technical-design § that
 | `08-seo-launch.md`      | `SEO`   | Metadata, sitemap, mobile QA, launch                |
 | `09-accounts.md`        | `ACCT`  | Account self-service (deletion, anonymization)      |
 | `10-brand.md`           | `BRAND` | Visual identity: theme, icons, wordmark, OG card    |
+| `11-revisions.md`       | `REV`   | Revision history, diffs, restore                    |
 
 ## Working the backlog
 
