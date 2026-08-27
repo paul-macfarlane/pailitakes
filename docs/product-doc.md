@@ -32,7 +32,7 @@ The homepage features recent posts alongside a dedicated announcements section f
 ### Non-Goals (for v1)
 
 - Native video hosting (all video lives on YouTube).
-- Newsletters, RSS-to-email, push or reply notifications.
+- Newsletters, RSS-to-email, push or reply notifications. (A plain RSS feed is in scope — FR-9.6.)
 - Monetization (ads, subscriptions, paywalls).
 - Guest/anonymous commenting.
 - Native mobile app (mobile web only).
@@ -126,6 +126,7 @@ The homepage features recent posts alongside a dedicated announcements section f
 - **FR-9.3** — Global navigation: home, categories, search.
 - **FR-9.4** — **Mobile-first responsive design:** layouts, typography, embedded video players, comment threads, and the like/comment interactions must all be designed for phone screens first and scale up to desktop.
 - **FR-9.5** — SEO basics: per-post meta titles/descriptions, Open Graph tags, sitemap, clean URLs (e.g., `/posts/my-hot-take`).
+- **FR-9.6** — RSS feed: a single site-wide feed at `/feed.xml` of published, visible posts (newest first, capped), each entry carrying the full rendered post body. Entries are keyed by post id and dated by publish date; post-publish edits update the entry in place without re-dating it. Advertised via `<link rel="alternate">` and a footer link. (Added 2026-08-27; backlog FEED epic.)
 
 ### 3.10 Authentication & Accounts
 
@@ -154,7 +155,7 @@ The homepage features recent posts alongside a dedicated announcements section f
 
 ## 6. Future Ideas (explicitly not v1)
 
-- RSS feed
+- Per-category / per-tag / per-author RSS feeds (site-wide feed is FR-9.6)
 - Comment reply notifications
 - Related posts recommendations
 - Public author profile pages
