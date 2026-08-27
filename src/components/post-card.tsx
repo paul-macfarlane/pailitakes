@@ -1,14 +1,8 @@
 import Link from "next/link";
 
 import { ExternalImage } from "@/components/external-image";
+import { LocalDate } from "@/components/local-date";
 import type { HomeFeedCard } from "@/lib/posts/home-feed";
-
-// UTC-pinned: server-rendered results must show the same date regardless of
-// viewer timezone.
-const dateFormat = new Intl.DateTimeFormat("en-US", {
-  dateStyle: "medium",
-  timeZone: "UTC",
-});
 
 // Presentational card (FR-9.x home feed): shared by home's three modes,
 // category/tag browse, and /tags/[slug] — all server-rendered, paginated by
@@ -45,10 +39,7 @@ export function PostCard({ post }: { post: HomeFeedCard }) {
           {post.excerpt}
         </p>
         <p className="mt-1 text-xs text-muted-foreground">
-          {post.author.name} ·{" "}
-          <time dateTime={post.publishAt}>
-            {dateFormat.format(new Date(post.publishAt))}
-          </time>
+          {post.author.name} · <LocalDate iso={post.publishAt} />
         </p>
       </div>
     </article>
