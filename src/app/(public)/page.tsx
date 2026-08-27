@@ -6,6 +6,7 @@ import { FeedPagination } from "@/app/(public)/_components/feed-pagination";
 import { HomeAnnouncements } from "@/app/(public)/_components/home-announcements";
 import { SearchBox } from "@/app/(public)/_components/search-box";
 import { ExternalImage } from "@/components/external-image";
+import { LocalDate } from "@/components/local-date";
 import { PostCard } from "@/components/post-card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ViewBeacon } from "@/components/view-beacon";
@@ -25,14 +26,6 @@ import {
   searchParamsSchema,
   type SearchPageParams,
 } from "@/lib/posts/search-params";
-
-// UTC-pinned, same rationale as PostCard (src/components/post-card.tsx):
-// server-rendered results must show the same date regardless of viewer
-// timezone.
-const dateFormat = new Intl.DateTimeFormat("en-US", {
-  dateStyle: "medium",
-  timeZone: "UTC",
-});
 
 // `/` is the single browse/search surface (owner-approved fold of /search and
 // /categories/[slug] into home, epic 03 SRCH): optional, combinable `q` and
@@ -248,9 +241,7 @@ function SearchResultCard({ result }: { result: SearchResult }) {
           </Link>
         </h2>
         <p className="mt-1 text-xs text-muted-foreground">
-          <time dateTime={result.publishAt.toISOString()}>
-            {dateFormat.format(result.publishAt)}
-          </time>
+          <LocalDate iso={result.publishAt.toISOString()} />
         </p>
         <p className="mt-1 line-clamp-2 text-sm text-muted-foreground">
           <SnippetText snippet={result.snippet} />

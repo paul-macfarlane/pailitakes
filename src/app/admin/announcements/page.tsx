@@ -2,23 +2,16 @@ import type { Metadata } from "next";
 
 import { AnnouncementCreateForm } from "@/app/admin/announcements/_components/announcement-create-form";
 import { AnnouncementRowControls } from "@/app/admin/announcements/_components/announcement-row-controls";
+import { LocalDate } from "@/components/local-date";
 import { listAllAnnouncements } from "@/lib/announcements/data";
 import { Action } from "@/lib/auth/permissions";
 import { requireCapability } from "@/lib/auth/session";
+import { DateDisplay } from "@/lib/shared/datetime";
 
 export const metadata: Metadata = {
   title: "Announcements",
   robots: { index: false, follow: false },
 };
-
-// UTC-pinned to match the rest of the app's date rendering (e.g.
-// src/app/admin/moderation/page.tsx); time-of-day matters here since
-// expiresAt is compared against "now".
-const dateFormat = new Intl.DateTimeFormat("en-US", {
-  dateStyle: "medium",
-  timeStyle: "short",
-  timeZone: "UTC",
-});
 
 // Admin-only site-wide announcement management (FR-6.1, FR-6.3). Same
 // requireCapability/notFound() pattern as /admin/categories — a staff-but-
@@ -60,20 +53,17 @@ export default async function AdminAnnouncementsPage() {
                   </p>
                   <p className="mt-1 text-xs text-muted-foreground">
                     Posted{" "}
-                    <time dateTime={announcement.createdAt.toISOString()}>
-                      {/* This server-rendered list is UTC-pinned (avoids a
-                          hydration mismatch), but the create/edit form's
-                          expiration input is a browser-local
-                          datetime-local — the " UTC" suffix disambiguates
-                          the two clocks for the admin. */}
-                      {dateFormat.format(announcement.createdAt)} UTC
-                    </time>
+                    <LocalDate
+                      iso={announcement.createdAt.toISOString()}
+                      display={DateDisplay.DateTime}
+                    />
                     {announcement.expiresAt ? (
                       <>
                         {" · Expires "}
-                        <time dateTime={announcement.expiresAt.toISOString()}>
-                          {dateFormat.format(announcement.expiresAt)} UTC
-                        </time>
+                        <LocalDate
+                          iso={announcement.expiresAt.toISOString()}
+                          display={DateDisplay.DateTime}
+                        />
                       </>
                     ) : null}
                   </p>

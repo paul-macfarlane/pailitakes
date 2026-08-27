@@ -8,6 +8,8 @@
 
 ## 1. Overview
 
+> Why the site exists, why it's custom-built, and the content philosophy live in [`vision.md`](vision.md). This document covers what it does.
+
 **Paulitakes** is a sports blog where Paul publishes his takes — opinion pieces, analysis, and reactions, almost entirely sports-related. The site is web-based and designed mobile-first: a large share of readers will arrive on phones, so every page must be comfortably readable and fully functional on small screens.
 
 The site is intentionally small in scope but built to support multiple authors from day one. Paul is the initial admin and primary author; additional authors can be added later without rework.
@@ -30,7 +32,7 @@ The homepage features recent posts alongside a dedicated announcements section f
 ### Non-Goals (for v1)
 
 - Native video hosting (all video lives on YouTube).
-- Newsletters, RSS-to-email, push or reply notifications.
+- Newsletters, RSS-to-email, push or reply notifications. (A plain RSS feed is in scope — FR-9.6.)
 - Monetization (ads, subscriptions, paywalls).
 - Guest/anonymous commenting.
 - Native mobile app (mobile web only).
@@ -120,10 +122,11 @@ The homepage features recent posts alongside a dedicated announcements section f
 ### 3.9 Public Site
 
 - **FR-9.1** — Homepage: announcements section + recent published posts (thumbnail, title, category, author, date, short excerpt), with pagination or "load more."
-- **FR-9.2** — Post page: title, author, date, category, tags, associated video (if any), rendered Markdown body, like button, comment thread. Shows an "Updated" date when content changed after publish (staged-edit promote only; added 2026-07-11, ADR-0016, POST-10). Cards/feed stay publish-date-only.
+- **FR-9.2** — Post page: title, author, date, category, tags, associated video (if any), rendered Markdown body, like button, comment thread. Shows an "Updated" date when content changed after publish (staged-edit promote only; added 2026-07-11, ADR-0016, POST-10), except when the edit falls on the same viewer-local calendar day as the publish (ADR-0028, SEO-9). Cards/feed stay publish-date-only. All dates render in the viewer's local timezone (ADR-0028, SEO-8).
 - **FR-9.3** — Global navigation: home, categories, search.
 - **FR-9.4** — **Mobile-first responsive design:** layouts, typography, embedded video players, comment threads, and the like/comment interactions must all be designed for phone screens first and scale up to desktop.
 - **FR-9.5** — SEO basics: per-post meta titles/descriptions, Open Graph tags, sitemap, clean URLs (e.g., `/posts/my-hot-take`).
+- **FR-9.6** — RSS feed: a single site-wide feed at `/feed.xml` of published, visible posts (newest first, capped), each entry carrying the full rendered post body. Entries are keyed by post id and dated by publish date; post-publish edits update the entry in place without re-dating it. Advertised via `<link rel="alternate">` and a footer link. (Added 2026-08-27; backlog FEED epic.)
 
 ### 3.10 Authentication & Accounts
 
@@ -152,7 +155,7 @@ The homepage features recent posts alongside a dedicated announcements section f
 
 ## 6. Future Ideas (explicitly not v1)
 
-- RSS feed
+- Per-category / per-tag / per-author RSS feeds (site-wide feed is FR-9.6)
 - Comment reply notifications
 - Related posts recommendations
 - Public author profile pages

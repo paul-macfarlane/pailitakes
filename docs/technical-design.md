@@ -1,6 +1,6 @@
 # Paulitakes — Technical Design
 
-**Version:** 0.3 (Locked; amended by ADR-0004; §6 project layout updated per ADR-0013; §5.7 authorization vocabulary per ADR-0014; §5.7 editor create/flush semantics per ADR-0015; posts data model `content_updated_at` per ADR-0016; §2/§3/§5.5 unified home browse/search per ADR-0018; §2 page-link pagination per ADR-0019; §5.2/§5.3 comment edit re-moderation + generalized placeholder rule per ADR-0020; §4/§5.7/§5.9 author post deletion + admin post transfer + narrowed account-deletion refusal per ADR-0027)
+**Version:** 0.3 (Locked; amended by ADR-0004; §6 project layout updated per ADR-0013; §5.7 authorization vocabulary per ADR-0014; §5.7 editor create/flush semantics per ADR-0015; posts data model `content_updated_at` per ADR-0016; §2/§3/§5.5 unified home browse/search per ADR-0018; §2 page-link pagination per ADR-0019; §5.2/§5.3 comment edit re-moderation + generalized placeholder rule per ADR-0020; §4/§5.7/§5.9 author post deletion + admin post transfer + narrowed account-deletion refusal per ADR-0027; §2 viewer-local date rendering + same-day "Updated" suppression per ADR-0028)
 **Owner:** Paul
 **Last updated:** July 15, 2026
 **Companion doc:** Paulitakes Product Doc v0.2
@@ -117,9 +117,10 @@ posts
   content_updated_at timestamptz null   -- stamped ONLY by staged-draft
                                         -- promote (readers saw new content);
                                         -- drives the public "Updated" byline
-                                        -- when it exceeds publish_at (added
-                                        -- 2026-07-11, owner request;
-                                        -- ADR-0016, POST-10)
+                                        -- when it exceeds publish_at AND
+                                        -- falls on a different viewer-local
+                                        -- day (added 2026-07-11, ADR-0016,
+                                        -- POST-10; same-day rule ADR-0028)
   created_at    timestamptz
   updated_at    timestamptz
   search        tsvector GENERATED ALWAYS AS (

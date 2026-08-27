@@ -4,6 +4,7 @@ import { expect, test, type Page } from "@playwright/test";
 
 import { clickUntil } from "./helpers/interaction";
 import {
+  backdatePostPublishAt,
   createTestCategory,
   createTestSession,
   type TestCategory,
@@ -174,12 +175,37 @@ test.describe("authoring lifecycle", () => {
       () => expect(page.getByText("Unpublished changes")).toHaveCount(0),
     );
 
-    // Now the public post reflects the edit, and the byline gains the
-    // "Updated" date (POST-10): promote stamped content_updated_at after
-    // publish_at, so the showsUpdatedDate guard renders it.
+    // Now the public post reflects the edit — but NO "Updated" byline yet:
+    // promote stamped content_updated_at after publish_at, yet both fall on
+    // the same calendar day, and a date-only byline would just repeat the
+    // publish date (SEO-9, ADR-0028). The exhaustive zone matrix is in
+    // src/lib/posts/status.test.ts; this is the one wiring case.
     await expect(async () => {
       await page.goto(`/posts/${slug}`);
       await expect(page.getByRole("heading", { name: newTitle })).toBeVisible();
+    }).toPass();
+    await expect(page.getByText(/Updated/)).toHaveCount(0);
+
+    // Push the publish two days back (any viewer zone is then a different
+    // day) and promote a second edit: the byline gains the "Updated" date
+    // (POST-10). Backdate BEFORE the promote — promote is what revalidates
+    // post:{slug}; a raw DB write alone leaves the ISR page stale.
+    await backdatePostPublishAt(id, 2);
+    const finalTitle = `${newTitle} AGAIN`;
+    await page.goto(`/admin/posts/${id}/edit`);
+    await page.locator("#title").fill(finalTitle);
+    await clickUntil(page.getByRole("button", { name: "Save now" }), () =>
+      expect(page.getByText("Unpublished changes")).toBeVisible(),
+    );
+    await clickUntil(
+      page.getByRole("button", { name: "Publish changes" }),
+      () => expect(page.getByText("Unpublished changes")).toHaveCount(0),
+    );
+    await expect(async () => {
+      await page.goto(`/posts/${slug}`);
+      await expect(
+        page.getByRole("heading", { name: finalTitle }),
+      ).toBeVisible();
     }).toPass();
     await expect(page.getByText(/Updated \w+ \d/)).toBeVisible();
   });

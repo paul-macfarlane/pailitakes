@@ -3,7 +3,7 @@
 Mobile-first sports blog. Next.js App Router · TypeScript · Tailwind +
 shadcn/ui · Drizzle · Neon Postgres (Docker locally) · Better Auth.
 
-Docs: product spec in [`docs/product-doc.md`](docs/product-doc.md), locked
+Docs: vision in [`docs/vision.md`](docs/vision.md), product spec in [`docs/product-doc.md`](docs/product-doc.md), locked
 architecture in [`docs/technical-design.md`](docs/technical-design.md),
 decisions in [`docs/adr/`](docs/adr/), work backlog in
 [`backlog/`](backlog/).

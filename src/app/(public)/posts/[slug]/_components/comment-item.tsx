@@ -17,6 +17,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
+import { LocalDate } from "@/components/local-date";
 import { CommentComposer } from "@/app/(public)/posts/[slug]/_components/comment-composer";
 import { CommentsContext } from "@/app/(public)/posts/[slug]/_components/comments-context";
 import { CommentThread } from "@/app/(public)/posts/[slug]/_components/comment-thread";
@@ -26,15 +27,7 @@ import { linkifyText } from "@/lib/comments/linkify";
 import { CommentStatus } from "@/lib/comments/status";
 import { CommentSubmitStatus } from "@/lib/comments/submit-result";
 import type { CommentNode } from "@/lib/comments/tree";
-
-// Client-rendered only (no SSR of this island — design §2), so unlike
-// post-article.tsx's UTC-pinned formatter there's no hydration mismatch to
-// guard against; showing the viewer's own locale/timezone is strictly
-// friendlier for a comment timestamp.
-const dateFormat = new Intl.DateTimeFormat(undefined, {
-  dateStyle: "medium",
-  timeStyle: "short",
-});
+import { DateDisplay } from "@/lib/shared/datetime";
 
 // FR-4.2: indent through depth 0-5, then flatten deeper replies at the
 // depth-5 visual level (see the recursion below and FlatReplies) — a fixed
@@ -198,9 +191,10 @@ export function CommentItem({
               <div className="flex flex-wrap items-baseline gap-x-2">
                 <span className="text-sm font-medium">{node.author!.name}</span>
                 <span className="text-xs text-muted-foreground">
-                  <time dateTime={node.createdAt}>
-                    {dateFormat.format(new Date(node.createdAt))}
-                  </time>
+                  <LocalDate
+                    iso={node.createdAt}
+                    display={DateDisplay.DateTime}
+                  />
                   {node.editedAt ? " (edited)" : ""}
                 </span>
               </div>

@@ -4,6 +4,7 @@ import { z } from "zod";
 
 import { TransferPostsControl } from "@/app/admin/users/_components/transfer-posts-control";
 import { UserManagementControls } from "@/app/admin/users/_components/user-management-controls";
+import { LocalDate } from "@/components/local-date";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -26,11 +27,6 @@ const filterSchema = z.object({
   role: z.enum(ROLE_VALUES).optional().catch(undefined),
   q: searchQuerySchema,
   page: z.coerce.number().int().min(1).catch(1),
-});
-
-const dateFormat = new Intl.DateTimeFormat("en-US", {
-  dateStyle: "medium",
-  timeZone: "UTC",
 });
 
 function RoleBadge({ user }: { user: AdminUserRow }) {
@@ -167,7 +163,8 @@ export default async function AdminUsersPage({
                     {isSelf ? " (you)" : ""}
                   </p>
                   <p className="truncate text-xs text-muted-foreground">
-                    {u.email} · Joined {dateFormat.format(u.createdAt)}
+                    {u.email} · Joined{" "}
+                    <LocalDate iso={u.createdAt.toISOString()} />
                   </p>
                   <RoleBadge user={u} />
                 </div>
