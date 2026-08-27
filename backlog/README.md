@@ -34,8 +34,19 @@ Write tasks as **goals**: the outcome plus the FR-x.y / technical-design § that
 | `09-accounts.md`        | `ACCT`  | Account self-service (deletion, anonymization)      |
 | `10-brand.md`           | `BRAND` | Visual identity: theme, icons, wordmark, OG card    |
 | `11-revisions.md`       | `REV`   | Revision history, diffs, restore                    |
+| `12-feed.md`            | `FEED`  | RSS feed for reader subscriptions                   |
+
+## Priority (set 2026-08-27)
+
+Open work, in the order to pick it up. Overrides the epic-table order while any of these are open.
+
+1. **SEO-8** — local-timezone dates. A visible correctness bug; bugs before features.
+2. **FEED-1..3** — RSS feed. Small, reader-facing; bank it before the big epic.
+3. **REV-1..6** — revisions. Largest open epic and author-only; nothing is blocked on it.
+
+Tie-break rules Paul set: bugs before features, then small before large.
 
 ## Working the backlog
 
-- `/task next` picks the first unblocked todo in build order. `/task FND-3` runs a specific one.
+- `/task next` picks the first unblocked todo in build order (the Priority list above wins while it has open items). `/task FND-3` runs a specific one.
 - Later epics are intentionally lighter — flesh out a task's acceptance criteria when you reach it, referencing the relevant FR-x.y and technical-design section.

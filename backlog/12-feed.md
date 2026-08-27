@@ -1,0 +1,7 @@
+# Epic: Reader Feed (FEED)
+
+Let readers subscribe to new posts from any feed reader. Scope settled with Paul 2026-08-27: a single site-wide RSS/Atom feed, full sanitized HTML body per entry, publish-date-only semantics (edits update in place silently, GUID = post id so slug changes don't re-deliver), discoverable via `<link rel="alternate">` + a footer link. Explicitly **not** email, push, or per-category/tag/author feeds (those stay under product-doc.md §6 Future Ideas). Ref: FR-9.6.
+
+- [ ] **FEED-1** — ADR recording the decisions above (format choice, full-body vs excerpt, GUID/date semantics, cache strategy); add the feed route to technical-design.md §3 caching table and §6 layout. _(deps: none)_
+- [ ] **FEED-2** — `/feed.xml` route handler backed by a `src/lib/posts` service: visible posts only (`visiblePostsWhere()`), newest first, capped at 50, entries carry title/link/author/category/`published_at`/full body through the existing sanitized markdown pipeline; absolute URLs via `metadataBase`; cached with the `post-list` tag so publish/promote/unpublish already revalidate it. Unit-test the XML builder (escaping, empty feed, scheduled-not-yet-visible post excluded). _(deps: FEED-1)_
+- [ ] **FEED-3** — Discovery: `alternates.types` `application/rss+xml` in root metadata, RSS link in `src/components/site-footer.tsx` (lucide `Rss` icon, theme tokens). Launch step: post a site announcement pointing readers at the feed. Verify on staging by subscribing from a real reader app. _(deps: FEED-2)_
