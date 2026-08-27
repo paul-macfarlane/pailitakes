@@ -33,3 +33,25 @@ export type SearchPageParams = z.infer<typeof searchParamsSchema>;
 export const pageParamsSchema = z.object({
   page: pageField,
 });
+
+// Home's SEO identity per parsed params (SEO-10). Since ADR-0018 folded
+// /search and /categories/[slug] into `/?q=`/`/?category=`, Google saw every
+// filtered variant as an uncanonicalised duplicate of `/` ("Duplicate
+// without user-selected canonical"). Rules:
+// - search mode (`q` set): canonical `/` + noindex — result pages are not
+//   content to index, and the query never belongs in a canonical;
+// - category-browse mode: `/?category={slug}` IS the category listing
+//   (FR-2.4), so it self-canonicalises;
+// - bare feed: `/`.
+// `page` > 1 is kept in the canonical (self-referencing) — pointing page 2
+// at `/` would ask Google to discard the paginated posts.
+export type HomeCanonical = { canonical: string; noindex: boolean };
+
+export function homeCanonical(params: SearchPageParams): HomeCanonical {
+  if (params.q) return { canonical: "/", noindex: true };
+  const query = new URLSearchParams();
+  if (params.category) query.set("category", params.category);
+  if (params.page > 1) query.set("page", String(params.page));
+  const qs = query.toString();
+  return { canonical: qs ? `/?${qs}` : "/", noindex: false };
+}
