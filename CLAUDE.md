@@ -4,6 +4,7 @@ Mobile-first sports blog. Solo project. Multi-author from day one. Full spec liv
 
 ## Read first
 
+- **Vision:** `docs/vision.md` — why the site exists and how to judge work: the goal is shipping posts, not the platform.
 - **Product:** `docs/product-doc.md` — features, roles, functional requirements (FR-x.y).
 - **Technical design:** `docs/technical-design.md` — locked architecture, data model, key flows. Source of truth for _how_.
 - **Engineering rules:** `.claude/rules/engineering.md` — standards every change must follow (imported below).

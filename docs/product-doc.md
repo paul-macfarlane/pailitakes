@@ -8,6 +8,8 @@
 
 ## 1. Overview
 
+> Why the site exists, why it's custom-built, and the content philosophy live in [`vision.md`](vision.md). This document covers what it does.
+
 **Paulitakes** is a sports blog where Paul publishes his takes — opinion pieces, analysis, and reactions, almost entirely sports-related. The site is web-based and designed mobile-first: a large share of readers will arrive on phones, so every page must be comfortably readable and fully functional on small screens.
 
 The site is intentionally small in scope but built to support multiple authors from day one. Paul is the initial admin and primary author; additional authors can be added later without rework.
