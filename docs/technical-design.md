@@ -313,6 +313,7 @@ ORDER BY rank DESC, publish_at DESC
 ### 5.8 SEO & sharing
 
 - Metadata API per post: title, description (derived excerpt), canonical URL
+- Home canonical follows its mode (SEO-10, `homeCanonical()`): bare feed → `/`; category browse → `/?category={slug}` (it is the category listing); search (`?q=`) → `/` + `noindex`; `page` > 1 stays self-referencing
 - `og:image` = post thumbnail URL (FR-1.4); a branded `next/og` card (`src/app/opengraph-image.tsx`, BRAND-3/ADR-0024) is the site-wide fallback for routes without their own image
 - `sitemap.xml` route handler over visible posts, revalidated by tag
 - `robots.txt` disallows `/admin`

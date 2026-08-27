@@ -1,8 +1,11 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  type HomeCanonical,
+  homeCanonical,
   pageParamsSchema,
   searchParamsSchema,
+  type SearchPageParams,
   SEARCH_QUERY_MAX,
 } from "./search-params";
 
@@ -86,4 +89,46 @@ describe("pageParamsSchema", () => {
       expect(parsed.page).toBe(expected);
     },
   );
+});
+
+describe("homeCanonical", () => {
+  it.each([
+    ["bare feed", {}, { canonical: "/", noindex: false }],
+    [
+      "category-browse mode self-canonicalises",
+      { category: "nfl" },
+      { canonical: "/?category=nfl", noindex: false },
+    ],
+    [
+      "search mode collapses to / and is noindex",
+      { q: "draft" },
+      { canonical: "/", noindex: true },
+    ],
+    [
+      "search + category is still search mode",
+      { q: "draft", category: "nfl", page: 3 },
+      { canonical: "/", noindex: true },
+    ],
+    [
+      "paginated feed keeps its page",
+      { page: 2 },
+      { canonical: "/?page=2", noindex: false },
+    ],
+    [
+      "paginated category keeps category and page",
+      { category: "nfl", page: 2 },
+      { canonical: "/?category=nfl&page=2", noindex: false },
+    ],
+    [
+      "page 1 is omitted",
+      { category: "nfl", page: 1 },
+      { canonical: "/?category=nfl", noindex: false },
+    ],
+  ] satisfies [
+    name: string,
+    input: Partial<SearchPageParams>,
+    expected: HomeCanonical,
+  ][])("%s", (_name, input, expected) => {
+    expect(homeCanonical({ page: 1, ...input })).toEqual(expected);
+  });
 });
