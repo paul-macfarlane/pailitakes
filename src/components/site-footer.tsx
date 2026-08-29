@@ -18,7 +18,8 @@ export async function SiteFooter() {
   return (
     <footer className="border-t">
       <div className="mx-auto flex w-full max-w-2xl flex-wrap items-center justify-between gap-x-4 gap-y-2 px-4 py-6 text-sm text-muted-foreground">
-        <span>© {currentYear} Paulitakes</span>
+        {/* The holder is a person — a site name can't own copyright (BRAND-5). */}
+        <span>© {currentYear} Paul Macfarlane</span>
         <nav aria-label="Footer" className="flex items-center gap-4">
           <Link
             href="/about"
