@@ -333,6 +333,14 @@ AIR-5 implements `/api/agent/v1/drafts`, `/drafts/[id]` and `/edit-proposals` un
 
 Review notes optionally contain one explanation per stored diff change, bound to its ID and exact before/after values. New command-line submissions require the complete set; legacy reviews remain readable without invented explanations. The server validates correspondence before superseding an existing proposal. No database migration is needed because these notes use the existing JSON storage. The UI uses neutral Reviews labels with explicit AI attribution; future human collaboration reuses the same suggestion/explanation presentation while defining its own permissions.
 
+#### Post-scoped human collaboration (ADR-0037)
+
+Paul approved extending owner/admin-only access with per-post Reviewer/Editor memberships (FR-7.14–7.16). Store one membership per post/user; cascade on post/user deletion. Session and role capability checks remain mandatory before membership checks. Reviewer reads preview and review history; Editor additionally saves drafts. Management, lifecycle, deletion and review decisions retain owner/admin checks. No broad ManageAnyPost grant.
+
+Membership mutations lock the parent post; one that removes Editor write access also rotates its editVersion atomically, so the existing save CAS rejects an in-flight Editor save authorized before the change (open editors and proposals become stale even when text is unchanged). Grants and Reviewer changes do not rotate. Owners/admins manage access on a separate Sharing page; Reviewers opening the editor land on the preview. Shared-with-me queries are member-scoped. Membership rows retain no authority after staff demotion/ban.
+
+The next increment adds human identity and immutable submissions to the existing proposal engine, multiple human reviews alongside one AI review, correction explanations, basic comments and review statuses. Guided refresh retains the original review and requires confirmation. Threaded discussion follows; no real-time coediting or alternate article draft branch.
+
 ### 5.8 SEO & sharing
 
 - Metadata API per post: title, description (derived excerpt), canonical URL

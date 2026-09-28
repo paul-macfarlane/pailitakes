@@ -44,3 +44,4 @@ Create one with `/adr <title>` or `$adr <title>` ([shared workflow](../harness/w
 | [0034](0034-local-editor-mcp.md)                                     | Local editor MCP                                              | Superseded by 0035 |
 | [0035](0035-command-line-editor-client.md)                           | Command-line editor client                                    | Accepted           |
 | [0036](0036-review-explanations.md)                                  | Explanations alongside shared review suggestions              | Accepted           |
+| [0037](0037-post-scoped-human-collaboration.md)                      | Post-scoped human collaboration                               | Accepted           |

@@ -17,6 +17,11 @@ import { SEARCH_QUERY_MAX, searchQuerySchema } from "@/lib/admin/search";
 import { Action, canPerformAction } from "@/lib/auth/permissions";
 import { POST_STATUSES, STATUS_LABELS } from "@/lib/posts/status";
 import { requireStaff } from "@/lib/auth/session";
+import {
+  COLLABORATOR_ROLE_LABELS,
+  CollaboratorRole,
+} from "@/lib/collaboration/permissions";
+import { sharedPostsService } from "@/lib/collaboration/service";
 
 const [SORT_UPDATED, SORT_PUBLISHED] = ADMIN_POST_SORTS;
 
@@ -49,9 +54,10 @@ export default async function AdminPage({
   const isAdmin = canPerformAction(session.user, Action.ManageAnyPost);
   const filters = filterSchema.parse(await searchParams);
 
-  const [categories, authors] = await Promise.all([
+  const [categories, authors, shared] = await Promise.all([
     listActiveCategories(),
     isAdmin ? listAuthorOptions() : Promise.resolve([]),
+    sharedPostsService(session.user),
   ]);
 
   // Only apply a category/author filter that's actually a selectable option,
@@ -123,6 +129,44 @@ export default async function AdminPage({
           New post
         </Button>
       </div>
+
+      {shared.length > 0 ? (
+        <section aria-labelledby="shared-heading" className="mb-6">
+          <h2 id="shared-heading" className="mb-2 text-lg font-medium">
+            Shared with me
+          </h2>
+          <ul className="divide-y rounded-lg border">
+            {shared.map((post) => (
+              <li
+                key={post.id}
+                className="flex flex-wrap items-center justify-between gap-2 p-4"
+              >
+                <div className="min-w-0">
+                  {/* Reviewers can't open the editor; send them to the
+                      preview, which links on to reviews. */}
+                  <Link
+                    href={
+                      post.role === CollaboratorRole.Editor
+                        ? `/admin/posts/${post.id}/edit`
+                        : `/admin/preview/${post.id}`
+                    }
+                    className="font-medium break-words hover:underline"
+                  >
+                    {post.title}
+                  </Link>
+                  <p className="text-xs text-muted-foreground">
+                    {post.authorName} · {STATUS_LABELS[post.status]} · Updated{" "}
+                    <LocalDate iso={post.updatedAt.toISOString()} />
+                  </p>
+                </div>
+                <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-medium">
+                  {COLLABORATOR_ROLE_LABELS[post.role]}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
 
       {/* Native GET form: submitting rewrites the URL search params. Omitting
           `page` resets to the first page on a new filter. */}

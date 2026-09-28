@@ -40,10 +40,13 @@ export function ProposalReview({
   stale: initiallyStale,
   postStatus,
   publishAt,
+  canDecide,
   categories,
 }: {
   proposal: ProposalRow;
   stale: boolean;
+  // Owner/admin only; post collaborators read reviews (ADR-0037).
+  canDecide: boolean;
   postStatus: string;
   publishAt: Date | null;
   categories: ReviewCategory[];
@@ -70,7 +73,7 @@ export function ProposalReview({
     proposal.notes.changes?.map((note) => [note.changeId, note]),
   );
   const open = status === ProposalStatus.Open;
-  const editable = open && !stale && !pending;
+  const editable = open && canDecide && !stale && !pending;
   const result = applyProposalSelection(
     proposal.base,
     proposal.candidate,
@@ -168,7 +171,8 @@ export function ProposalReview({
             className="rounded-lg border border-destructive p-4 text-sm"
           >
             This review is out of date. Request a fresh review of the saved
-            post. You can still read or reject this proposal.
+            post. You can still read
+            {canDecide ? " or reject" : ""} this proposal.
           </p>
         )}
         {open && !stale && (
@@ -405,7 +409,12 @@ export function ProposalReview({
             {error}
           </p>
         )}
-        {open && (
+        {open && !canDecide && (
+          <p className="text-sm text-muted-foreground">
+            Only the post owner or an admin can apply or reject this review.
+          </p>
+        )}
+        {open && canDecide && (
           <div className="flex flex-wrap gap-3">
             <Button
               disabled={!editable || selected.length === 0}
