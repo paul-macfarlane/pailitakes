@@ -14,7 +14,12 @@ export const CONFLICT_ERROR =
 
 export const NOT_AUTHORIZED_ERROR = "Not authorized.";
 
-export const ActionErrorCode = { Conflict: "conflict" } as const;
+// Outdated: a human review's draft changed since it started; the reviewer
+// may confirm submitting anyway (ADR-0038).
+export const ActionErrorCode = {
+  Conflict: "conflict",
+  Outdated: "outdated",
+} as const;
 export type ActionErrorCode =
   (typeof ActionErrorCode)[keyof typeof ActionErrorCode];
 

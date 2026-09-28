@@ -47,6 +47,11 @@ export default async function SharingPage({
           edit the draft directly.
         </li>
         <li>
+          Both can review: suggest edits and comment. Request a review to let
+          someone know it&apos;s ready; their status shows here and on the
+          dashboard.
+        </li>
+        <li>
           Only you or an admin can publish, apply reviews, or change sharing.
         </li>
       </ul>

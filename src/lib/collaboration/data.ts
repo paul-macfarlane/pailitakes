@@ -8,6 +8,7 @@ import {
   type ExistingPostForUpdate,
   type Tx,
 } from "@/lib/posts/data";
+import { deleteDraft } from "@/lib/reviews/data";
 import type { CollaboratorRole } from "./permissions";
 
 export async function membershipFor(
@@ -47,6 +48,9 @@ export async function changeMembership(
   rotateEditVersion: boolean,
 ): Promise<void> {
   if (role === null) {
+    // A private in-progress review dies with access; submitted reviews and
+    // their attribution are retained (ADR-0037/0038).
+    await deleteDraft(postId, userId, tx);
     await tx
       .delete(postCollaborators)
       .where(
@@ -138,4 +142,23 @@ export async function sharedPostsFor(userId: string) {
       and(eq(postCollaborators.userId, userId), ne(posts.authorId, userId)),
     )
     .orderBy(desc(posts.updatedAt), desc(posts.id));
+}
+
+// The owner's latest review request; status derives from it (ADR-0038).
+export async function markReviewRequested(
+  tx: Tx,
+  postId: string,
+  userId: string,
+): Promise<boolean> {
+  const rows = await tx
+    .update(postCollaborators)
+    .set({ reviewRequestedAt: new Date() })
+    .where(
+      and(
+        eq(postCollaborators.postId, postId),
+        eq(postCollaborators.userId, userId),
+      ),
+    )
+    .returning({ userId: postCollaborators.userId });
+  return rows.length > 0;
 }

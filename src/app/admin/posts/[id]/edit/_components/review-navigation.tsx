@@ -4,21 +4,28 @@ import { useContext, useState } from "react";
 import { EditorFlushContext } from "@/app/admin/posts/_components/editor-flush-context";
 import { Button } from "@/components/ui/button";
 
-const Destination = { Reviews: "reviews", Sharing: "sharing" } as const;
+const Destination = {
+  Reviews: "reviews",
+  Sharing: "sharing",
+  Review: "review",
+} as const;
 type Destination = (typeof Destination)[keyof typeof Destination];
 const DESTINATION_LABELS: Record<Destination, string> = {
   [Destination.Reviews]: "reviews",
   [Destination.Sharing]: "sharing settings",
+  [Destination.Review]: "your review",
 };
 
 export function ReviewNavigation({
   postId,
   hasReviews,
   canManageSharing,
+  canReview,
 }: {
   postId: string;
   hasReviews: boolean | null;
   canManageSharing: boolean;
+  canReview: boolean;
 }) {
   const editor = useContext(EditorFlushContext);
   const [pending, setPending] = useState<Destination | null>(null);
@@ -61,6 +68,15 @@ export function ReviewNavigation({
             disabled={pending !== null}
           >
             {pending === Destination.Sharing ? "Saving…" : "Sharing"}
+          </Button>
+        )}
+        {canReview && (
+          <Button
+            variant="outline"
+            onClick={() => void open(Destination.Review)}
+            disabled={pending !== null}
+          >
+            {pending === Destination.Review ? "Saving…" : "Your review"}
           </Button>
         )}
         {hasReviews && (

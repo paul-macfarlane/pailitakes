@@ -3,7 +3,8 @@
 import { useRouter } from "next/navigation";
 import { useId, useState, useTransition } from "react";
 
-import { setCollaborator } from "@/actions/posts/collaborators";
+import { requestReview, setCollaborator } from "@/actions/posts/collaborators";
+import { ReviewStatusBadge } from "@/components/review-status-badge";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import {
@@ -18,8 +19,14 @@ import {
   COLLABORATOR_ROLES,
   CollaboratorRole,
 } from "@/lib/collaboration/permissions";
+import { ReviewStatus } from "@/lib/reviews/input";
 
-type Member = { userId: string; name: string; role: CollaboratorRole };
+type Member = {
+  userId: string;
+  name: string;
+  role: CollaboratorRole;
+  reviewStatus: ReviewStatus | null;
+};
 type Option = { id: string; name: string };
 
 const roleItems = COLLABORATOR_ROLES.map((role) => ({
@@ -83,6 +90,19 @@ export function CollaboratorControls({
   const [role, setRole] = useState<CollaboratorRole>(CollaboratorRole.Reviewer);
   const memberIds = new Set(members.map((member) => member.userId));
   const candidates = options.filter((option) => !memberIds.has(option.id));
+
+  function ask(target: string) {
+    setError(null);
+    startTransition(async () => {
+      try {
+        const result = await requestReview({ postId, userId: target });
+        if (!result.ok) setError(result.error);
+        else router.refresh();
+      } catch {
+        setError("Something went wrong. Please try again.");
+      }
+    });
+  }
 
   function save(
     target: string,
@@ -179,10 +199,25 @@ export function CollaboratorControls({
                 key={member.userId}
                 className="flex flex-wrap items-center justify-between gap-3 p-4"
               >
-                <span className="min-w-0 break-words font-medium">
-                  {member.name}
-                </span>
-                <div className="flex items-center gap-2">
+                <div className="flex min-w-0 flex-wrap items-center gap-2">
+                  <span className="min-w-0 break-words font-medium">
+                    {member.name}
+                  </span>
+                  <ReviewStatusBadge status={member.reviewStatus} />
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  {member.reviewStatus !== ReviewStatus.Requested &&
+                    member.reviewStatus !== ReviewStatus.InProgress && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        disabled={isPending}
+                        aria-label={`Request review from ${member.name}`}
+                        onClick={() => ask(member.userId)}
+                      >
+                        Request review
+                      </Button>
+                    )}
                   <RoleSelect
                     ariaLabel={`Access for ${member.name}`}
                     value={member.role}

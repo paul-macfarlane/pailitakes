@@ -6,11 +6,13 @@ import {
   NOT_AUTHORIZED_ERROR,
   type ActionResult,
 } from "@/lib/shared/action-result";
+import { reviewerStatusesByPost } from "@/lib/reviews/status";
 import {
   changeMembership,
   collaboratorOptions,
   collaboratorsFor,
   isActiveAuthor,
+  markReviewRequested,
   membershipFor,
   postForSharing,
   sharedPostsFor,
@@ -102,16 +104,50 @@ export async function getCollaboratorsService(
     postAccessLevel(actor, post.authorId, null) !== PostAccess.Manage
   )
     return null;
-  const [members, options] = await Promise.all([
+  const [members, options, statuses] = await Promise.all([
     collaboratorsFor(postId),
     collaboratorOptions(post.authorId),
+    reviewerStatusesByPost([postId]),
   ]);
-  return { title: post.title, members, options };
+  const byReviewer = statuses.get(postId);
+  return {
+    title: post.title,
+    members: members.map((member) => ({
+      ...member,
+      reviewStatus: byReviewer?.get(member.userId) ?? null,
+    })),
+    options,
+  };
 }
 
 export async function sharedPostsService(actor: PostActor) {
   // Demoted/banned members keep their rows but see nothing.
-  return canPerformAction(actor, Action.EditPost)
-    ? sharedPostsFor(actor.id)
-    : [];
+  if (!canPerformAction(actor, Action.EditPost)) return [];
+  const rows = await sharedPostsFor(actor.id);
+  const statuses = await reviewerStatusesByPost(rows.map((row) => row.id));
+  return rows.map((row) => ({
+    ...row,
+    reviewStatus: statuses.get(row.id)?.get(actor.id) ?? null,
+  }));
+}
+
+// Owner/admin asks one collaborator for a review; status derives from it.
+export async function requestReviewService(
+  actor: PostActor,
+  input: { postId: string; userId: string },
+): Promise<ActionResult<{ postId: string }>> {
+  try {
+    return (
+      (await withLockedMembership(input.postId, async (tx, post) => {
+        if (postAccessLevel(actor, post.authorId, null) !== PostAccess.Manage)
+          return denied;
+        return (await markReviewRequested(tx, input.postId, input.userId))
+          ? ({ ok: true, data: { postId: input.postId } } as const)
+          : ({ ok: false, error: "Share the post with them first." } as const);
+      })) ?? denied
+    );
+  } catch {
+    console.error("requestReview failed", { postId: input.postId });
+    return { ok: false, error: GENERIC_ERROR };
+  }
 }

@@ -345,3 +345,23 @@ export async function deleteAnnouncementsByPrefix(
   ]);
   await pool.end();
 }
+
+// Grants post-scoped access straight in the DB (ADR-0037) for specs that
+// exercise review flows rather than the Sharing page itself. Cascades away
+// with the post or user.
+export async function shareTestPost(
+  postId: string,
+  userId: string,
+  role: "reviewer" | "editor" = "reviewer",
+): Promise<void> {
+  const { databaseUrl } = requireEnv();
+  const pool = new Pool({ connectionString: databaseUrl, max: 1 });
+  try {
+    await pool.query(
+      `insert into post_collaborators (post_id, user_id, role) values ($1, $2, $3)`,
+      [postId, userId, role],
+    );
+  } finally {
+    await pool.end();
+  }
+}

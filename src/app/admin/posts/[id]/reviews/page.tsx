@@ -8,7 +8,10 @@ import { DateDisplay } from "@/lib/shared/datetime";
 import { requireStaff } from "@/lib/auth/session";
 import { requirePostIdParam } from "@/lib/admin/route-params";
 import { listProposalsService } from "@/lib/proposals/service";
-import { PROPOSAL_STATUS_LABELS } from "@/lib/proposals/presentation";
+import {
+  PROPOSAL_STATUS_LABELS,
+  reviewAttribution,
+} from "@/lib/proposals/presentation";
 
 export const metadata: Metadata = {
   title: "Reviews",
@@ -40,12 +43,12 @@ export default async function ReviewsPage({
   return (
     <div className="space-y-6">
       <Link href={`/admin/posts/${postId}/edit`} className="text-sm underline">
-        ← Back to editor
+        ← Back to post
       </Link>
       <h1 className="text-2xl font-semibold">Reviews</h1>
       <p className="text-muted-foreground">
-        Reviews suggest changes. You choose what to apply; past reviews stay
-        here.
+        Reviews from people and AI suggest changes and leave feedback. The post
+        owner chooses what to apply; past reviews stay here.
       </p>
       {result.data.length === 0 ? (
         <p>No reviews on this page yet.</p>
@@ -61,7 +64,7 @@ export default async function ReviewsPage({
                   {PROPOSAL_STATUS_LABELS[proposal.status]}
                 </span>
                 <span className="mt-1 block text-sm text-muted-foreground">
-                  AI · {proposal.agentLabel} ·{" "}
+                  {reviewAttribution(proposal)} ·{" "}
                   <LocalDate
                     iso={proposal.createdAt.toISOString()}
                     display={DateDisplay.DateTime}

@@ -4,6 +4,7 @@ import { z } from "zod";
 import type { StaffSession } from "@/lib/auth/guards";
 import { hasPostAccess } from "@/lib/collaboration/service";
 import { PostAccess } from "@/lib/collaboration/permissions";
+import { listComments } from "@/lib/reviews/data";
 import { Action, canPerformAction } from "@/lib/auth/permissions";
 import {
   isPostSlugCollision,
@@ -215,16 +216,28 @@ export async function getProposalService(id: string, session: StaffSession) {
     return await ownedProposal(
       id,
       session,
-      async (_tx, post, proposal) => ({
-        ok: true,
-        data: {
-          proposal,
-          stale: stale(proposal, post),
-          postStatus: post.status,
-          publishAt: post.publishAt,
-          canDecide: mayEdit(session, post),
-        },
-      }),
+      async (tx, post, proposal) => {
+        const isStale = stale(proposal, post);
+        const canDecide = mayEdit(session, post);
+        const ownReview =
+          proposal.origin === ProposalOrigin.Human &&
+          proposal.reviewerId === session.user.id;
+        return {
+          ok: true,
+          data: {
+            proposal,
+            stale: isStale,
+            postStatus: post.status,
+            publishAt: post.publishAt,
+            canDecide,
+            comments: await listComments(proposal.id, tx),
+            // Owner/admin or this review's author (ADR-0038).
+            canResolve: canDecide || ownReview,
+            canUpdate:
+              ownReview && isStale && proposal.status === ProposalStatus.Open,
+          },
+        };
+      },
       PostAccess.Read,
     );
   } catch (error) {

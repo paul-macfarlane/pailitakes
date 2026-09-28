@@ -49,21 +49,31 @@ export default async function PreviewPostPage({
               ? ""
               : " — not visible to the public"}
         </span>
-        {includesAccess(post.access, PostAccess.Edit) ? (
-          <Link
-            href={`/admin/posts/${post.id}/edit`}
-            className="font-medium underline hover:text-foreground"
-          >
-            Edit post
-          </Link>
-        ) : (
-          <Link
-            href={`/admin/posts/${post.id}/reviews`}
-            className="font-medium underline hover:text-foreground"
-          >
-            Reviews
-          </Link>
-        )}
+        <span className="flex flex-wrap gap-3">
+          {post.canReview && (
+            <Link
+              href={`/admin/posts/${post.id}/review`}
+              className="font-medium underline hover:text-foreground"
+            >
+              Your review
+            </Link>
+          )}
+          {includesAccess(post.access, PostAccess.Edit) ? (
+            <Link
+              href={`/admin/posts/${post.id}/edit`}
+              className="font-medium underline hover:text-foreground"
+            >
+              Edit post
+            </Link>
+          ) : (
+            <Link
+              href={`/admin/posts/${post.id}/reviews`}
+              className="font-medium underline hover:text-foreground"
+            >
+              Reviews
+            </Link>
+          )}
+        </span>
       </div>
       <PostArticle post={{ ...post, bodyHtml }} />
     </div>

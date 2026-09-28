@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useState } from "react";
 import { useController, useForm } from "react-hook-form";
 import { applyProposal, rejectProposal } from "@/actions/posts/proposals";
+import { startReview } from "@/actions/posts/reviews";
 import { renderPostPreview } from "@/actions/preview";
 import { Button } from "@/components/ui/button";
 import { LocalDate } from "@/components/local-date";
@@ -18,12 +19,14 @@ import {
   AlertDialogCancel,
 } from "@/components/ui/alert-dialog";
 import type { ProposalRow } from "@/lib/proposals/data";
-import { ProposalStatus } from "@/lib/proposals/input";
+import { ProposalOrigin, ProposalStatus } from "@/lib/proposals/input";
+import type { ReviewCommentRow } from "@/lib/reviews/data";
 import { applyProposalSelection, ChangeKind } from "@/lib/proposals/diff";
 import {
   displayField,
   FIELD_LABELS,
   PROPOSAL_STATUS_LABELS,
+  reviewAttribution,
   type ReviewCategory,
 } from "@/lib/proposals/presentation";
 import { PostStatus } from "@/lib/posts/status";
@@ -34,6 +37,7 @@ import {
   SnapshotContent,
   SourceLink,
 } from "./review-content";
+import { ReviewDiscussion } from "./review-discussion";
 
 export function ProposalReview({
   proposal,
@@ -41,12 +45,20 @@ export function ProposalReview({
   postStatus,
   publishAt,
   canDecide,
+  canResolve,
+  canUpdate,
+  comments,
   categories,
 }: {
   proposal: ProposalRow;
   stale: boolean;
   // Owner/admin only; post collaborators read reviews (ADR-0037).
   canDecide: boolean;
+  // Owner/admin or this review's human author (ADR-0038).
+  canResolve: boolean;
+  // This viewer's own outdated human review.
+  canUpdate: boolean;
+  comments: ReviewCommentRow[];
   postStatus: string;
   publishAt: Date | null;
   categories: ReviewCategory[];
@@ -73,6 +85,31 @@ export function ProposalReview({
     proposal.notes.changes?.map((note) => [note.changeId, note]),
   );
   const open = status === ProposalStatus.Open;
+  const human = proposal.origin === ProposalOrigin.Human;
+  // A human feedback-only review has nothing to apply: closing it is
+  // acknowledgement, not rejection. AI notes-only reviews keep their copy.
+  const feedbackOnly = human && proposal.diff.changes.length === 0;
+  const topLevel = comments.filter((comment) => comment.parentId === null);
+  const [updating, setUpdating] = useState(false);
+  async function updateReview() {
+    setUpdating(true);
+    setError(null);
+    try {
+      const started = await startReview({
+        postId: proposal.postId,
+        replacesProposalId: proposal.id,
+      });
+      if (!started.ok) {
+        setError(started.error);
+        return;
+      }
+      window.location.assign(`/admin/posts/${proposal.postId}/review`);
+    } catch {
+      setError(GENERIC_ERROR);
+    } finally {
+      setUpdating(false);
+    }
+  }
   const editable = open && canDecide && !stale && !pending;
   const result = applyProposalSelection(
     proposal.base,
@@ -140,7 +177,9 @@ export function ProposalReview({
           ? proposal.sourceIsPublic
             ? "Changes saved as pending edits. Open the editor to publish them when ready."
             : "Selected changes saved."
-          : "Review rejected. Your post was not changed.",
+          : feedbackOnly
+            ? "Review closed. Its feedback stays in the review history."
+            : "Review rejected. Your post was not changed.",
       );
     } catch {
       setError(GENERIC_ERROR);
@@ -156,24 +195,38 @@ export function ProposalReview({
         <h1 className="text-2xl font-semibold">Review suggestions</h1>
         <p className="break-words text-lg">{proposal.base.title}</p>
         <p className="text-sm text-muted-foreground">
-          {PROPOSAL_STATUS_LABELS[status]} · AI · {proposal.agentLabel} ·{" "}
+          {PROPOSAL_STATUS_LABELS[status]} · {reviewAttribution(proposal)} ·{" "}
           <LocalDate
             iso={proposal.createdAt.toISOString()}
             display={DateDisplay.DateTime}
           />
         </p>
-        <p className="text-sm text-muted-foreground">
-          Editorial brief: Paulitakes Editor
-        </p>
-        {open && stale && (
-          <p
-            role="alert"
-            className="rounded-lg border border-destructive p-4 text-sm"
-          >
-            This review is out of date. Request a fresh review of the saved
-            post. You can still read
-            {canDecide ? " or reject" : ""} this proposal.
+        {!human && (
+          <p className="text-sm text-muted-foreground">
+            Editorial brief: Paulitakes Editor
           </p>
+        )}
+        {open && stale && (
+          <div
+            role="alert"
+            className="space-y-3 rounded-lg border border-destructive p-4 text-sm"
+          >
+            <p>
+              This review is out of date. The post changed after it was written,
+              so its suggestions can&apos;t be applied. Its feedback stays
+              readable
+              {canDecide ? ", and you can still reject it" : ""}.
+            </p>
+            {canUpdate && (
+              <Button
+                size="sm"
+                disabled={updating}
+                onClick={() => void updateReview()}
+              >
+                {updating ? "Starting…" : "Update review against latest draft"}
+              </Button>
+            )}
+          </div>
         )}
         {open && !stale && (
           <p className="rounded-lg border bg-muted p-4 text-sm">
@@ -206,19 +259,30 @@ export function ProposalReview({
           className="inline-block text-sm underline"
           href={`/admin/posts/${proposal.postId}/edit`}
         >
-          Open editor
+          {canDecide ? "Open editor" : "Open post"}
         </Link>
       </header>
 
-      <details className="rounded-lg border p-4">
-        <summary className="cursor-pointer font-medium">
-          Editorial notes · {proposal.notes.facts.length} fact checks ·{" "}
-          {proposal.notes.media.length} media suggestions
-        </summary>
-        <div className="mt-4">
-          <ReviewNotes notes={proposal.notes} />
-        </div>
-      </details>
+      {human ? (
+        <section aria-labelledby="feedback-heading" className="space-y-2">
+          <h2 id="feedback-heading" className="text-xl font-semibold">
+            General feedback
+          </h2>
+          <p className="whitespace-pre-wrap break-words [overflow-wrap:anywhere]">
+            {proposal.notes.summary || "No general feedback."}
+          </p>
+        </section>
+      ) : (
+        <details className="rounded-lg border p-4">
+          <summary className="cursor-pointer font-medium">
+            Editorial notes · {proposal.notes.facts.length} fact checks ·{" "}
+            {proposal.notes.media.length} media suggestions
+          </summary>
+          <div className="mt-4">
+            <ReviewNotes notes={proposal.notes} />
+          </div>
+        </details>
+      )}
 
       <section aria-labelledby="changes-heading" className="space-y-4">
         <h2 id="changes-heading" className="text-xl font-semibold">
@@ -356,11 +420,55 @@ export function ProposalReview({
                       </ul>
                     )}
                   </div>
+                  <div className="border-t pt-3">
+                    <ReviewDiscussion
+                      proposalId={proposal.id}
+                      comments={comments}
+                      threads={topLevel.filter(
+                        (comment) => comment.changeId === change.id,
+                      )}
+                      changeId={change.id}
+                      canResolve={canResolve}
+                      newThreadLabel={`Comment on ${title.toLowerCase()}`}
+                      collapsed
+                    />
+                  </div>
                 </div>
               );
             })}
           </>
         )}
+      </section>
+
+      {topLevel.some((comment) => comment.anchor !== null) && (
+        <section aria-labelledby="text-comments-heading" className="space-y-3">
+          <h2 id="text-comments-heading" className="text-xl font-semibold">
+            Comments on the text
+          </h2>
+          <ReviewDiscussion
+            proposalId={proposal.id}
+            comments={comments}
+            threads={topLevel.filter((comment) => comment.anchor !== null)}
+            canResolve={canResolve}
+          />
+        </section>
+      )}
+
+      <section aria-labelledby="discussion-heading" className="space-y-3">
+        <h2 id="discussion-heading" className="text-xl font-semibold">
+          Discussion
+        </h2>
+        <ReviewDiscussion
+          proposalId={proposal.id}
+          comments={comments}
+          threads={topLevel.filter(
+            (comment) => comment.anchor === null && comment.changeId === null,
+          )}
+          changeId={null}
+          canResolve={canResolve}
+          newThreadLabel="Comment on this review"
+          emptyText="No discussion yet."
+        />
       </section>
 
       <details className="rounded-lg border p-4">
@@ -416,18 +524,20 @@ export function ProposalReview({
         )}
         {open && canDecide && (
           <div className="flex flex-wrap gap-3">
-            <Button
-              disabled={!editable || selected.length === 0}
-              onClick={() => setDecision("apply")}
-            >
-              Apply selected changes
-            </Button>
+            {!feedbackOnly && (
+              <Button
+                disabled={!editable || selected.length === 0}
+                onClick={() => setDecision("apply")}
+              >
+                Apply selected changes
+              </Button>
+            )}
             <Button
               variant="outline"
               disabled={pending}
               onClick={() => setDecision("reject")}
             >
-              Reject review
+              {feedbackOnly ? "Close review" : "Reject review"}
             </Button>
           </div>
         )}
@@ -443,7 +553,9 @@ export function ProposalReview({
             <AlertDialogTitle>
               {decision === "apply"
                 ? "Apply selected changes?"
-                : "Reject this review?"}
+                : feedbackOnly
+                  ? "Close this review?"
+                  : "Reject this review?"}
             </AlertDialogTitle>
             <AlertDialogDescription>
               {decision === "apply"
@@ -466,7 +578,9 @@ export function ProposalReview({
                 ? "Saving…"
                 : decision === "apply"
                   ? "Confirm apply"
-                  : "Confirm rejection"}
+                  : feedbackOnly
+                    ? "Confirm close"
+                    : "Confirm rejection"}
             </Button>
           </AlertDialogFooter>
         </AlertDialogContent>
