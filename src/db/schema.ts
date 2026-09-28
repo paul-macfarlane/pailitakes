@@ -30,6 +30,8 @@ import type {
 } from "@/lib/proposals/input";
 import type { ProposalDiff } from "@/lib/proposals/diff";
 
+import type { CollaboratorRole } from "@/lib/collaboration/permissions";
+
 import type { ModVerdictRecord } from "@/lib/comments/verdict";
 
 // drizzle-orm ^0.45 has no built-in tsvector column type; define one custom
@@ -515,5 +517,26 @@ export const agentReceipts = pgTable(
   (table) => [
     primaryKey({ columns: [table.principalId, table.key] }),
     index("agent_receipts_proposal_idx").on(table.proposalId),
+  ],
+);
+
+export const postCollaborators = pgTable(
+  "post_collaborators",
+  {
+    postId: uuid("post_id")
+      .notNull()
+      .references(() => posts.id, { onDelete: "cascade" }),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    role: text("role").$type<CollaboratorRole>().notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.postId, table.userId] }),
+    index("post_collaborators_user_idx").on(table.userId),
+    check(
+      "post_collaborators_role_check",
+      sql`${table.role} in ('reviewer', 'editor')`,
+    ),
   ],
 );
