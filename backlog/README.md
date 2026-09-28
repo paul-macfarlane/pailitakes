@@ -44,13 +44,12 @@ Write tasks as **goals**: the outcome plus the FR-x.y / technical-design § that
 
 Open work, in the order to pick it up. Overrides the epic-table order while any of these are open.
 
-1. **COLLAB-2..4** — Approved human collaboration (Paul, September 20): permissions and sharing, usable human reviews, then richer discussion. AI review (AIR) is complete.
-2. **SEO-10** — home-page canonical (Search Console duplicate report). Bug; one small PR.
-3. **FEED-1..3** — RSS feed. Small, reader-facing; bank it before the big epic.
-4. **SIMP-1..2** — feature simplicity scan (audit doc, then Paul picks cuts) — runs before REV so it can prune scope first.
-5. **POST-11** — linkable headings. Quick hitter; bank it before the big epic.
-6. **REV-1..6** — revisions. Largest open epic and author-only; nothing is blocked on it.
-7. **MEDIA-1..4** — image uploads.
+1. **SEO-10** — home-page canonical (Search Console duplicate report). Bug; one small PR.
+2. **FEED-1..3** — RSS feed. Small, reader-facing; bank it before the big epic.
+3. **SIMP-1..2** — feature simplicity scan (audit doc, then Paul picks cuts) — runs before REV so it can prune scope first.
+4. **POST-11** — linkable headings. Quick hitter; bank it before the big epic.
+5. **REV-1..6** — revisions. Largest open epic and author-only; nothing is blocked on it.
+6. **MEDIA-1..4** — image uploads.
 
 Tie-break rules Paul set: bugs before features, then small before large.
 
