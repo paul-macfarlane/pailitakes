@@ -81,6 +81,11 @@ export function ProposalReview({
   const [preview, setPreview] = useState<{ body: string; html: string } | null>(
     null,
   );
+  const bodyNumber = new Map(
+    proposal.diff.changes
+      .filter((change) => change.kind === ChangeKind.Body)
+      .map((change, i) => [change.id, i + 1]),
+  );
   const explanations = new Map(
     proposal.notes.changes?.map((note) => [note.changeId, note]),
   );
@@ -341,11 +346,20 @@ export function ProposalReview({
                 </Button>
               </div>
             )}
-            {proposal.diff.changes.map((change, index) => {
+            {/* Details first (Paul, September 28), then body changes in
+                text order. Display order only: change IDs are unchanged. */}
+            {[
+              ...proposal.diff.changes.filter(
+                (change) => change.kind === ChangeKind.Metadata,
+              ),
+              ...proposal.diff.changes.filter(
+                (change) => change.kind === ChangeKind.Body,
+              ),
+            ].map((change, index) => {
               const explanation = explanations.get(change.id);
               const title =
                 change.kind === ChangeKind.Body
-                  ? `Body change ${index + 1}`
+                  ? `Body change ${bodyNumber.get(change.id)}`
                   : FIELD_LABELS[change.field];
               return (
                 <div

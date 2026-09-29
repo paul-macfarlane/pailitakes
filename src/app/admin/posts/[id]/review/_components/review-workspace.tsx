@@ -636,6 +636,62 @@ export function ReviewWorkspace({
           </p>
         )}
 
+        <section aria-labelledby="details-heading" className="space-y-3">
+          <h2 id="details-heading" className="text-lg font-semibold">
+            Details
+          </h2>
+          <ul className="divide-y rounded-lg border">
+            {METADATA_FIELDS.map((field) => {
+              const suggested = suggestedDetail.get(field);
+              return (
+                <li
+                  key={field}
+                  className="flex flex-wrap items-start justify-between gap-2 p-3 text-sm"
+                >
+                  <div className="min-w-0 flex-1">
+                    <p className="font-medium">{FIELD_LABELS[field]}</p>
+                    <p className="break-words text-muted-foreground [overflow-wrap:anywhere]">
+                      {displayField(field, base[field], categories)}
+                    </p>
+                    {suggested && (
+                      <p className="break-words [overflow-wrap:anywhere]">
+                        → {displayField(field, suggested.after, categories)}
+                      </p>
+                    )}
+                  </div>
+                  <div className="flex gap-2">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={pending}
+                      aria-label={`${suggested ? "Edit" : "Suggest"} ${FIELD_LABELS[field].toLowerCase()}`}
+                      onClick={() => openDetail(field, suggested)}
+                    >
+                      {suggested ? "Edit" : "Suggest"}
+                    </Button>
+                    {suggested && (
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        disabled={pending}
+                        onClick={() =>
+                          void persist((current) => ({
+                            metadata: current.metadata.filter(
+                              (m) => m.field !== field,
+                            ),
+                          }))
+                        }
+                      >
+                        Remove
+                      </Button>
+                    )}
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+        </section>
+
         <section aria-labelledby="draft-heading" className="space-y-3">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <h2 id="draft-heading" className="text-lg font-semibold">
@@ -703,62 +759,6 @@ export function ReviewWorkspace({
               {error}
             </p>
           )}
-        </section>
-
-        <section aria-labelledby="details-heading" className="space-y-3">
-          <h2 id="details-heading" className="text-lg font-semibold">
-            Details
-          </h2>
-          <ul className="divide-y rounded-lg border">
-            {METADATA_FIELDS.map((field) => {
-              const suggested = suggestedDetail.get(field);
-              return (
-                <li
-                  key={field}
-                  className="flex flex-wrap items-start justify-between gap-2 p-3 text-sm"
-                >
-                  <div className="min-w-0 flex-1">
-                    <p className="font-medium">{FIELD_LABELS[field]}</p>
-                    <p className="break-words text-muted-foreground [overflow-wrap:anywhere]">
-                      {displayField(field, base[field], categories)}
-                    </p>
-                    {suggested && (
-                      <p className="break-words [overflow-wrap:anywhere]">
-                        → {displayField(field, suggested.after, categories)}
-                      </p>
-                    )}
-                  </div>
-                  <div className="flex gap-2">
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      disabled={pending}
-                      aria-label={`${suggested ? "Edit" : "Suggest"} ${FIELD_LABELS[field].toLowerCase()}`}
-                      onClick={() => openDetail(field, suggested)}
-                    >
-                      {suggested ? "Edit" : "Suggest"}
-                    </Button>
-                    {suggested && (
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        disabled={pending}
-                        onClick={() =>
-                          void persist((current) => ({
-                            metadata: current.metadata.filter(
-                              (m) => m.field !== field,
-                            ),
-                          }))
-                        }
-                      >
-                        Remove
-                      </Button>
-                    )}
-                  </div>
-                </li>
-              );
-            })}
-          </ul>
         </section>
 
         <section className="space-y-2">
@@ -901,6 +901,21 @@ export function ReviewWorkspace({
               None yet. Feedback-only reviews are fine too.
             </p>
           )}
+          {metadata.map((m) => (
+            <article
+              key={m.field}
+              aria-label={`${FIELD_LABELS[m.field]} suggestion`}
+              className="min-w-0 space-y-1 rounded-lg border p-3 text-sm"
+            >
+              <p className="font-medium">{FIELD_LABELS[m.field]}</p>
+              <p className="break-words [overflow-wrap:anywhere]">
+                {displayField(m.field, m.after, categories)}
+              </p>
+              <p className="whitespace-pre-wrap break-words text-muted-foreground">
+                {m.correction ? CORRECTION_EXPLANATION : m.explanation}
+              </p>
+            </article>
+          ))}
           {suggestions.map((s) => (
             <article
               key={s.id}
@@ -951,21 +966,6 @@ export function ReviewWorkspace({
                   Remove
                 </Button>
               </div>
-            </article>
-          ))}
-          {metadata.map((m) => (
-            <article
-              key={m.field}
-              aria-label={`${FIELD_LABELS[m.field]} suggestion`}
-              className="min-w-0 space-y-1 rounded-lg border p-3 text-sm"
-            >
-              <p className="font-medium">{FIELD_LABELS[m.field]}</p>
-              <p className="break-words [overflow-wrap:anywhere]">
-                {displayField(m.field, m.after, categories)}
-              </p>
-              <p className="whitespace-pre-wrap break-words text-muted-foreground">
-                {m.correction ? CORRECTION_EXPLANATION : m.explanation}
-              </p>
             </article>
           ))}
         </section>
