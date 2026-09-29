@@ -24,6 +24,12 @@ COLLAB-2 gave collaborators access to a post. People still couldn't submit feedb
 
 **Statuses are derived, not stored.** Review requested, Review in progress and Review submitted are computed per reviewer from `post_collaborators.review_requested_at`, the reviewer's draft, and their latest human review. The owner's dashboard shows the most actionable status across reviewers (submitted first).
 
+## Amendment — 2026-09-28 (Paul's testing feedback)
+
+- **Details as well as body text.** Reviewers can suggest the same fields as AI reviews: title, slug, category, tags, thumbnail, banner and video. Each is one `field:*` change with its own explanation or correction shortcut. Drafts store them in `review_drafts.metadata`. Values are validated with the post's own field schemas on save, and at submit with the same candidate rules as AI reviews: a valid snapshot, a public post keeps its thumbnail, the category exists, and the slug is free.
+- **Editing a submitted review.** The reviewer may edit their own open review. If it's still current, it reopens as a draft rebuilt exactly from the immutable review: same base, suggestions, details, their own text comments and general feedback. If it's outdated, it uses the guided re-add flow. Either way, the submitted version stays live and applicable until the resubmission supersedes it, under the post lock. If the owner applies or rejects it in the meantime, supersession doesn't happen: the edit arrives as a new review. Since the applied version changed the post, that new review is outdated and can't be applied. A superseded version can never be applied. Discussion threads stay on the version they were posted to.
+- **Layout.** Wide screens show the article with a sticky side panel for the composer and the reviewer's items. Phones open the composer as a bottom sheet so the article stays in place.
+
 ## Consequences
 
 The AI path is unchanged apart from its one-open rule being explicitly origin-scoped. Human reviews get the same apply/reject/stale safety as AI reviews. Any owner edit makes in-progress reviews outdated, which is conservative but visible, and the reviewer can refresh. Reviewer names persist in review history after account deletion. No email notifications, real-time co-editing or automatic carry-forward.

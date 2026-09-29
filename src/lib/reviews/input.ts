@@ -1,4 +1,9 @@
 import { z } from "zod";
+import { METADATA_FIELDS, type MetadataField } from "@/lib/proposals/diff";
+import {
+  proposalSnapshotSchema,
+  type ProposalSnapshot,
+} from "@/lib/proposals/input";
 
 // Human review workflow (FR-7.15–7.16, ADR-0038). Client-safe: the review
 // workspace validates with the same schemas the server enforces.
@@ -55,9 +60,51 @@ export const draftCommentSchema = z
   .refine((c) => c.end > c.start, "Select text to comment on.");
 export type DraftComment = z.infer<typeof draftCommentSchema>;
 
+// A suggested value for one post detail (title, slug, category, tags,
+// images, video), validated with the same rules as the post itself so human
+// and AI reviews can suggest the same things (Paul, September 28).
+export const draftMetadataSchema = z
+  .object({
+    field: z.enum(METADATA_FIELDS),
+    after: z.unknown(),
+    correction: z.boolean(),
+    explanation: z.string().trim().max(REVIEW_TEXT_MAX),
+  })
+  .strict()
+  .superRefine((edit, ctx) => {
+    const parsed = proposalSnapshotSchema.shape[edit.field].safeParse(
+      edit.after,
+    );
+    if (!parsed.success)
+      ctx.addIssue({
+        code: "custom",
+        message: parsed.error.issues[0]?.message ?? "Invalid value.",
+      });
+    if (!edit.correction && edit.explanation.length === 0)
+      ctx.addIssue({
+        code: "custom",
+        message:
+          "Explain this change, or mark it as a typo/formatting correction.",
+      });
+  })
+  .transform((edit) => ({
+    ...edit,
+    after: proposalSnapshotSchema.shape[edit.field].parse(
+      edit.after,
+    ) as ProposalSnapshot[MetadataField],
+  }));
+export type DraftMetadataEdit = {
+  field: MetadataField;
+  after: ProposalSnapshot[MetadataField];
+  correction: boolean;
+  explanation: string;
+};
+
 // A suggestion from the review being updated, shown beside the fresh draft
-// for guided re-adding. Never applied automatically.
+// for guided re-adding. Never applied automatically. Detail suggestions carry
+// their field, with before/after JSON-encoded (as in review explanations).
 export type PreviousSuggestion = {
+  field?: MetadataField;
   before: string;
   after: string;
   explanation: string;
@@ -70,6 +117,13 @@ export const saveReviewDraftSchema = z
     revision: z.number().int().min(0),
     suggestions: z.array(draftSuggestionSchema).max(200),
     comments: z.array(draftCommentSchema).max(200),
+    metadata: z
+      .array(draftMetadataSchema)
+      .max(METADATA_FIELDS.length)
+      .refine(
+        (edits) => new Set(edits.map((e) => e.field)).size === edits.length,
+        "One suggestion per detail.",
+      ),
     generalFeedback: z.string().trim().max(REVIEW_TEXT_MAX),
   })
   .strict();

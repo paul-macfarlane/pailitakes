@@ -233,8 +233,9 @@ export async function getProposalService(id: string, session: StaffSession) {
             comments: await listComments(proposal.id, tx),
             // Owner/admin or this review's author (ADR-0038).
             canResolve: canDecide || ownReview,
-            canUpdate:
-              ownReview && isStale && proposal.status === ProposalStatus.Open,
+            // The reviewer may edit their open review; an outdated one is
+            // updated against the latest draft instead (ADR-0038).
+            canUpdate: ownReview && proposal.status === ProposalStatus.Open,
           },
         };
       },

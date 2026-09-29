@@ -148,6 +148,13 @@
       "when": 1790566958192,
       "tag": "0020_wooden_revanche",
       "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1790642057451,
+      "tag": "0021_abnormal_phalanx",
+      "breakpoints": true
     }
   ]
 }

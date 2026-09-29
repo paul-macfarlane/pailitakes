@@ -124,6 +124,12 @@ async function draft(
       body: string;
     }[];
     generalFeedback?: string;
+    metadata?: {
+      field: string;
+      after: unknown;
+      correction: boolean;
+      explanation: string;
+    }[];
   },
   who = reviewerId,
 ) {
@@ -138,6 +144,7 @@ async function draft(
     revision: workspace!.draft.revision,
     suggestions: content.suggestions ?? [],
     comments: content.comments ?? [],
+    metadata: content.metadata ?? [],
     generalFeedback: content.generalFeedback ?? "",
   });
   expect(saved).toMatchObject({ ok: true });
@@ -269,6 +276,7 @@ describe("human reviews (FR-7.15)", () => {
         revision: revision - 1,
         suggestions: [],
         comments: [],
+        metadata: [],
         generalFeedback: "Late tab.",
       }),
     ).toMatchObject({ ok: false, code: "conflict" });
@@ -278,6 +286,7 @@ describe("human reviews (FR-7.15)", () => {
         revision,
         suggestions: [{ ...typo(), start: 0, end: 3 }],
         comments: [],
+        metadata: [],
         generalFeedback: "",
       }),
     ).toMatchObject({ ok: false });
@@ -383,7 +392,8 @@ describe("human reviews (FR-7.15)", () => {
       expect.objectContaining({
         before: "Teh",
         after: "The",
-        match: range("Teh"),
+        stillMatches: true,
+        range: range("Teh"),
       }),
     ]);
     as(reviewerId);
@@ -392,6 +402,7 @@ describe("human reviews (FR-7.15)", () => {
       revision: workspace!.draft.revision,
       suggestions: [typo()],
       comments: [],
+      metadata: [],
       generalFeedback: "",
     });
     expect(saved.ok).toBe(true);
@@ -430,7 +441,7 @@ describe("human reviews (FR-7.15)", () => {
         suggestions: [],
         comments: [{ quote: "defense", body: "Kept." }],
       },
-      previous: [{ before: "won big", match: null }],
+      previous: [{ before: "won big", stillMatches: false }],
     });
     expect(workspace?.draft.generalFeedback).toContain("On “big”: Moved.");
     as(reviewerId);
@@ -635,5 +646,188 @@ describe("human review edge cases", () => {
       post.id,
     );
     expect(workspace?.draft.comments).toHaveLength(1);
+  });
+
+  it("detail suggestions submit, validate and apply selectively", async () => {
+    const post = await seed("details");
+    as(reviewerId);
+    await startReview({ postId: post.id, replacesProposalId: null });
+    const workspace = await getReviewWorkspaceService(
+      as(reviewerId).user,
+      post.id,
+    );
+    as(reviewerId);
+    expect(
+      await saveReviewDraft({
+        postId: post.id,
+        revision: workspace!.draft.revision,
+        suggestions: [],
+        comments: [],
+        metadata: [
+          {
+            field: "slug",
+            after: "Not A Slug!",
+            correction: false,
+            explanation: "x",
+          },
+        ],
+        generalFeedback: "",
+      }),
+    ).toMatchObject({ ok: false });
+    const revision = await draft(post.id, {
+      metadata: [
+        {
+          field: "title",
+          after: "Bears roll",
+          correction: false,
+          explanation: "Punchier.",
+        },
+        { field: "tags", after: ["bears"], correction: true, explanation: "" },
+      ],
+    });
+    const submitted = await submit(post.id, revision);
+    if (!submitted.ok) throw new Error(submitted.error);
+    const row = await proposalRow(submitted.data.proposalId);
+    expect(row.diff.changes.map((c) => c.id)).toEqual([
+      "field:title",
+      "field:tags",
+    ]);
+    authorSession();
+    expect(
+      await applyProposal({
+        proposalId: row.id,
+        selectedChangeIds: ["field:title"],
+      }),
+    ).toMatchObject({ ok: true });
+    const [saved] = await testDb
+      .select({ title: posts.title })
+      .from(posts)
+      .where(eq(posts.id, post.id));
+    expect(saved!.title).toBe("Bears roll");
+  });
+
+  it("a slug already taken by another post is refused at submit", async () => {
+    const taken = await seed("slug-taken", []);
+    const post = await seed("slug-clash");
+    const revision = await draft(post.id, {
+      metadata: [
+        {
+          field: "slug",
+          after: taken.slug,
+          correction: false,
+          explanation: "Match.",
+        },
+      ],
+    });
+    expect(await submit(post.id, revision)).toMatchObject({
+      ok: false,
+      error: "That slug is taken.",
+    });
+  });
+});
+
+describe("editing a submitted review (Paul, September 28)", () => {
+  async function submitted(suffix: string) {
+    const post = await seed(suffix);
+    const revision = await draft(post.id, {
+      suggestions: [typo()],
+      comments: [
+        { id: uuid(), ...range("defense"), quote: "defense", body: "Who?" },
+      ],
+      metadata: [
+        {
+          field: "title",
+          after: "Bears roll",
+          correction: false,
+          explanation: "Punchier.",
+        },
+      ],
+      generalFeedback: "First pass.",
+    });
+    const result = await submit(post.id, revision);
+    if (!result.ok) throw new Error(result.error);
+    return { post, proposalId: result.data.proposalId };
+  }
+
+  it("reopens the review as a pre-filled draft; resubmitting replaces it", async () => {
+    const { post, proposalId } = await submitted("edit-fresh");
+    as(reviewerId);
+    expect(await getProposal(proposalId)).toMatchObject({
+      ok: true,
+      data: { stale: false, canUpdate: true },
+    });
+    expect(
+      await startReview({ postId: post.id, replacesProposalId: proposalId }),
+    ).toMatchObject({ ok: true });
+    const workspace = await getReviewWorkspaceService(
+      as(reviewerId).user,
+      post.id,
+    );
+    expect(workspace).toMatchObject({
+      outdated: false,
+      previous: [],
+      draft: {
+        replacesProposalId: proposalId,
+        generalFeedback: "First pass.",
+        suggestions: [{ before: "Teh", after: "The", correction: true }],
+        comments: [{ quote: "defense", body: "Who?" }],
+        metadata: [{ field: "title", after: "Bears roll" }],
+      },
+    });
+    // Still live for the owner while the reviewer edits.
+    expect((await proposalRow(proposalId)).status).toBe("open");
+
+    as(reviewerId);
+    const saved = await saveReviewDraft({
+      postId: post.id,
+      revision: workspace!.draft.revision,
+      suggestions: workspace!.draft.suggestions,
+      comments: workspace!.draft.comments,
+      metadata: [],
+      generalFeedback: "Second pass.",
+    });
+    if (!saved.ok) throw new Error(saved.error);
+    const resubmitted = await submit(post.id, saved.data.revision);
+    if (!resubmitted.ok) throw new Error(resubmitted.error);
+    expect((await proposalRow(proposalId)).status).toBe("superseded");
+    const replacement = await proposalRow(resubmitted.data.proposalId);
+    expect(replacement).toMatchObject({ status: "open" });
+    expect(replacement.notes.summary).toBe("Second pass.");
+
+    // The replaced version can never be applied afterwards.
+    authorSession();
+    expect(
+      await applyProposal({ proposalId, selectedChangeIds: ["body:0"] }),
+    ).toMatchObject({ ok: false, code: "conflict" });
+  });
+
+  it("if the owner applies the old version mid-edit, the edit arrives as a new outdated review", async () => {
+    const { post, proposalId } = await submitted("edit-race");
+    as(reviewerId);
+    await startReview({ postId: post.id, replacesProposalId: proposalId });
+    authorSession();
+    expect(
+      await applyProposal({ proposalId, selectedChangeIds: ["body:0"] }),
+    ).toMatchObject({ ok: true });
+
+    const workspace = await getReviewWorkspaceService(
+      as(reviewerId).user,
+      post.id,
+    );
+    expect(workspace?.outdated).toBe(true);
+    expect(await submit(post.id, workspace!.draft.revision)).toMatchObject({
+      ok: false,
+      code: "outdated",
+    });
+    const resubmitted = await submit(post.id, workspace!.draft.revision, true);
+    if (!resubmitted.ok) throw new Error(resubmitted.error);
+    expect((await proposalRow(proposalId)).status).toBe("applied");
+    authorSession();
+    expect(
+      await applyProposal({
+        proposalId: resubmitted.data.proposalId,
+        selectedChangeIds: ["body:0"],
+      }),
+    ).toMatchObject({ ok: false, code: "conflict" });
   });
 });

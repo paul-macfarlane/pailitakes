@@ -6,7 +6,9 @@ import {
   draftProblem,
   headlineStatus,
   humanReviewNotes,
+  draftFromReview,
   locatePrevious,
+  previousMatch,
   rawOffset,
   previousSuggestions,
   reviewerStatus,
@@ -91,7 +93,7 @@ describe("draftProblem", () => {
     body: "Nice.",
   };
   it("accepts matching, non-overlapping items", () => {
-    expect(draftProblem(body, [typo, substantive], [comment])).toBeNull();
+    expect(draftProblem(base, [typo, substantive], [comment])).toBeNull();
   });
   it.each([
     ["a suggestion whose text moved", [{ ...typo, start: typo.start + 1 }], []],
@@ -111,7 +113,7 @@ describe("draftProblem", () => {
     ],
     ["duplicate ids", [typo], [{ ...comment, id: typo.id }]],
   ] as const)("rejects %s", (_label, suggestions, comments) => {
-    expect(draftProblem(body, [...suggestions], [...comments])).not.toBeNull();
+    expect(draftProblem(base, [...suggestions], [...comments])).not.toBeNull();
   });
 });
 
@@ -257,5 +259,80 @@ describe("rawOffset", () => {
   );
   it("is the identity for LF-only text", () => {
     expect(rawOffset(body, 12)).toBe(12);
+  });
+});
+
+describe("detail suggestions", () => {
+  const title = {
+    field: "title" as const,
+    after: "Bears roll",
+    correction: false,
+    explanation: "Punchier.",
+  };
+  const tags = {
+    field: "tags" as const,
+    after: ["bears", "nfl"],
+    correction: true,
+    explanation: "",
+  };
+  it("become one change per field after body changes, and reconstruct", () => {
+    const { diff, candidate } = createRangeDiff(base, [typo], [tags, title]);
+    expect(diff.changes.map((c) => c.id)).toEqual([
+      "body:0",
+      "field:title",
+      "field:tags",
+    ]);
+    expect(candidate).toMatchObject({
+      title: "Bears roll",
+      tags: ["bears", "nfl"],
+    });
+    const titleOnly = applyProposalSelection(base, candidate, diff, [
+      "field:title",
+    ]);
+    expect(titleOnly).toEqual({ ...base, title: "Bears roll" });
+  });
+  it("rejects unchanged values and duplicate fields", () => {
+    expect(() =>
+      createRangeDiff(base, [], [{ ...title, after: base.title }]),
+    ).toThrow();
+    expect(() => createRangeDiff(base, [], [title, title])).toThrow();
+    expect(
+      draftProblem(base, [], [], [{ ...title, after: base.title }]),
+    ).not.toBeNull();
+    expect(draftProblem(base, [], [], [title, title])).not.toBeNull();
+  });
+  it("round-trips through notes for editing and guided re-add", () => {
+    const { diff } = createRangeDiff(base, [typo, substantive], [title, tags]);
+    const notes = humanReviewNotes(diff, [typo, substantive], "Nice.", [
+      title,
+      tags,
+    ]);
+    let n = 10;
+    const rebuilt = draftFromReview(
+      diff,
+      notes,
+      [{ anchor: { start: 0, end: 3, quote: "The" }, body: "Hm." }],
+      () => id(n++ % 10),
+    );
+    const withoutId = (s: { id: string }) => ({ ...s, id: "" });
+    expect(rebuilt.suggestions.map(withoutId)).toEqual(
+      [substantive, typo].map(withoutId),
+    );
+    expect(rebuilt.metadata).toEqual([title, tags]);
+    expect(rebuilt.comments).toMatchObject([
+      { start: 0, end: 3, quote: "The", body: "Hm." },
+    ]);
+    expect(rebuilt.generalFeedback).toBe("Nice.");
+
+    const previous = previousSuggestions(diff, notes);
+    const detail = previous.find((p) => p.field === "title")!;
+    expect(previousMatch(base, detail)).toEqual({
+      stillMatches: true,
+      range: null,
+    });
+    expect(previousMatch({ ...base, title: "Changed" }, detail)).toEqual({
+      stillMatches: false,
+      range: null,
+    });
   });
 });

@@ -22,7 +22,7 @@ import {
 import { Action, rolesWithAction } from "@/lib/auth/permissions";
 import type { Tx } from "@/lib/posts/data";
 import { ProposalOrigin, ProposalStatus } from "@/lib/proposals/input";
-import type { DraftComment, DraftSuggestion } from "./input";
+import type { DraftComment, DraftMetadataEdit, DraftSuggestion } from "./input";
 
 export type ReviewDraftRow = typeof reviewDrafts.$inferSelect;
 export type ReviewCommentRow = typeof reviewComments.$inferSelect;
@@ -61,6 +61,7 @@ export async function writeDraftContent(
   content: {
     suggestions: DraftSuggestion[];
     comments: DraftComment[];
+    metadata: DraftMetadataEdit[];
     generalFeedback: string;
   },
 ): Promise<number | null> {

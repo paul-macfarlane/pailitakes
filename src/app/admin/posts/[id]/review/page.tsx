@@ -8,6 +8,7 @@ import {
   getReviewTargetService,
   getReviewWorkspaceService,
 } from "@/lib/reviews/service";
+import { listAllCategories } from "@/lib/categories/data";
 import { ReviewWorkspace } from "./_components/review-workspace";
 import { StartReviewButton } from "./_components/start-review-button";
 
@@ -49,10 +50,12 @@ export default async function ReviewWorkspacePage({
       </div>
     );
   }
+  const categories = await listAllCategories();
   return (
     <div className="space-y-6">
       {back}
       <ReviewWorkspace
+        categories={categories.map(({ id, name }) => ({ id, name }))}
         key={`${workspace.draft.sourceVersion}:${workspace.draft.createdAt.toISOString()}`}
         postId={postId}
         workspace={workspace}

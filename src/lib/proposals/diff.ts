@@ -181,13 +181,18 @@ export function explanationsMatch(
 
 // Human reviews (ADR-0038): each reviewer suggestion is exactly one change,
 // so explanations and selective apply bind to what the reviewer selected
-// rather than to a line diff that could merge or split suggestions.
+// rather than to a line diff that could merge or split suggestions. Detail
+// (metadata) suggestions become one change per field, as in AI reviews.
 export function createRangeDiff(
   base: ProposalSnapshot,
   ranges: { start: number; end: number; after: string }[],
+  details: {
+    field: MetadataField;
+    after: ProposalSnapshot[MetadataField];
+  }[] = [],
 ): { diff: ProposalDiff; candidate: ProposalSnapshot } {
   const sorted = [...ranges].sort((a, b) => a.start - b.start);
-  const changes: BodyChange[] = [];
+  const changes: ProposalChange[] = [];
   let body = "";
   let cursor = 0;
   for (const range of sorted) {
@@ -206,7 +211,28 @@ export function createRangeDiff(
     });
     cursor = range.end;
   }
-  const candidate = { ...base, bodyMd: body + base.bodyMd.slice(cursor) };
+  const candidate: ProposalSnapshot = {
+    ...base,
+    tags: [...base.tags],
+    bodyMd: body + base.bodyMd.slice(cursor),
+  };
+  const byField = new Map(details.map((d) => [d.field, d.after]));
+  if (byField.size !== details.length)
+    throw new Error("Duplicate detail suggestion.");
+  for (const field of METADATA_FIELDS) {
+    if (!byField.has(field)) continue;
+    const after = byField.get(field)!;
+    if (JSON.stringify(after) === JSON.stringify(base[field]))
+      throw new Error("Detail suggestion matches the current value.");
+    Object.assign(candidate, { [field]: after });
+    changes.push({
+      id: `field:${field}`,
+      kind: ChangeKind.Metadata,
+      field,
+      before: base[field],
+      after,
+    });
+  }
   const diff: ProposalDiff = {
     version: 1,
     wholeBodyReplacement: false,
@@ -218,7 +244,7 @@ export function createRangeDiff(
     diff,
     changes.map((change) => change.id),
   );
-  if (reconstructed.bodyMd !== candidate.bodyMd)
+  if (JSON.stringify(reconstructed) !== JSON.stringify(candidate))
     throw new Error("Suggestion diff does not reconstruct its candidate.");
   return { diff, candidate };
 }
