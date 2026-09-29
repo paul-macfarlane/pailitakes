@@ -22,6 +22,8 @@ import {
   CollaboratorRole,
 } from "@/lib/collaboration/permissions";
 import { sharedPostsService } from "@/lib/collaboration/service";
+import { reviewStatusesByPost } from "@/lib/reviews/status";
+import { ReviewStatusBadge } from "@/components/review-status-badge";
 
 const [SORT_UPDATED, SORT_PUBLISHED] = ADMIN_POST_SORTS;
 
@@ -83,6 +85,7 @@ export default async function AdminPage({
     limit: ADMIN_POSTS_PAGE_SIZE,
     offset,
   });
+  const reviewStatuses = await reviewStatusesByPost(rows.map((row) => row.id));
 
   // Any filter/search/sort deviating from the defaults → offer a reset. Sort
   // counts: "Reset" returns the whole form to its default state.
@@ -159,9 +162,12 @@ export default async function AdminPage({
                     <LocalDate iso={post.updatedAt.toISOString()} />
                   </p>
                 </div>
-                <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-medium">
-                  {COLLABORATOR_ROLE_LABELS[post.role]}
-                </span>
+                <div className="flex flex-wrap gap-2">
+                  <ReviewStatusBadge status={post.reviewStatus} />
+                  <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-medium">
+                    {COLLABORATOR_ROLE_LABELS[post.role]}
+                  </span>
+                </div>
               </li>
             ))}
           </ul>
@@ -294,7 +300,12 @@ export default async function AdminPage({
                   <LocalDate iso={post.updatedAt.toISOString()} />
                 </p>
               </div>
-              <StatusBadge status={post.status} />
+              <div className="flex flex-wrap gap-2">
+                <ReviewStatusBadge
+                  status={reviewStatuses.get(post.id) ?? null}
+                />
+                <StatusBadge status={post.status} />
+              </div>
             </li>
           ))}
         </ul>

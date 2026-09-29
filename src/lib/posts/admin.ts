@@ -157,6 +157,8 @@ export type PreviewPost = {
   // preview shows pending edits rather than the current live content.
   hasPendingChanges: boolean;
   access: PostAccess;
+  // Anyone who can read it except its owner may review it (FR-7.15).
+  canReview: boolean;
 };
 
 // Loads a post by id for private preview, BYPASSING visiblePostsWhere() so a
@@ -248,6 +250,7 @@ export async function getPostForPreview(
     tags: previewTags,
     hasPendingChanges: draft !== null,
     access,
+    canReview: row.authorId !== user_.id,
   };
 }
 

@@ -65,6 +65,7 @@ export default async function EditPostPage({
             postId={post.id}
             hasReviews={reviews.ok ? reviews.data.length > 0 : null}
             canManageSharing={canManage}
+            canReview={post.authorId !== session.user.id}
           />
           {!canManage ? (
             <p className="rounded-lg border border-dashed p-4 text-sm text-muted-foreground">

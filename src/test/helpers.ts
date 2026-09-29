@@ -310,3 +310,58 @@ export function freshPostUpdater(
   return async (id: string, input: unknown) =>
     update(id, input, await loadEditVersion(testDb, id));
 }
+
+// Extra author accounts for collaboration suites (owner comes from the staff
+// trio). Registered hooks run as a stack, so the cleanup precedes the post
+// suite's pool.end().
+export function registerExtraAuthors(
+  testDb: TestDb,
+  runId: string,
+  names: string[],
+): Record<string, string> {
+  const ids = Object.fromEntries(
+    names.map((name) => [name, `user-${runId}-${name}`]),
+  );
+  beforeAll(async () => {
+    await testDb.insert(schema.user).values(
+      names.map((name) => ({
+        id: ids[name]!,
+        name: `${name} ${runId}`,
+        email: `${name}-${runId}@example.com`,
+        role: "author" as const,
+      })),
+    );
+  });
+  afterAll(async () => {
+    await testDb
+      .delete(schema.user)
+      .where(inArray(schema.user.id, Object.values(ids)));
+  });
+  return ids;
+}
+
+// Minimal complete AI review payload over a post's current editable state.
+export function agentReviewInput(
+  loaded: { editVersion: string } & Record<string, unknown>,
+  bodyMd: string,
+) {
+  const { title, slug, categoryId, tags, thumbnailUrl, bannerUrl, videoUrl } =
+    loaded;
+  return {
+    postId: loaded.id,
+    sourceVersion: loaded.editVersion,
+    candidate: {
+      title,
+      slug,
+      bodyMd,
+      categoryId,
+      tags,
+      thumbnailUrl,
+      bannerUrl,
+      videoUrl,
+    },
+    notes: { summary: "Fixture.", editorial: [], facts: [], media: [] },
+    skill: { name: "paulitakes-editor" as const, hash: "a".repeat(64) },
+  };
+}
+export const AGENT_FIXTURE = { id: "test-codex", label: "Codex fixture" };

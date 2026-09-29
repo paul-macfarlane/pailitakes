@@ -1,4 +1,4 @@
-import { ProposalStatus } from "./input";
+import { ProposalOrigin, ProposalStatus } from "./input";
 import type { MetadataField } from "./diff";
 import type { ProposalSnapshot } from "./input";
 
@@ -30,4 +30,15 @@ export function displayField(
     );
   if (Array.isArray(value)) return value.join(", ") || "(none)";
   return value === null || value === "" ? "(empty)" : String(value);
+}
+
+// Neutral Reviews naming with explicit attribution (ADR-0036/0038).
+export function reviewAttribution(review: {
+  origin: string;
+  agentLabel: string | null;
+  reviewerName: string | null;
+}): string {
+  return review.origin === ProposalOrigin.Human
+    ? `Human · ${review.reviewerName}`
+    : `AI · ${review.agentLabel}`;
 }

@@ -1,8 +1,11 @@
-import { eq, inArray } from "drizzle-orm";
-import { beforeAll, afterAll, describe, expect, it, vi } from "vitest";
-import { posts, user } from "@/db/schema";
+import { eq } from "drizzle-orm";
+import { describe, expect, it, vi } from "vitest";
+import { posts } from "@/db/schema";
 import {
+  AGENT_FIXTURE,
+  agentReviewInput,
   loadEditVersion,
+  registerExtraAuthors,
   registerPostSuiteLifecycle,
   seedPost,
   sessionSetters,
@@ -29,7 +32,6 @@ const { publishPostChanges, discardPostChanges } = await import("./draft");
 const { listProposals, getProposal, applyProposal, rejectProposal } =
   await import("./proposals");
 const { submitProposalService } = await import("@/lib/proposals/service");
-const { proposalSnapshotSchema } = await import("@/lib/proposals/input");
 const { getEditablePost, getPostForPreview } =
   await import("@/lib/posts/admin");
 const { getCollaboratorsService, sharedPostsService } =
@@ -49,30 +51,11 @@ const { runId } = registerPostSuiteLifecycle({
   },
 });
 // A second and third author: the collaborator and an unassigned bystander.
-const collaboratorId = `user-${runId}-collab`;
-const bystanderId = `user-${runId}-bystander`;
-beforeAll(async () => {
-  await testDb.insert(user).values([
-    {
-      id: collaboratorId,
-      name: `Collaborator ${runId}`,
-      email: `collab-${runId}@example.com`,
-      role: "author",
-    },
-    {
-      id: bystanderId,
-      name: `Bystander ${runId}`,
-      email: `bystander-${runId}@example.com`,
-      role: "author",
-    },
-  ]);
-});
-// Hooks run as a stack, so this precedes the lifecycle's pool.end().
-afterAll(async () => {
-  await testDb
-    .delete(user)
-    .where(inArray(user.id, [collaboratorId, bystanderId]));
-});
+const { collab: collaboratorId, bystander: bystanderId } = registerExtraAuthors(
+  testDb,
+  runId,
+  ["collab", "bystander"],
+);
 
 const as = (id: string, role: "author" | "admin" | "reader" = "author") => {
   sessionMock.current = sessionUser(id, role);
@@ -93,28 +76,19 @@ async function seed(suffix: string, published = false) {
     publishAt: published ? new Date(Date.now() - 60000) : null,
   });
 }
-// Minimal open AI review so the decision actions have something to refuse.
 async function propose(postId: string) {
   const loaded = await getEditablePost(postId, {
     id: ids.adminId,
     role: "admin",
   });
   const result = await submitProposalService(
-    { id: "test-codex", label: "Codex fixture" },
-    {
-      postId,
-      sourceVersion: loaded!.editVersion,
-      candidate: {
-        ...proposalSnapshotSchema.strip().parse(loaded),
-        bodyMd: "AI candidate.",
-      },
-      notes: { summary: "Fixture.", editorial: [], facts: [], media: [] },
-      skill: { name: "paulitakes-editor", hash: "a".repeat(64) },
-    },
+    AGENT_FIXTURE,
+    agentReviewInput(loaded!, "AI candidate."),
   );
   if (!result.ok) throw new Error(result.error);
   return result.data;
 }
+
 async function share(postId: string, role: "reviewer" | "editor" | null) {
   authorSession();
   const result = await setCollaborator({
@@ -160,7 +134,12 @@ describe("post-scoped collaborator access (FR-7.14)", () => {
     ).toMatchObject({ ok: true });
     const sharing = await getCollaboratorsService(as(ids.authorId), post.id);
     expect(sharing?.members).toEqual([
-      { userId: collaboratorId, name: `Collaborator ${runId}`, role: "editor" },
+      {
+        userId: collaboratorId,
+        name: `collab ${runId}`,
+        role: "editor",
+        reviewStatus: null,
+      },
     ]);
     expect(sharing?.options.map((o) => o.id)).not.toContain(ids.authorId);
     expect(sharing?.options.map((o) => o.id)).not.toContain(ids.readerId);

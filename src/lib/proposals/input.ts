@@ -20,7 +20,7 @@ export const ProposalStatus = {
   Rejected: "rejected",
   Superseded: "superseded",
 } as const;
-export const ProposalOrigin = { Agent: "agent" } as const;
+export const ProposalOrigin = { Agent: "agent", Human: "human" } as const;
 export const FactStatus = {
   Verified: "verified",
   Corrected: "corrected",

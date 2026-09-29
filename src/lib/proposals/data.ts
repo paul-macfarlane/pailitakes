@@ -19,7 +19,7 @@ import {
   type Tx,
 } from "@/lib/posts/data";
 import { isPubliclyVisible, usesDraftBuffer } from "@/lib/posts/status";
-import { ProposalStatus, type ProposalSnapshot } from "./input";
+import { ProposalOrigin, ProposalStatus, type ProposalSnapshot } from "./input";
 
 export type ProposalRow = typeof editProposals.$inferSelect;
 export async function withLockedSource<T>(
@@ -97,6 +97,8 @@ export async function loadSnapshots(
       (usesDraftBuffer(post.status) ? draftFromJoinRow(row!) : null) ?? live,
   };
 }
+// The one-open-review rule is for AI reviews only; human reviews coexist
+// (FR-7.15, ADR-0038).
 export async function findOpenProposal(tx: Tx, postId: string) {
   const [proposal] = await tx
     .select()
@@ -105,6 +107,7 @@ export async function findOpenProposal(tx: Tx, postId: string) {
       and(
         eq(editProposals.postId, postId),
         eq(editProposals.status, ProposalStatus.Open),
+        eq(editProposals.origin, ProposalOrigin.Agent),
       ),
     );
   return proposal;
@@ -186,7 +189,9 @@ export async function listProposalSummaries(tx: Tx, postId: string, page = 1) {
       id: editProposals.id,
       status: editProposals.status,
       createdAt: editProposals.createdAt,
+      origin: editProposals.origin,
       agentLabel: editProposals.agentLabel,
+      reviewerName: editProposals.reviewerName,
       sourceVersion: editProposals.sourceVersion,
     })
     .from(editProposals)
