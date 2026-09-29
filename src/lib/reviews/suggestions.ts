@@ -3,13 +3,15 @@ import {
   explanationTarget,
   type ProposalDiff,
 } from "@/lib/proposals/diff";
-import type { ProposalNotes } from "@/lib/proposals/input";
+import type { ProposalNotes, ProposalSnapshot } from "@/lib/proposals/input";
 import {
   CORRECTION_EXPLANATION,
   ReviewStatus,
   type DraftComment,
+  type DraftMetadataEdit,
   type DraftSuggestion,
   type PreviousSuggestion,
+  type ReviewCommentAnchor,
 } from "./input";
 
 // Pure, client-safe rules for the human review workspace (ADR-0038).
@@ -20,10 +22,18 @@ const overlaps = (a: Range, b: Range) => a.start < b.end && b.start < a.end;
 // Anchors bind to exact text so a stale client or offset bug can't point a
 // suggestion at the wrong words.
 export function draftProblem(
-  bodyMd: string,
+  base: ProposalSnapshot,
   suggestions: DraftSuggestion[],
   comments: DraftComment[],
+  metadata: DraftMetadataEdit[] = [],
 ): string | null {
+  const bodyMd = base.bodyMd;
+  for (const edit of metadata) {
+    if (JSON.stringify(edit.after) === JSON.stringify(base[edit.field]))
+      return "A detail suggestion matches the current value.";
+  }
+  if (new Set(metadata.map((edit) => edit.field)).size !== metadata.length)
+    return "One suggestion per detail.";
   for (const s of suggestions) {
     if (bodyMd.slice(s.start, s.end) !== s.before)
       return "A suggestion no longer matches the reviewed text.";
@@ -62,13 +72,17 @@ export function humanReviewNotes(
   diff: ProposalDiff,
   suggestions: DraftSuggestion[],
   generalFeedback: string,
+  metadata: DraftMetadataEdit[] = [],
 ): ProposalNotes {
   const byStart = new Map(suggestions.map((s) => [s.start, s]));
+  const byField = new Map(metadata.map((edit) => [edit.field, edit]));
   return {
     summary: generalFeedback,
     changes: diff.changes.map((change) => {
       const suggestion =
-        change.kind === ChangeKind.Body ? byStart.get(change.start) : undefined;
+        change.kind === ChangeKind.Body
+          ? byStart.get(change.start)
+          : byField.get(change.field);
       if (!suggestion) throw new Error("Change without a suggestion.");
       return {
         ...explanationTarget(change),
@@ -89,18 +103,86 @@ export function previousSuggestions(
   const explanations = new Map(
     notes.changes?.map((note) => [note.changeId, note.explanation]),
   );
-  return diff.changes.flatMap((change) => {
-    if (change.kind !== ChangeKind.Body) return [];
+  return diff.changes.map((change) => {
     const explanation = explanations.get(change.id) ?? "";
-    return [
-      {
+    const target = explanationTarget(change);
+    return {
+      ...(change.kind === ChangeKind.Metadata ? { field: change.field } : {}),
+      before: target.before,
+      after: target.after,
+      explanation,
+      correction: explanation === CORRECTION_EXPLANATION,
+    };
+  });
+}
+
+// Guided re-add hint for either kind of earlier suggestion: body text needs a
+// unique exact match (its range is returned); a detail matches while its value
+// is unchanged.
+export function previousMatch(
+  base: ProposalSnapshot,
+  item: PreviousSuggestion,
+): { stillMatches: boolean; range: { start: number; end: number } | null } {
+  if (item.field)
+    return {
+      stillMatches: JSON.stringify(base[item.field]) === item.before,
+      range: null,
+    };
+  const range = locatePrevious(base.bodyMd, item.before);
+  return { stillMatches: range !== null, range };
+}
+
+// Editing a submitted review that is still current: rebuild the reviewer's
+// draft exactly from the immutable review (same base, same anchors), so the
+// resubmission replaces it rather than restarting (Paul, September 28).
+export function draftFromReview(
+  diff: ProposalDiff,
+  notes: ProposalNotes,
+  textComments: { anchor: ReviewCommentAnchor; body: string }[],
+  newId: () => string,
+): {
+  suggestions: DraftSuggestion[];
+  metadata: DraftMetadataEdit[];
+  comments: DraftComment[];
+  generalFeedback: string;
+} {
+  const explanations = new Map(
+    notes.changes?.map((note) => [note.changeId, note.explanation]),
+  );
+  const suggestions: DraftSuggestion[] = [];
+  const metadata: DraftMetadataEdit[] = [];
+  for (const change of diff.changes) {
+    const explanation = explanations.get(change.id) ?? "";
+    const correction = explanation === CORRECTION_EXPLANATION;
+    const why = correction ? "" : explanation;
+    if (change.kind === ChangeKind.Body)
+      suggestions.push({
+        id: newId(),
+        start: change.start,
+        end: change.end,
         before: change.before,
         after: change.after,
-        explanation,
-        correction: explanation === CORRECTION_EXPLANATION,
-      },
-    ];
-  });
+        correction,
+        explanation: why,
+      });
+    else
+      metadata.push({
+        field: change.field,
+        after: change.after,
+        correction,
+        explanation: why,
+      });
+  }
+  return {
+    suggestions,
+    metadata,
+    comments: textComments.map((comment) => ({
+      id: newId(),
+      ...comment.anchor,
+      body: comment.body,
+    })),
+    generalFeedback: notes.summary,
+  };
 }
 
 // Guided re-add hint only: a unique exact match can be re-added with one

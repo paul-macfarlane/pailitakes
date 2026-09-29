@@ -136,8 +136,10 @@ export function CollaboratorControls({
           Share with an author
         </h2>
         {candidates.length === 0 ? (
-          <p className="text-sm text-muted-foreground">
-            Every other active author already has access.
+          <p className="rounded-lg border border-dashed p-4 text-sm text-muted-foreground">
+            {options.length === 0
+              ? "There's no one to share with yet. Other authors appear here once they have author accounts (admins already have full access)."
+              : "Everyone you can share with already has access."}
           </p>
         ) : (
           <div className="flex flex-wrap items-end gap-3">

@@ -8,12 +8,15 @@ import {
 import { postForSharing } from "@/lib/collaboration/data";
 import { resolvePostAccess } from "@/lib/collaboration/service";
 import { loadPostForUpdate, type Tx } from "@/lib/posts/data";
-import { isPubliclyVisible } from "@/lib/posts/status";
-import { createRangeDiff } from "@/lib/proposals/diff";
+import { postDraftSchema } from "@/lib/posts/input";
+import { isPubliclyVisible, PUBLIC_STATUSES } from "@/lib/posts/status";
+import { createRangeDiff, type MetadataField } from "@/lib/proposals/diff";
+import { FIELD_LABELS } from "@/lib/proposals/presentation";
 import {
   closeProposal,
   insertProposal,
   loadSnapshots,
+  snapshotReferencesValid,
   withLockedSource,
 } from "@/lib/proposals/data";
 import {
@@ -38,6 +41,8 @@ import {
   insertComment,
   insertComments,
   insertDraft,
+  latestOwnOpenReviewId,
+  listComments,
   replaceDraft,
   setThreadResolved,
   writeDraftContent,
@@ -50,9 +55,11 @@ import {
   type SaveReviewDraft,
 } from "./input";
 import {
+  draftFromReview,
   draftProblem,
   humanReviewNotes,
   locatePrevious,
+  previousMatch,
   previousSuggestions,
 } from "./suggestions";
 
@@ -120,7 +127,6 @@ export async function startReviewService(
           )
             return NOT_FOUND;
           const existing = await findDraft(postId, actor.id, tx, true);
-          let previous: PreviousSuggestion[] = [];
           if (replacesProposalId) {
             const replaced = await findOwnOpenReview(
               tx,
@@ -139,10 +145,51 @@ export async function startReviewService(
                 error:
                   "Finish or discard your review in progress before updating this one.",
               };
-            previous = previousSuggestions(replaced.diff, replaced.notes);
-          } else if (existing) {
+            const current =
+              replaced.sourceVersion === post.editVersion &&
+              replaced.sourceIsPublic === isPubliclyVisible(post);
+            if (current) {
+              // Still current: reopen it as an editable draft on the same
+              // base. The submitted version stays live (the owner may still
+              // apply it) until the resubmission replaces it.
+              const ownTextComments = (
+                await listComments(replaced.id, tx)
+              ).flatMap((c) =>
+                c.anchor && c.parentId === null && c.authorId === actor.id
+                  ? [{ anchor: c.anchor, body: c.body }]
+                  : [],
+              );
+              await insertDraft(tx, {
+                postId,
+                reviewerId: actor.id,
+                sourceVersion: replaced.sourceVersion,
+                sourceIsPublic: replaced.sourceIsPublic,
+                base: replaced.base,
+                ...draftFromReview(
+                  replaced.diff,
+                  replaced.notes,
+                  ownTextComments,
+                  () => crypto.randomUUID(),
+                ),
+                replacesProposalId,
+              });
+              return { ok: true, data: { postId } };
+            }
+            // Outdated: a fresh draft beside the old suggestions for guided
+            // re-adding; nothing is carried forward automatically.
+            const { effective } = await loadSnapshots(tx, postId, post);
+            await insertDraft(tx, {
+              postId,
+              reviewerId: actor.id,
+              sourceVersion: post.editVersion,
+              sourceIsPublic: isPubliclyVisible(post),
+              base: proposalSnapshotSchema.parse(effective),
+              previous: previousSuggestions(replaced.diff, replaced.notes),
+              replacesProposalId,
+            });
             return { ok: true, data: { postId } };
           }
+          if (existing) return { ok: true, data: { postId } };
           const { effective } = await loadSnapshots(tx, postId, post);
           await insertDraft(tx, {
             postId,
@@ -150,8 +197,7 @@ export async function startReviewService(
             sourceVersion: post.editVersion,
             sourceIsPublic: isPubliclyVisible(post),
             base: proposalSnapshotSchema.parse(effective),
-            previous,
-            replacesProposalId,
+            replacesProposalId: null,
           });
           return { ok: true, data: { postId } };
         },
@@ -165,10 +211,8 @@ export async function startReviewService(
 export type ReviewWorkspace = {
   draft: ReviewDraftRow;
   outdated: boolean;
-  // Unique exact matches in this draft's base, for guided re-adding.
-  previous: (PreviousSuggestion & {
-    match: { start: number; end: number } | null;
-  })[];
+  // Guided re-add hints against this draft's base.
+  previous: (PreviousSuggestion & ReturnType<typeof previousMatch>)[];
 };
 
 export async function getReviewWorkspaceService(
@@ -186,7 +230,7 @@ export async function getReviewWorkspaceService(
       draft.sourceIsPublic !== isPubliclyVisible(post),
     previous: draft.previous.map((item) => ({
       ...item,
-      match: locatePrevious(draft.base.bodyMd, item.before),
+      ...previousMatch(draft.base, item),
     })),
   };
 }
@@ -196,9 +240,13 @@ export async function getReviewWorkspaceService(
 export async function getReviewTargetService(actor: PostActor, postId: string) {
   const post = await postForSharing(postId);
   if (!post) return null;
-  return (await mayReview(actor, { id: postId, authorId: post.authorId }))
-    ? { title: post.title }
-    : null;
+  if (!(await mayReview(actor, { id: postId, authorId: post.authorId })))
+    return null;
+  // Lets the page offer "Edit review" instead of a second, separate review.
+  return {
+    title: post.title,
+    ownReviewId: await latestOwnOpenReviewId(postId, actor.id),
+  };
 }
 
 export async function saveReviewDraftService(
@@ -210,9 +258,10 @@ export async function saveReviewDraftService(
     const draft = await findDraft(input.postId, session.user.id);
     if (!draft) return NOT_FOUND;
     const problem = draftProblem(
-      draft.base.bodyMd,
+      draft.base,
       input.suggestions,
       input.comments,
+      input.metadata,
     );
     if (problem) return { ok: false, error: problem };
     const revision = await writeDraftContent(
@@ -222,6 +271,7 @@ export async function saveReviewDraftService(
       {
         suggestions: input.suggestions,
         comments: input.comments,
+        metadata: input.metadata,
         generalFeedback: input.generalFeedback,
       },
     );
@@ -292,8 +342,18 @@ export async function refreshReviewDraftService(
                   correction,
                 }),
               ),
+              ...draft.metadata.map(
+                ({ field, after, explanation, correction }) => ({
+                  field,
+                  before: JSON.stringify(draft.base[field]),
+                  after: JSON.stringify(after),
+                  explanation,
+                  correction,
+                }),
+              ),
             ],
             suggestions: [],
+            metadata: [],
             comments,
             generalFeedback,
           });
@@ -346,13 +406,15 @@ export async function submitReviewService(
               error: "This review changed in another tab. Reload to continue.",
             };
           const problem = draftProblem(
-            draft.base.bodyMd,
+            draft.base,
             draft.suggestions,
             draft.comments,
+            draft.metadata,
           );
           if (problem) return { ok: false, error: problem };
           if (
             draft.suggestions.length === 0 &&
+            draft.metadata.length === 0 &&
             draft.comments.length === 0 &&
             !draft.generalFeedback
           )
@@ -367,7 +429,43 @@ export async function submitReviewService(
           const { diff, candidate } = createRangeDiff(
             draft.base,
             draft.suggestions,
+            draft.metadata,
           );
+          // Same candidate rules as AI reviews: valid snapshot, a public post
+          // keeps its thumbnail, the category exists and the slug is free.
+          // Only for a current draft: an outdated one can never apply (apply
+          // re-validates anyway), and checking its old base against today's
+          // post would refuse feedback over details the reviewer never touched.
+          if (!outdated) {
+            const parsed = proposalSnapshotSchema.safeParse(candidate);
+            if (!parsed.success) {
+              const field = parsed.error.issues[0]?.path[0];
+              return {
+                ok: false,
+                error:
+                  field === "bodyMd"
+                    ? "The article would be too long with these suggestions."
+                    : `The suggested ${
+                        FIELD_LABELS[field as MetadataField]?.toLowerCase() ??
+                        "detail"
+                      } isn't valid.`,
+              };
+            }
+            if (
+              (PUBLIC_STATUSES as readonly string[]).includes(post.status) &&
+              !postDraftSchema.safeParse(candidate).success
+            )
+              return {
+                ok: false,
+                error: "A published or scheduled post must keep its thumbnail.",
+              };
+            const invalid = await snapshotReferencesValid(
+              tx,
+              input.postId,
+              candidate,
+            );
+            if (invalid) return { ok: false, error: invalid };
+          }
           const reviewerName = await displayName(actor.id, tx);
           const proposal = await insertProposal(tx, {
             postId: input.postId,
@@ -385,6 +483,7 @@ export async function submitReviewService(
               diff,
               draft.suggestions,
               draft.generalFeedback,
+              draft.metadata,
             ),
           });
           if (draft.replacesProposalId) {

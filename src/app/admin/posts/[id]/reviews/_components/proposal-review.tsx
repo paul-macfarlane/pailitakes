@@ -56,7 +56,7 @@ export function ProposalReview({
   canDecide: boolean;
   // Owner/admin or this review's human author (ADR-0038).
   canResolve: boolean;
-  // This viewer's own outdated human review.
+  // This viewer's own open human review: edit it, or update it if outdated.
   canUpdate: boolean;
   comments: ReviewCommentRow[];
   postStatus: string;
@@ -91,21 +91,22 @@ export function ProposalReview({
   const feedbackOnly = human && proposal.diff.changes.length === 0;
   const topLevel = comments.filter((comment) => comment.parentId === null);
   const [updating, setUpdating] = useState(false);
+  const [updateError, setUpdateError] = useState<string | null>(null);
   async function updateReview() {
     setUpdating(true);
-    setError(null);
+    setUpdateError(null);
     try {
       const started = await startReview({
         postId: proposal.postId,
         replacesProposalId: proposal.id,
       });
       if (!started.ok) {
-        setError(started.error);
+        setUpdateError(started.error);
         return;
       }
       window.location.assign(`/admin/posts/${proposal.postId}/review`);
     } catch {
-      setError(GENERIC_ERROR);
+      setUpdateError(GENERIC_ERROR);
     } finally {
       setUpdating(false);
     }
@@ -217,15 +218,6 @@ export function ProposalReview({
               readable
               {canDecide ? ", and you can still reject it" : ""}.
             </p>
-            {canUpdate && (
-              <Button
-                size="sm"
-                disabled={updating}
-                onClick={() => void updateReview()}
-              >
-                {updating ? "Starting…" : "Update review against latest draft"}
-              </Button>
-            )}
           </div>
         )}
         {open && !stale && (
@@ -249,6 +241,31 @@ export function ProposalReview({
             This is a retained review of an earlier snapshot. The saved post may
             have changed since.
           </p>
+        )}
+        {open && canUpdate && (
+          <div className="space-y-2 rounded-lg border p-4 text-sm">
+            <p>
+              {stale
+                ? "This is your review. Update it against the latest draft to make its edits applicable again."
+                : "This is your review. Editing keeps this version available to the owner until you resubmit."}
+            </p>
+            <Button
+              size="sm"
+              disabled={updating}
+              onClick={() => void updateReview()}
+            >
+              {updating
+                ? "Opening…"
+                : stale
+                  ? "Update review against latest draft"
+                  : "Edit review"}
+            </Button>
+            {updateError && (
+              <p role="alert" className="text-destructive">
+                {updateError}
+              </p>
+            )}
+          </div>
         )}
         {notice && (
           <p role="status" className="rounded-lg border p-4">

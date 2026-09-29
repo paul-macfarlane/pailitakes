@@ -33,6 +33,7 @@ import type { ProposalDiff } from "@/lib/proposals/diff";
 import type { CollaboratorRole } from "@/lib/collaboration/permissions";
 import type {
   DraftComment,
+  DraftMetadataEdit,
   DraftSuggestion,
   PreviousSuggestion,
   ReviewCommentAnchor,
@@ -585,6 +586,10 @@ export const reviewDrafts = pgTable(
       .default(sql`'[]'::jsonb`),
     comments: jsonb("comments")
       .$type<DraftComment[]>()
+      .notNull()
+      .default(sql`'[]'::jsonb`),
+    metadata: jsonb("metadata")
+      .$type<DraftMetadataEdit[]>()
       .notNull()
       .default(sql`'[]'::jsonb`),
     generalFeedback: text("general_feedback").notNull().default(""),

@@ -23,6 +23,7 @@ import {
 } from "@/lib/collaboration/permissions";
 import { sharedPostsService } from "@/lib/collaboration/service";
 import { reviewStatusesByPost } from "@/lib/reviews/status";
+import { ReviewStatus } from "@/lib/reviews/input";
 import { ReviewStatusBadge } from "@/components/review-status-badge";
 
 const [SORT_UPDATED, SORT_PUBLISHED] = ADMIN_POST_SORTS;
@@ -145,8 +146,8 @@ export default async function AdminPage({
                 className="flex flex-wrap items-center justify-between gap-2 p-4"
               >
                 <div className="min-w-0">
-                  {/* Reviewers can't open the editor; send them to the
-                      preview, which links on to reviews. */}
+                  {/* Reviewers can't open the editor; the title opens the
+                      preview for them. */}
                   <Link
                     href={
                       post.role === CollaboratorRole.Editor
@@ -167,6 +168,35 @@ export default async function AdminPage({
                   <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-medium">
                     {COLLABORATOR_ROLE_LABELS[post.role]}
                   </span>
+                </div>
+                <div className="flex w-full flex-wrap gap-2">
+                  <Button
+                    size="sm"
+                    render={<Link href={`/admin/posts/${post.id}/review`} />}
+                    nativeButton={false}
+                  >
+                    {post.reviewStatus === ReviewStatus.InProgress
+                      ? "Continue review"
+                      : post.reviewStatus === ReviewStatus.Submitted
+                        ? "Your review"
+                        : "Leave a review"}
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    render={<Link href={`/admin/posts/${post.id}/reviews`} />}
+                    nativeButton={false}
+                  >
+                    All reviews
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    render={<Link href={`/admin/preview/${post.id}`} />}
+                    nativeButton={false}
+                  >
+                    Preview
+                  </Button>
                 </div>
               </li>
             ))}

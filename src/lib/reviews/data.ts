@@ -22,7 +22,7 @@ import {
 import { Action, rolesWithAction } from "@/lib/auth/permissions";
 import type { Tx } from "@/lib/posts/data";
 import { ProposalOrigin, ProposalStatus } from "@/lib/proposals/input";
-import type { DraftComment, DraftSuggestion } from "./input";
+import type { DraftComment, DraftMetadataEdit, DraftSuggestion } from "./input";
 
 export type ReviewDraftRow = typeof reviewDrafts.$inferSelect;
 export type ReviewCommentRow = typeof reviewComments.$inferSelect;
@@ -61,6 +61,7 @@ export async function writeDraftContent(
   content: {
     suggestions: DraftSuggestion[];
     comments: DraftComment[];
+    metadata: DraftMetadataEdit[];
     generalFeedback: string;
   },
 ): Promise<number | null> {
@@ -192,6 +193,26 @@ export async function setThreadResolved(
     .where(and(eq(reviewComments.id, id), isNull(reviewComments.parentId)))
     .returning({ id: reviewComments.id });
   return rows.length > 0;
+}
+
+export async function latestOwnOpenReviewId(
+  postId: string,
+  reviewerId: string,
+): Promise<string | null> {
+  const [row] = await db
+    .select({ id: editProposals.id })
+    .from(editProposals)
+    .where(
+      and(
+        eq(editProposals.postId, postId),
+        eq(editProposals.origin, ProposalOrigin.Human),
+        eq(editProposals.reviewerId, reviewerId),
+        eq(editProposals.status, ProposalStatus.Open),
+      ),
+    )
+    .orderBy(desc(editProposals.createdAt))
+    .limit(1);
+  return row?.id ?? null;
 }
 
 export async function findOwnOpenReview(
