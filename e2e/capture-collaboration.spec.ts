@@ -47,6 +47,8 @@ test("capture human review surfaces", async ({ page, context }, info) => {
   const shots = async (name: string) => {
     for (const width of [390, 1024]) {
       await page.setViewportSize({ width, height: 900 });
+      // Let the composer's sheet/side-panel switch finish animating.
+      await page.waitForTimeout(400);
       await page.screenshot({
         path: `${out}/${name}-${width}.png`,
         fullPage: true,
@@ -55,6 +57,11 @@ test("capture human review surfaces", async ({ page, context }, info) => {
   };
   try {
     await context.addCookies([reviewer.cookie]);
+    await page.goto("/admin");
+    await expect(
+      page.getByRole("heading", { name: "Shared with me" }),
+    ).toBeVisible();
+    await shots("shared-with-me");
     await page.goto(`/admin/posts/${post.id}/review`);
     await expect(async () => {
       await page.getByRole("button", { name: "Start review" }).click();
@@ -85,6 +92,19 @@ test("capture human review surfaces", async ({ page, context }, info) => {
     await page
       .getByLabel("General feedback")
       .fill("Fun read. Tighten the ending.");
+    await expect(async () => {
+      await page.getByRole("button", { name: "Suggest title" }).click();
+      await expect(page.getByLabel("Suggested title")).toBeVisible({
+        timeout: 2000,
+      });
+    }).toPass({ timeout: 15000 });
+    await page
+      .getByLabel("Suggested title")
+      .fill("Bears defense bails out a sloppy win");
+    await page.getByLabel("Explain this change").fill("Say who won it.");
+    await shots("review-detail-composer");
+    await page.getByRole("button", { name: "Save suggestion" }).click();
+    await expect(page.getByText("Suggested edits (3)")).toBeVisible();
     await page.getByLabel("General feedback").blur();
     await expect(page.getByText("Saved", { exact: true })).toBeVisible();
     await shots("review-workspace");
@@ -96,6 +116,10 @@ test("capture human review surfaces", async ({ page, context }, info) => {
     await expect(
       page.getByRole("heading", { name: "Review suggestions" }),
     ).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: "Edit review" }),
+    ).toBeVisible();
+    await shots("review-own-submitted");
 
     await context.clearCookies();
     await context.addCookies([owner.cookie]);

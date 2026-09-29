@@ -8,7 +8,7 @@ import {
   getReviewTargetService,
   getReviewWorkspaceService,
 } from "@/lib/reviews/service";
-import { listAllCategories } from "@/lib/categories/data";
+import { listActiveCategories, listAllCategories } from "@/lib/categories/data";
 import { ReviewWorkspace } from "./_components/review-workspace";
 import { StartReviewButton } from "./_components/start-review-button";
 
@@ -46,16 +46,48 @@ export default async function ReviewWorkspacePage({
           post until its owner chooses what to apply, and only you can see your
           review until you submit it.
         </p>
-        <StartReviewButton postId={postId} />
+        {target.ownReviewId ? (
+          <div className="space-y-3 rounded-lg border p-4">
+            <p className="text-sm">
+              You&apos;ve submitted a review of this post. Edit it (it stays
+              available to the owner until you resubmit), or start a separate
+              review.
+            </p>
+            <div className="flex flex-wrap gap-2">
+              <StartReviewButton
+                postId={postId}
+                replacesProposalId={target.ownReviewId}
+                label="Edit your review"
+              />
+              <Link
+                href={`/admin/posts/${postId}/reviews/${target.ownReviewId}`}
+                className="inline-flex items-center text-sm underline"
+              >
+                View it
+              </Link>
+            </div>
+            <StartReviewButton
+              postId={postId}
+              label="Start a separate review"
+              variant="outline"
+            />
+          </div>
+        ) : (
+          <StartReviewButton postId={postId} />
+        )}
       </div>
     );
   }
-  const categories = await listAllCategories();
+  const [categories, active] = await Promise.all([
+    listAllCategories(),
+    listActiveCategories(),
+  ]);
   return (
     <div className="space-y-6">
       {back}
       <ReviewWorkspace
         categories={categories.map(({ id, name }) => ({ id, name }))}
+        activeCategoryIds={active.map(({ id }) => id)}
         key={`${workspace.draft.sourceVersion}:${workspace.draft.createdAt.toISOString()}`}
         postId={postId}
         workspace={workspace}

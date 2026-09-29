@@ -60,6 +60,20 @@ export const draftCommentSchema = z
   .refine((c) => c.end > c.start, "Select text to comment on.");
 export type DraftComment = z.infer<typeof draftCommentSchema>;
 
+// Plain-language validation copy instead of raw schema messages (e.g. the
+// slug regex).
+const DETAIL_HINTS: Partial<Record<MetadataField, string>> = {
+  slug: "Use lowercase letters, numbers and single hyphens.",
+  tags: "Use up to 10 short tags.",
+  thumbnailUrl: "Use an https:// image URL.",
+  bannerUrl: "Use an https:// image URL, or leave it empty.",
+  videoUrl: "Use an https:// URL, or leave it empty.",
+  title: "Use a title of 1–200 characters.",
+};
+export function detailMessage(field: MetadataField): string {
+  return DETAIL_HINTS[field] ?? "Choose a valid value.";
+}
+
 // A suggested value for one post detail (title, slug, category, tags,
 // images, video), validated with the same rules as the post itself so human
 // and AI reviews can suggest the same things (Paul, September 28).
@@ -76,10 +90,7 @@ export const draftMetadataSchema = z
       edit.after,
     );
     if (!parsed.success)
-      ctx.addIssue({
-        code: "custom",
-        message: parsed.error.issues[0]?.message ?? "Invalid value.",
-      });
+      ctx.addIssue({ code: "custom", message: detailMessage(edit.field) });
     if (!edit.correction && edit.explanation.length === 0)
       ctx.addIssue({
         code: "custom",

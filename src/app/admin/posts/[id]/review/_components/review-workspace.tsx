@@ -42,6 +42,7 @@ import {
 } from "@/lib/proposals/presentation";
 import {
   CORRECTION_EXPLANATION,
+  detailMessage,
   REVIEW_TEXT_MAX,
   type DraftComment,
   type DraftMetadataEdit,
@@ -122,10 +123,14 @@ export function ReviewWorkspace({
   postId,
   workspace,
   categories,
+  activeCategoryIds,
 }: {
   postId: string;
   workspace: Workspace;
+  // All categories, for display names of current/historic values.
   categories: ReviewCategory[];
+  // Suggestable ones, as in the editor; the current category stays listed.
+  activeCategoryIds: number[];
 }) {
   const { draft, outdated, previous } = workspace;
   const base = draft.base;
@@ -144,6 +149,9 @@ export function ReviewWorkspace({
   const [composerError, setComposerError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Submit/discard failures show beside those buttons, which sit after the
+  // item list on phones; editing errors stay by the article.
+  const [submitError, setSubmitError] = useState<string | null>(null);
   const [conflict, setConflict] = useState(false);
   const [confirm, setConfirm] = useState<Confirm | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
@@ -161,12 +169,15 @@ export function ReviewWorkspace({
     } as Content,
   });
   const queue = useRef<Promise<unknown>>(Promise.resolve());
+  // `report` routes failures to where the user is looking: the composer
+  // (which is a modal sheet on phones) or the article section.
   function persist(
     update: (current: Content) => Partial<Content>,
+    report: (message: string | null) => void = setError,
   ): Promise<number | null> {
     const run = async (): Promise<number | null> => {
       setPending(true);
-      setError(null);
+      report(null);
       const content = {
         ...saved.current.content,
         ...update(saved.current.content),
@@ -180,7 +191,7 @@ export function ReviewWorkspace({
         if (!result.ok) {
           if ("code" in result && result.code === ActionErrorCode.Conflict)
             setConflict(true);
-          setError(result.error);
+          report(result.error);
           return null;
         }
         saved.current = { revision: result.data.revision, content };
@@ -190,7 +201,7 @@ export function ReviewWorkspace({
         setSavedFeedback(content.generalFeedback);
         return result.data.revision;
       } catch {
-        setError(GENERIC_ERROR);
+        report(GENERIC_ERROR);
         return null;
       } finally {
         setPending(false);
@@ -276,7 +287,7 @@ export function ReviewWorkspace({
         detailValue(composer.field, composer.value),
       );
       if (!parsed.success) {
-        setComposerError(parsed.error.issues[0]?.message ?? "Invalid value.");
+        setComposerError(detailMessage(composer.field));
         return;
       }
       const edit: DraftMetadataEdit = {
@@ -292,7 +303,7 @@ export function ReviewWorkspace({
         ],
       });
     }
-    if ((await persist(update)) !== null) setComposer(null);
+    if ((await persist(update, setComposerError)) !== null) setComposer(null);
   }
 
   async function doSubmit(acceptOutdated: boolean) {
@@ -304,7 +315,7 @@ export function ReviewWorkspace({
     );
     if (flushed === null) return;
     setPending(true);
-    setError(null);
+    setSubmitError(null);
     try {
       const result = await submitReview({
         postId,
@@ -318,7 +329,7 @@ export function ReviewWorkspace({
         }
         if ("code" in result && result.code === ActionErrorCode.Conflict)
           setConflict(true);
-        setError(result.error);
+        setSubmitError(result.error);
         setConfirm(null);
         return;
       }
@@ -326,7 +337,7 @@ export function ReviewWorkspace({
         `/admin/posts/${postId}/reviews/${result.data.proposalId}`,
       );
     } catch {
-      setError(GENERIC_ERROR);
+      setSubmitError(GENERIC_ERROR);
       setConfirm(null);
     } finally {
       setPending(false);
@@ -357,13 +368,13 @@ export function ReviewWorkspace({
     try {
       const result = await discardReviewDraft(postId);
       if (!result.ok) {
-        setError(result.error);
+        setSubmitError(result.error);
         setConfirm(null);
         return;
       }
       window.location.assign(`/admin/preview/${postId}`);
     } catch {
-      setError(GENERIC_ERROR);
+      setSubmitError(GENERIC_ERROR);
       setConfirm(null);
     } finally {
       setPending(false);
@@ -469,11 +480,17 @@ export function ReviewWorkspace({
               }
               className="h-9 w-full rounded-lg border border-input bg-transparent px-2 text-sm"
             >
-              {categories.map((category) => (
-                <option key={category.id} value={category.id}>
-                  {category.name}
-                </option>
-              ))}
+              {categories
+                .filter(
+                  (category) =>
+                    activeCategoryIds.includes(category.id) ||
+                    category.id === base.categoryId,
+                )
+                .map((category) => (
+                  <option key={category.id} value={category.id}>
+                    {category.name}
+                  </option>
+                ))}
             </select>
           ) : (
             <Input
@@ -681,6 +698,11 @@ export function ReviewWorkspace({
               <PostBody html={preview} />
             </div>
           )}
+          {error && (
+            <p role="alert" className="text-sm text-destructive">
+              {error}
+            </p>
+          )}
         </section>
 
         <section aria-labelledby="details-heading" className="space-y-3">
@@ -760,33 +782,11 @@ export function ReviewWorkspace({
               : "Saves when you leave this box"}
           </p>
         </section>
-
-        {error && (
-          <p role="alert" className="text-sm text-destructive">
-            {error}
-          </p>
-        )}
-
-        <div className="flex flex-wrap gap-3 border-t pt-4">
-          <Button
-            disabled={pending || !hasContent || conflict}
-            onClick={() => setConfirm(Confirm.Submit)}
-          >
-            {draft.replacesProposalId ? "Resubmit review" : "Submit review"}
-          </Button>
-          <Button
-            variant="outline"
-            disabled={pending}
-            onClick={() => setConfirm(Confirm.Discard)}
-          >
-            {draft.replacesProposalId ? "Discard changes" : "Discard review"}
-          </Button>
-        </div>
       </div>
 
       <aside
         aria-label="Your suggestions and comments"
-        className="mt-8 min-w-0 space-y-6 lg:sticky lg:top-20 lg:mt-0 lg:max-h-[calc(100vh-6rem)] lg:overflow-y-auto lg:pr-1"
+        className="mt-8 min-w-0 space-y-6 lg:sticky lg:top-20 lg:col-start-2 lg:row-span-2 lg:row-start-1 lg:mt-0 lg:max-h-[calc(100vh-6rem)] lg:overflow-y-auto lg:pr-1"
       >
         {wide && composer && (
           <section
@@ -1000,6 +1000,32 @@ export function ReviewWorkspace({
           ))}
         </section>
       </aside>
+
+      {/* After the aside on phones (review your items, then submit); under
+          the article on wide screens. */}
+      <div className="mt-8 min-w-0 space-y-4 lg:col-start-1 lg:mt-8">
+        {submitError && (
+          <p role="alert" className="text-sm text-destructive">
+            {submitError}
+          </p>
+        )}
+
+        <div className="flex flex-wrap gap-3 border-t pt-4">
+          <Button
+            disabled={pending || !hasContent || conflict}
+            onClick={() => setConfirm(Confirm.Submit)}
+          >
+            {draft.replacesProposalId ? "Resubmit review" : "Submit review"}
+          </Button>
+          <Button
+            variant="outline"
+            disabled={pending}
+            onClick={() => setConfirm(Confirm.Discard)}
+          >
+            {draft.replacesProposalId ? "Discard changes" : "Discard review"}
+          </Button>
+        </div>
+      </div>
 
       <Sheet
         open={!wide && composer !== null}

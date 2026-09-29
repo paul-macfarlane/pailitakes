@@ -177,7 +177,9 @@ export default async function AdminPage({
                   >
                     {post.reviewStatus === ReviewStatus.InProgress
                       ? "Continue review"
-                      : "Leave a review"}
+                      : post.reviewStatus === ReviewStatus.Submitted
+                        ? "Your review"
+                        : "Leave a review"}
                   </Button>
                   <Button
                     size="sm"

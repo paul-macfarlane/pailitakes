@@ -10,7 +10,8 @@ import { resolvePostAccess } from "@/lib/collaboration/service";
 import { loadPostForUpdate, type Tx } from "@/lib/posts/data";
 import { postDraftSchema } from "@/lib/posts/input";
 import { isPubliclyVisible, PUBLIC_STATUSES } from "@/lib/posts/status";
-import { createRangeDiff } from "@/lib/proposals/diff";
+import { createRangeDiff, type MetadataField } from "@/lib/proposals/diff";
+import { FIELD_LABELS } from "@/lib/proposals/presentation";
 import {
   closeProposal,
   insertProposal,
@@ -40,6 +41,7 @@ import {
   insertComment,
   insertComments,
   insertDraft,
+  latestOwnOpenReviewId,
   listComments,
   replaceDraft,
   setThreadResolved,
@@ -238,9 +240,13 @@ export async function getReviewWorkspaceService(
 export async function getReviewTargetService(actor: PostActor, postId: string) {
   const post = await postForSharing(postId);
   if (!post) return null;
-  return (await mayReview(actor, { id: postId, authorId: post.authorId }))
-    ? { title: post.title }
-    : null;
+  if (!(await mayReview(actor, { id: postId, authorId: post.authorId })))
+    return null;
+  // Lets the page offer "Edit review" instead of a second, separate review.
+  return {
+    title: post.title,
+    ownReviewId: await latestOwnOpenReviewId(postId, actor.id),
+  };
 }
 
 export async function saveReviewDraftService(
@@ -427,22 +433,39 @@ export async function submitReviewService(
           );
           // Same candidate rules as AI reviews: valid snapshot, a public post
           // keeps its thumbnail, the category exists and the slug is free.
-          if (!proposalSnapshotSchema.safeParse(candidate).success)
-            return { ok: false, error: "A suggested detail isn't valid." };
-          if (
-            (PUBLIC_STATUSES as readonly string[]).includes(post.status) &&
-            !postDraftSchema.safeParse(candidate).success
-          )
-            return {
-              ok: false,
-              error: "A published or scheduled post must keep its thumbnail.",
-            };
-          const invalid = await snapshotReferencesValid(
-            tx,
-            input.postId,
-            candidate,
-          );
-          if (invalid) return { ok: false, error: invalid };
+          // Only for a current draft: an outdated one can never apply (apply
+          // re-validates anyway), and checking its old base against today's
+          // post would refuse feedback over details the reviewer never touched.
+          if (!outdated) {
+            const parsed = proposalSnapshotSchema.safeParse(candidate);
+            if (!parsed.success) {
+              const field = parsed.error.issues[0]?.path[0];
+              return {
+                ok: false,
+                error:
+                  field === "bodyMd"
+                    ? "The article would be too long with these suggestions."
+                    : `The suggested ${
+                        FIELD_LABELS[field as MetadataField]?.toLowerCase() ??
+                        "detail"
+                      } isn't valid.`,
+              };
+            }
+            if (
+              (PUBLIC_STATUSES as readonly string[]).includes(post.status) &&
+              !postDraftSchema.safeParse(candidate).success
+            )
+              return {
+                ok: false,
+                error: "A published or scheduled post must keep its thumbnail.",
+              };
+            const invalid = await snapshotReferencesValid(
+              tx,
+              input.postId,
+              candidate,
+            );
+            if (invalid) return { ok: false, error: invalid };
+          }
           const reviewerName = await displayName(actor.id, tx);
           const proposal = await insertProposal(tx, {
             postId: input.postId,

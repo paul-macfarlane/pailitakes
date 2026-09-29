@@ -45,7 +45,8 @@ const { applyProposal, getProposal, rejectProposal } =
 const { updatePost } = await import("./crud");
 const { getEditablePost } = await import("@/lib/posts/admin");
 const { submitProposalService } = await import("@/lib/proposals/service");
-const { getReviewWorkspaceService } = await import("@/lib/reviews/service");
+const { getReviewWorkspaceService, getReviewTargetService } =
+  await import("@/lib/reviews/service");
 const { getCollaboratorsService, sharedPostsService } =
   await import("@/lib/collaboration/service");
 const { reviewStatusesByPost } = await import("@/lib/reviews/status");
@@ -79,13 +80,24 @@ let counter = 0;
 const uuid = () =>
   `00000000-0000-4000-8000-${String(++counter).padStart(12, "0")}`;
 
-async function seed(suffix: string, share: string[] = [reviewerId]) {
+async function seed(
+  suffix: string,
+  share: string[] = [reviewerId],
+  published = false,
+) {
   const post = await seedPost(testDb, {
     runId,
     suffix,
     authorId: ids.authorId,
     categoryId: ids.categoryId,
     bodyMd: BODY,
+    ...(published
+      ? {
+          status: "published" as const,
+          publishAt: new Date(Date.now() - 60000),
+          thumbnailUrl: "https://example.com/thumb.png",
+        }
+      : {}),
   });
   authorSession();
   for (const userId of share)
@@ -829,5 +841,70 @@ describe("editing a submitted review (Paul, September 28)", () => {
         selectedChangeIds: ["body:0"],
       }),
     ).toMatchObject({ ok: false, code: "conflict" });
+  });
+
+  it("discarding an edit leaves the submitted version untouched", async () => {
+    const { post, proposalId } = await submitted("edit-discard");
+    as(reviewerId);
+    await startReview({ postId: post.id, replacesProposalId: proposalId });
+    expect(await discardReviewDraft(post.id)).toMatchObject({ ok: true });
+    expect((await proposalRow(proposalId)).status).toBe("open");
+    expect(await getReviewTargetService(as(reviewerId).user, post.id)).toEqual({
+      title: `${runId} edit-discard`,
+      ownReviewId: proposalId,
+    });
+  });
+
+  it("no one can edit another reviewer's review", async () => {
+    const { post, proposalId } = await submitted("edit-other");
+    authorSession();
+    await setCollaborator({
+      postId: post.id,
+      userId: otherId,
+      role: "reviewer",
+    });
+    as(otherId);
+    expect(
+      await startReview({ postId: post.id, replacesProposalId: proposalId }),
+    ).toMatchObject({ ok: false });
+    expect(
+      await getReviewWorkspaceService(as(otherId).user, post.id),
+    ).toBeNull();
+  });
+});
+
+describe("submit-time detail checks", () => {
+  it("a current review can't remove a public post's thumbnail", async () => {
+    const post = await seed("public-thumb", [reviewerId], true);
+    const revision = await draft(post.id, {
+      metadata: [
+        {
+          field: "thumbnailUrl",
+          after: "",
+          correction: false,
+          explanation: "Drop it.",
+        },
+      ],
+    });
+    expect(await submit(post.id, revision)).toMatchObject({
+      ok: false,
+      error: "A published or scheduled post must keep its thumbnail.",
+    });
+  });
+
+  it("an outdated review isn't refused over details the reviewer never touched", async () => {
+    // Started while the draft had no thumbnail; the owner then published.
+    const post = await seed("outdated-published");
+    const revision = await draft(post.id, { generalFeedback: "Nice." });
+    await testDb
+      .update(posts)
+      .set({
+        status: "published",
+        publishAt: new Date(Date.now() - 60000),
+        thumbnailUrl: "https://example.com/thumb.png",
+        editVersion: crypto.randomUUID(),
+      })
+      .where(eq(posts.id, post.id));
+    expect(await submit(post.id, revision, true)).toMatchObject({ ok: true });
   });
 });
