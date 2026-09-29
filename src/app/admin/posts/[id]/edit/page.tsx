@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 
 import { ReviewNavigation } from "@/app/admin/posts/[id]/edit/_components/review-navigation";
 import { PostEditorSection } from "@/app/admin/posts/_components/post-editor-section";
@@ -9,7 +9,8 @@ import { PostDeleteControls } from "@/app/admin/posts/[id]/edit/_components/post
 import { PostPendingControls } from "@/app/admin/posts/[id]/edit/_components/post-pending-controls";
 import { PostScheduleControls } from "@/app/admin/posts/[id]/edit/_components/post-schedule-controls";
 import { PostStatusControls } from "@/app/admin/posts/[id]/edit/_components/post-status-controls";
-import { getEditablePost } from "@/lib/posts/admin";
+import { getEditablePost, getPostForPreview } from "@/lib/posts/admin";
+import { PostAccess } from "@/lib/collaboration/permissions";
 import { listActiveCategories } from "@/lib/categories/data";
 import { requirePostIdParam } from "@/lib/admin/route-params";
 import { Action, canPerformAction } from "@/lib/auth/permissions";
@@ -35,8 +36,15 @@ export default async function EditPostPage({
     getEditablePost(postId, session.user),
     listActiveCategories(),
   ]);
-  if (!post) notFound();
+  if (!post) {
+    // A post-scoped Reviewer can read but not edit: land on the preview
+    // instead of a 404 (e.g. from a Back to editor link or bookmark).
+    if (await getPostForPreview(postId, session.user))
+      redirect(`/admin/preview/${postId}`);
+    notFound();
+  }
   const reviews = await listProposalsService(postId, session);
+  const canManage = post.access === PostAccess.Manage;
 
   return (
     <>
@@ -56,25 +64,37 @@ export default async function EditPostPage({
           <ReviewNavigation
             postId={post.id}
             hasReviews={reviews.ok ? reviews.data.length > 0 : null}
+            canManageSharing={canManage}
+            canReview={post.authorId !== session.user.id}
           />
-          {post.hasPendingChanges ? (
+          {!canManage ? (
+            <p className="rounded-lg border border-dashed p-4 text-sm text-muted-foreground">
+              Shared with you as an Editor. Your edits save to the draft; the
+              owner or an admin publishes and applies reviews.
+            </p>
+          ) : null}
+          {canManage && post.hasPendingChanges ? (
             <PostPendingControls
               postId={post.id}
               draftUpdatedAt={post.draftUpdatedAt}
             />
           ) : null}
-          <PostStatusControls
-            postId={post.id}
-            status={post.status}
-            pendingChanges={post.hasPendingChanges}
-          />
-          <PostScheduleControls
-            postId={post.id}
-            status={post.status}
-            publishAt={post.publishAt}
-            archiveAt={post.archiveAt}
-            pendingChanges={post.hasPendingChanges}
-          />
+          {canManage ? (
+            <>
+              <PostStatusControls
+                postId={post.id}
+                status={post.status}
+                pendingChanges={post.hasPendingChanges}
+              />
+              <PostScheduleControls
+                postId={post.id}
+                status={post.status}
+                publishAt={post.publishAt}
+                archiveAt={post.archiveAt}
+                pendingChanges={post.hasPendingChanges}
+              />
+            </>
+          ) : null}
           {canPerformAction(session.user, Action.ManageAnyComment) ? (
             <CommentLockToggle postId={post.id} locked={post.commentsLocked} />
           ) : null}

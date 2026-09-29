@@ -7,6 +7,7 @@ import { getPostForPreview } from "@/lib/posts/admin";
 import { requirePostIdParam } from "@/lib/admin/route-params";
 import { renderMarkdown } from "@/lib/content/markdown";
 import { isPubliclyVisible, STATUS_LABELS } from "@/lib/posts/status";
+import { includesAccess, PostAccess } from "@/lib/collaboration/permissions";
 import { requireStaff } from "@/lib/auth/session";
 
 export const metadata: Metadata = {
@@ -16,8 +17,9 @@ export const metadata: Metadata = {
 
 // Private preview (design §5.7): renders any post — including draft/scheduled/
 // archived, which the public page won't show — exactly as it will publish,
-// via the shared PostArticle. Auth-gated (requireStaff) and ownership-scoped
-// (getPostForPreview), so it never leaks an unpublished post.
+// via the shared PostArticle. Auth-gated (requireStaff) and access-scoped
+// (getPostForPreview: owner, admin or post collaborator), so it never leaks an
+// unpublished post.
 export default async function PreviewPostPage({
   params,
 }: {
@@ -47,12 +49,31 @@ export default async function PreviewPostPage({
               ? ""
               : " — not visible to the public"}
         </span>
-        <Link
-          href={`/admin/posts/${post.id}/edit`}
-          className="font-medium underline hover:text-foreground"
-        >
-          Edit post
-        </Link>
+        <span className="flex flex-wrap gap-3">
+          {post.canReview && (
+            <Link
+              href={`/admin/posts/${post.id}/review`}
+              className="font-medium underline hover:text-foreground"
+            >
+              Your review
+            </Link>
+          )}
+          {includesAccess(post.access, PostAccess.Edit) ? (
+            <Link
+              href={`/admin/posts/${post.id}/edit`}
+              className="font-medium underline hover:text-foreground"
+            >
+              Edit post
+            </Link>
+          ) : (
+            <Link
+              href={`/admin/posts/${post.id}/reviews`}
+              className="font-medium underline hover:text-foreground"
+            >
+              Reviews
+            </Link>
+          )}
+        </span>
       </div>
       <PostArticle post={{ ...post, bodyHtml }} />
     </div>

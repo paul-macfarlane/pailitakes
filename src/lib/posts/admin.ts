@@ -17,6 +17,8 @@ import {
   rolesWithAction,
 } from "@/lib/auth/permissions";
 import { draftFromJoinRow, draftJoinColumns } from "@/lib/posts/data";
+import { resolvePostAccess } from "@/lib/collaboration/service";
+import { includesAccess, PostAccess } from "@/lib/collaboration/permissions";
 import { tagToSlug } from "@/lib/posts/input";
 import { PostStatus, usesDraftBuffer } from "@/lib/posts/status";
 import { postTagsAgg } from "@/lib/posts/posts";
@@ -53,17 +55,21 @@ export type EditablePost = {
   // ADR-0011's draft buffer — locking is a moderation action independent of
   // content edits, so it applies immediately regardless of pending changes.
   commentsLocked: boolean;
+  // Edit (post-scoped Editor) or Manage (owner/admin); UI gating only — every
+  // lifecycle/decision service re-checks ownership itself (ADR-0037).
+  access: PostAccess;
 };
 
-// Loads a single post for editing. Authors are scoped to their own rows;
-// admins are unscoped (design §5.7). Returns null both when the post doesn't
-// exist and when an author isn't its owner — collapsing "not found" and "not
-// yours" into the same response avoids an existence oracle.
+// Loads a single post for editing. Authors are scoped to their own rows plus
+// posts shared with them as Editor; admins are unscoped (design §5.7,
+// ADR-0037). Returns null both when the post doesn't exist and when the user
+// lacks access — collapsing "not found" and "not yours" avoids an existence
+// oracle.
 export async function getEditablePost(
   id: string,
   // `role` stays loose (string) because Better Auth's inferred session types
   // it as string, not the pg enum — same as canPerformAction's user shape.
-  user: { id: string; role?: string | null },
+  user: { id: string; role?: string | null; bannedAt?: Date | null },
 ): Promise<EditablePost | null> {
   const rows = await db
     .select({
@@ -93,12 +99,8 @@ export async function getEditablePost(
 
   const [first] = rows;
   if (!first) return null;
-  if (
-    !canPerformAction(user, Action.ManageAnyPost) &&
-    first.authorId !== user.id
-  ) {
-    return null;
-  }
+  const access = await resolvePostAccess(user, first);
+  if (!access || !includesAccess(access, PostAccess.Edit)) return null;
 
   // On a public post, edits are staged (ADR-0011): show the pending snapshot so
   // the author edits their in-progress copy, not the live content. On any other
@@ -126,6 +128,7 @@ export async function getEditablePost(
     hasPendingChanges: draft !== null,
     draftUpdatedAt: draft ? first.draftUpdatedAt : null,
     commentsLocked: first.commentsLocked,
+    access,
   };
 }
 
@@ -153,15 +156,18 @@ export type PreviewPost = {
   // post's STAGED snapshot (what "Publish changes" will make live), so the
   // preview shows pending edits rather than the current live content.
   hasPendingChanges: boolean;
+  access: PostAccess;
+  // Anyone who can read it except its owner may review it (FR-7.15).
+  canReview: boolean;
 };
 
 // Loads a post by id for private preview, BYPASSING visiblePostsWhere() so a
 // draft/scheduled/archived post can be viewed exactly as it will publish
-// (design §5.7). Ownership-scoped like getEditablePost: authors see only their
-// own, admin sees all; returns null for missing OR not-owned (no oracle).
+// (design §5.7). Access-scoped like getEditablePost, except a post-scoped
+// Reviewer may also read; returns null for missing OR inaccessible (no oracle).
 export async function getPostForPreview(
   id: string,
-  user_: { id: string; role?: string | null },
+  user_: { id: string; role?: string | null; bannedAt?: Date | null },
 ): Promise<PreviewPost | null> {
   const rows = await db
     .select({
@@ -195,12 +201,8 @@ export async function getPostForPreview(
 
   const [row] = rows;
   if (!row) return null;
-  if (
-    !canPerformAction(user_, Action.ManageAnyPost) &&
-    row.authorId !== user_.id
-  ) {
-    return null;
-  }
+  const access = await resolvePostAccess(user_, row);
+  if (!access || !includesAccess(access, PostAccess.Read)) return null;
 
   // On a public post, preview the STAGED snapshot (what will go live), not the
   // current live content (ADR-0011). Category and tags come from the live join
@@ -247,6 +249,8 @@ export async function getPostForPreview(
     author: row.author,
     tags: previewTags,
     hasPendingChanges: draft !== null,
+    access,
+    canReview: row.authorId !== user_.id,
   };
 }
 

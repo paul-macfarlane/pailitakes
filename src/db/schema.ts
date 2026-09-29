@@ -30,6 +30,15 @@ import type {
 } from "@/lib/proposals/input";
 import type { ProposalDiff } from "@/lib/proposals/diff";
 
+import type { CollaboratorRole } from "@/lib/collaboration/permissions";
+import type {
+  DraftComment,
+  DraftMetadataEdit,
+  DraftSuggestion,
+  PreviousSuggestion,
+  ReviewCommentAnchor,
+} from "@/lib/reviews/input";
+
 import type { ModVerdictRecord } from "@/lib/comments/verdict";
 
 // drizzle-orm ^0.45 has no built-in tsvector column type; define one custom
@@ -437,9 +446,15 @@ export const editProposals = pgTable(
       .notNull()
       .references(() => posts.id, { onDelete: "cascade" }),
     origin: text("origin").notNull().default("agent"),
-    agentId: text("agent_id").notNull(),
-    agentLabel: text("agent_label").notNull(),
-    skill: jsonb("skill").$type<SkillAttribution>().notNull(),
+    // Agent reviews carry agent attribution; human reviews carry the reviewer
+    // plus a name snapshot that survives account deletion (ADR-0038).
+    agentId: text("agent_id"),
+    agentLabel: text("agent_label"),
+    skill: jsonb("skill").$type<SkillAttribution>(),
+    reviewerId: text("reviewer_id").references(() => user.id, {
+      onDelete: "set null",
+    }),
+    reviewerName: text("reviewer_name"),
     sourceVersion: uuid("source_version").notNull(),
     sourceIsPublic: boolean("source_is_public").notNull(),
     base: jsonb("base").$type<ProposalSnapshot>().notNull(),
@@ -470,7 +485,15 @@ export const editProposals = pgTable(
       "edit_proposals_status_check",
       sql`${table.status} in ('open', 'applied', 'rejected', 'superseded')`,
     ),
-    check("edit_proposals_origin_check", sql`${table.origin} = 'agent'`),
+    index("edit_proposals_reviewer_idx").on(table.reviewerId, table.postId),
+    check(
+      "edit_proposals_origin_check",
+      sql`${table.origin} in ('agent', 'human')`,
+    ),
+    check(
+      "edit_proposals_attribution_check",
+      sql`(${table.origin} = 'agent' AND ${table.agentId} is not null AND ${table.agentLabel} is not null AND ${table.skill} is not null) OR (${table.origin} = 'human' AND ${table.reviewerName} is not null)`,
+    ),
     check(
       "edit_proposals_decision_check",
       sql`(${table.status} = 'open' AND ${table.decidedAt} is null) OR (${table.status} <> 'open' AND ${table.decidedAt} is not null)`,
@@ -515,5 +538,118 @@ export const agentReceipts = pgTable(
   (table) => [
     primaryKey({ columns: [table.principalId, table.key] }),
     index("agent_receipts_proposal_idx").on(table.proposalId),
+  ],
+);
+
+export const postCollaborators = pgTable(
+  "post_collaborators",
+  {
+    postId: uuid("post_id")
+      .notNull()
+      .references(() => posts.id, { onDelete: "cascade" }),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    role: text("role").$type<CollaboratorRole>().notNull(),
+    // The owner's latest request; review status derives from this plus drafts
+    // and submitted reviews (ADR-0038).
+    reviewRequestedAt: timestamp("review_requested_at", { withTimezone: true }),
+  },
+  (table) => [
+    primaryKey({ columns: [table.postId, table.userId] }),
+    index("post_collaborators_user_idx").on(table.userId),
+    check(
+      "post_collaborators_role_check",
+      sql`${table.role} in ('reviewer', 'editor')`,
+    ),
+  ],
+);
+
+// One private in-progress human review per reviewer per post. Mutable until
+// submission turns it into an immutable edit_proposals row (ADR-0038).
+export const reviewDrafts = pgTable(
+  "review_drafts",
+  {
+    postId: uuid("post_id")
+      .notNull()
+      .references(() => posts.id, { onDelete: "cascade" }),
+    reviewerId: text("reviewer_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    revision: integer("revision").notNull().default(0),
+    sourceVersion: uuid("source_version").notNull(),
+    sourceIsPublic: boolean("source_is_public").notNull(),
+    base: jsonb("base").$type<ProposalSnapshot>().notNull(),
+    suggestions: jsonb("suggestions")
+      .$type<DraftSuggestion[]>()
+      .notNull()
+      .default(sql`'[]'::jsonb`),
+    comments: jsonb("comments")
+      .$type<DraftComment[]>()
+      .notNull()
+      .default(sql`'[]'::jsonb`),
+    metadata: jsonb("metadata")
+      .$type<DraftMetadataEdit[]>()
+      .notNull()
+      .default(sql`'[]'::jsonb`),
+    generalFeedback: text("general_feedback").notNull().default(""),
+    previous: jsonb("previous")
+      .$type<PreviousSuggestion[]>()
+      .notNull()
+      .default(sql`'[]'::jsonb`),
+    replacesProposalId: uuid("replaces_proposal_id").references(
+      () => editProposals.id,
+      { onDelete: "set null" },
+    ),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.postId, table.reviewerId] }),
+    index("review_drafts_reviewer_idx").on(table.reviewerId),
+  ],
+);
+
+// Discussion anchored to an immutable review and optionally one change or a
+// quoted range of its base snapshot. Replies are one level deep; resolution
+// lives on the top-level comment (COLLAB-4).
+export const reviewComments = pgTable(
+  "review_comments",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    proposalId: uuid("proposal_id")
+      .notNull()
+      .references(() => editProposals.id, { onDelete: "cascade" }),
+    changeId: text("change_id"),
+    anchor: jsonb("anchor").$type<ReviewCommentAnchor>(),
+    parentId: uuid("parent_id").references(
+      (): AnyPgColumn => reviewComments.id,
+      {
+        onDelete: "cascade",
+      },
+    ),
+    authorId: text("author_id").references(() => user.id, {
+      onDelete: "set null",
+    }),
+    authorName: text("author_name").notNull(),
+    body: text("body").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    resolvedAt: timestamp("resolved_at", { withTimezone: true }),
+    resolvedBy: text("resolved_by").references(() => user.id, {
+      onDelete: "set null",
+    }),
+  },
+  (table) => [
+    index("review_comments_proposal_idx").on(table.proposalId, table.createdAt),
+    check(
+      "review_comments_reply_check",
+      sql`${table.parentId} is null OR (${table.changeId} is null AND ${table.anchor} is null AND ${table.resolvedAt} is null)`,
+    ),
   ],
 );

@@ -20,36 +20,36 @@ Write tasks as **goals**: the outcome plus the FR-x.y / technical-design § that
 
 ## Epics
 
-| File                    | Prefix  | Epic                                                    |
-| ----------------------- | ------- | ------------------------------------------------------- |
-| `00-foundation.md`      | `FND`   | Scaffold, auth, environments                            |
-| `01-posts-public.md`    | `POST`  | Posts data model, markdown, public post page & home     |
-| `02-admin-authoring.md` | `ADM`   | Editor, drafts, preview, scheduling, cron               |
-| `03-search.md`          | `SRCH`  | Categories, tags, search                                |
-| `04-comments.md`        | `CMT`   | Comment tree, moderation, rate limits, log              |
-| `05-likes.md`           | `LIKE`  | Likes on posts and comments                             |
-| `06-announcements.md`   | `ANN`   | Admin announcements                                     |
-| `07-analytics.md`       | `ANLY`  | View tracking + admin dashboard                         |
-| `08-seo-launch.md`      | `SEO`   | Metadata, sitemap, mobile QA, launch                    |
-| `09-accounts.md`        | `ACCT`  | Account self-service (deletion, anonymization)          |
-| `10-brand.md`           | `BRAND` | Visual identity: theme, icons, wordmark, OG card        |
-| `11-revisions.md`       | `REV`   | Revision history, diffs, restore                        |
-| `12-feed.md`            | `FEED`  | RSS feed for reader subscriptions                       |
-| `13-simplify.md`        | `SIMP`  | Feature simplicity scan: keep / simplify / drop         |
-| `14-media.md`           | `MEDIA` | Image uploads via Vercel Blob (thumbnail, banner, body) |
-| `15-ai-review.md`       | `AIR`   | AI editorial review and safe concurrent saves           |
+| File                    | Prefix   | Epic                                                    |
+| ----------------------- | -------- | ------------------------------------------------------- |
+| `00-foundation.md`      | `FND`    | Scaffold, auth, environments                            |
+| `01-posts-public.md`    | `POST`   | Posts data model, markdown, public post page & home     |
+| `02-admin-authoring.md` | `ADM`    | Editor, drafts, preview, scheduling, cron               |
+| `03-search.md`          | `SRCH`   | Categories, tags, search                                |
+| `04-comments.md`        | `CMT`    | Comment tree, moderation, rate limits, log              |
+| `05-likes.md`           | `LIKE`   | Likes on posts and comments                             |
+| `06-announcements.md`   | `ANN`    | Admin announcements                                     |
+| `07-analytics.md`       | `ANLY`   | View tracking + admin dashboard                         |
+| `08-seo-launch.md`      | `SEO`    | Metadata, sitemap, mobile QA, launch                    |
+| `09-accounts.md`        | `ACCT`   | Account self-service (deletion, anonymization)          |
+| `10-brand.md`           | `BRAND`  | Visual identity: theme, icons, wordmark, OG card        |
+| `11-revisions.md`       | `REV`    | Revision history, diffs, restore                        |
+| `12-feed.md`            | `FEED`   | RSS feed for reader subscriptions                       |
+| `13-simplify.md`        | `SIMP`   | Feature simplicity scan: keep / simplify / drop         |
+| `14-media.md`           | `MEDIA`  | Image uploads via Vercel Blob (thumbnail, banner, body) |
+| `15-ai-review.md`       | `AIR`    | AI editorial review and safe concurrent saves           |
+| `16-collaboration.md`   | `COLLAB` | Post-scoped human collaboration                         |
 
-## Priority (updated 2026-09-14)
+## Priority (updated 2026-09-20)
 
 Open work, in the order to pick it up. Overrides the epic-table order while any of these are open.
 
-1. **AIR-1..6** — AI review, including the shared safe-save foundation; Paul prioritized it before broader collaboration on September 14.
-2. **SEO-10** — home-page canonical (Search Console duplicate report). Bug; one small PR.
-3. **FEED-1..3** — RSS feed. Small, reader-facing; bank it before the big epic.
-4. **SIMP-1..2** — feature simplicity scan (audit doc, then Paul picks cuts) — runs before REV so it can prune scope first.
-5. **POST-11** — linkable headings. Quick hitter; bank it before the big epic.
-6. **REV-1..6** — revisions. Largest open epic and author-only; nothing is blocked on it.
-7. **MEDIA-1..4** — image uploads.
+1. **SEO-10** — home-page canonical (Search Console duplicate report). Bug; one small PR.
+2. **FEED-1..3** — RSS feed. Small, reader-facing; bank it before the big epic.
+3. **SIMP-1..2** — feature simplicity scan (audit doc, then Paul picks cuts) — runs before REV so it can prune scope first.
+4. **POST-11** — linkable headings. Quick hitter; bank it before the big epic.
+5. **REV-1..6** — revisions. Largest open epic and author-only; nothing is blocked on it.
+6. **MEDIA-1..4** — image uploads.
 
 Tie-break rules Paul set: bugs before features, then small before large.
 

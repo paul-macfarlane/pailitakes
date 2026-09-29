@@ -17,6 +17,14 @@ import { SEARCH_QUERY_MAX, searchQuerySchema } from "@/lib/admin/search";
 import { Action, canPerformAction } from "@/lib/auth/permissions";
 import { POST_STATUSES, STATUS_LABELS } from "@/lib/posts/status";
 import { requireStaff } from "@/lib/auth/session";
+import {
+  COLLABORATOR_ROLE_LABELS,
+  CollaboratorRole,
+} from "@/lib/collaboration/permissions";
+import { sharedPostsService } from "@/lib/collaboration/service";
+import { reviewStatusesByPost } from "@/lib/reviews/status";
+import { ReviewStatus } from "@/lib/reviews/input";
+import { ReviewStatusBadge } from "@/components/review-status-badge";
 
 const [SORT_UPDATED, SORT_PUBLISHED] = ADMIN_POST_SORTS;
 
@@ -49,9 +57,10 @@ export default async function AdminPage({
   const isAdmin = canPerformAction(session.user, Action.ManageAnyPost);
   const filters = filterSchema.parse(await searchParams);
 
-  const [categories, authors] = await Promise.all([
+  const [categories, authors, shared] = await Promise.all([
     listActiveCategories(),
     isAdmin ? listAuthorOptions() : Promise.resolve([]),
+    sharedPostsService(session.user),
   ]);
 
   // Only apply a category/author filter that's actually a selectable option,
@@ -77,6 +86,7 @@ export default async function AdminPage({
     limit: ADMIN_POSTS_PAGE_SIZE,
     offset,
   });
+  const reviewStatuses = await reviewStatusesByPost(rows.map((row) => row.id));
 
   // Any filter/search/sort deviating from the defaults → offer a reset. Sort
   // counts: "Reset" returns the whole form to its default state.
@@ -123,6 +133,76 @@ export default async function AdminPage({
           New post
         </Button>
       </div>
+
+      {shared.length > 0 ? (
+        <section aria-labelledby="shared-heading" className="mb-6">
+          <h2 id="shared-heading" className="mb-2 text-lg font-medium">
+            Shared with me
+          </h2>
+          <ul className="divide-y rounded-lg border">
+            {shared.map((post) => (
+              <li
+                key={post.id}
+                className="flex flex-wrap items-center justify-between gap-2 p-4"
+              >
+                <div className="min-w-0">
+                  {/* Reviewers can't open the editor; the title opens the
+                      preview for them. */}
+                  <Link
+                    href={
+                      post.role === CollaboratorRole.Editor
+                        ? `/admin/posts/${post.id}/edit`
+                        : `/admin/preview/${post.id}`
+                    }
+                    className="font-medium break-words hover:underline"
+                  >
+                    {post.title}
+                  </Link>
+                  <p className="text-xs text-muted-foreground">
+                    {post.authorName} · {STATUS_LABELS[post.status]} · Updated{" "}
+                    <LocalDate iso={post.updatedAt.toISOString()} />
+                  </p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <ReviewStatusBadge status={post.reviewStatus} />
+                  <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-medium">
+                    {COLLABORATOR_ROLE_LABELS[post.role]}
+                  </span>
+                </div>
+                <div className="flex w-full flex-wrap gap-2">
+                  <Button
+                    size="sm"
+                    render={<Link href={`/admin/posts/${post.id}/review`} />}
+                    nativeButton={false}
+                  >
+                    {post.reviewStatus === ReviewStatus.InProgress
+                      ? "Continue review"
+                      : post.reviewStatus === ReviewStatus.Submitted
+                        ? "Your review"
+                        : "Leave a review"}
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    render={<Link href={`/admin/posts/${post.id}/reviews`} />}
+                    nativeButton={false}
+                  >
+                    All reviews
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    render={<Link href={`/admin/preview/${post.id}`} />}
+                    nativeButton={false}
+                  >
+                    Preview
+                  </Button>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
 
       {/* Native GET form: submitting rewrites the URL search params. Omitting
           `page` resets to the first page on a new filter. */}
@@ -250,7 +330,12 @@ export default async function AdminPage({
                   <LocalDate iso={post.updatedAt.toISOString()} />
                 </p>
               </div>
-              <StatusBadge status={post.status} />
+              <div className="flex flex-wrap gap-2">
+                <ReviewStatusBadge
+                  status={reviewStatuses.get(post.id) ?? null}
+                />
+                <StatusBadge status={post.status} />
+              </div>
             </li>
           ))}
         </ul>

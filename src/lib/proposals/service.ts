@@ -2,6 +2,9 @@ import "server-only";
 import { revalidateTag } from "next/cache";
 import { z } from "zod";
 import type { StaffSession } from "@/lib/auth/guards";
+import { hasPostAccess } from "@/lib/collaboration/service";
+import { PostAccess } from "@/lib/collaboration/permissions";
+import { listComments } from "@/lib/reviews/data";
 import { Action, canPerformAction } from "@/lib/auth/permissions";
 import {
   isPostSlugCollision,
@@ -183,6 +186,8 @@ async function ownedProposal<T>(
     post: ExistingPostForUpdate,
     proposal: ProposalRow,
   ) => Promise<ActionResult<T>>,
+  // Decisions stay owner/admin; post collaborators may only read (ADR-0037).
+  required: PostAccess = PostAccess.Manage,
 ): Promise<ActionResult<T>> {
   if (!canPerformAction(session.user, Action.EditPost))
     return { ok: false, error: NOT_AUTHORIZED_ERROR };
@@ -190,7 +195,16 @@ async function ownedProposal<T>(
     (await withLockedProposal<ActionResult<T>>(
       id,
       async (tx, post, proposal) => {
-        if (!mayEdit(session, post)) return NOT_FOUND;
+        const allowed =
+          required === PostAccess.Manage
+            ? mayEdit(session, post)
+            : await hasPostAccess(
+                session.user,
+                { id: proposal.postId, authorId: post.authorId },
+                required,
+                tx,
+              );
+        if (!allowed) return NOT_FOUND;
         return run(tx, post, proposal);
       },
     )) ?? NOT_FOUND
@@ -199,15 +213,34 @@ async function ownedProposal<T>(
 
 export async function getProposalService(id: string, session: StaffSession) {
   try {
-    return await ownedProposal(id, session, async (_tx, post, proposal) => ({
-      ok: true,
-      data: {
-        proposal,
-        stale: stale(proposal, post),
-        postStatus: post.status,
-        publishAt: post.publishAt,
+    return await ownedProposal(
+      id,
+      session,
+      async (tx, post, proposal) => {
+        const isStale = stale(proposal, post);
+        const canDecide = mayEdit(session, post);
+        const ownReview =
+          proposal.origin === ProposalOrigin.Human &&
+          proposal.reviewerId === session.user.id;
+        return {
+          ok: true,
+          data: {
+            proposal,
+            stale: isStale,
+            postStatus: post.status,
+            publishAt: post.publishAt,
+            canDecide,
+            comments: await listComments(proposal.id, tx),
+            // Owner/admin or this review's author (ADR-0038).
+            canResolve: canDecide || ownReview,
+            // The reviewer may edit their open review; an outdated one is
+            // updated against the latest draft instead (ADR-0038).
+            canUpdate: ownReview && proposal.status === ProposalStatus.Open,
+          },
+        };
       },
-    }));
+      PostAccess.Read,
+    );
   } catch (error) {
     return failure("getProposal", error);
   }
@@ -222,7 +255,13 @@ export async function listProposalsService(
       return { ok: false, error: NOT_AUTHORIZED_ERROR } as const;
     return (
       (await withLockedSource(postId, async (tx, post) => {
-        if (!mayEdit(session, post)) return NOT_FOUND;
+        const readable = await hasPostAccess(
+          session.user,
+          { id: postId, authorId: post.authorId },
+          PostAccess.Read,
+          tx,
+        );
+        if (!readable) return NOT_FOUND;
         return {
           ok: true,
           data: await listProposalSummaries(tx, postId, page),

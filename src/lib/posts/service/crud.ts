@@ -10,6 +10,8 @@ import { revalidateTag } from "next/cache";
 
 import type { StaffSession } from "@/lib/auth/guards";
 import { Action, canPerformAction } from "@/lib/auth/permissions";
+import { hasPostAccess } from "@/lib/collaboration/service";
+import { PostAccess } from "@/lib/collaboration/permissions";
 import { isRenderableImageSrc } from "@/lib/content/image-src";
 import {
   categoryExists,
@@ -232,8 +234,11 @@ export async function updatePostService(
 
     // Authors are scoped to their own rows; admins are unscoped (§5.7).
     if (
-      !canPerformAction(session.user, Action.ManageAnyPost) &&
-      existing.authorId !== session.user.id
+      !(await hasPostAccess(
+        session.user,
+        { id, authorId: existing.authorId },
+        PostAccess.Edit,
+      ))
     ) {
       return { ok: false, error: NOT_AUTHORIZED_ERROR };
     }
