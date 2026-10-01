@@ -83,6 +83,10 @@ for (const status of ["draft", "published"] as const) {
       await page
         .getByRole("checkbox", { name: "Body change 1", exact: true })
         .check();
+      const resultSwitch = page.getByRole("button", {
+        name: /^Selected result \(/,
+      });
+      if (await resultSwitch.isVisible()) await resultSwitch.click();
       await page
         .getByRole("button", { name: "Preview selected result" })
         .click();
@@ -114,6 +118,14 @@ for (const status of ["draft", "published"] as const) {
           path: `test-results/review-screenshots/review-dark-${testInfo.project.name}.png`,
           fullPage: true,
         });
+      }
+      if (await resultSwitch.isVisible()) {
+        await page
+          .getByRole("button", { name: "Suggestions", exact: true })
+          .click();
+        await expect(
+          page.getByRole("checkbox", { name: "Body change 1", exact: true }),
+        ).toBeChecked();
       }
       if (status === "published") {
         await page.getByRole("checkbox", { name: "Slug", exact: true }).check();
