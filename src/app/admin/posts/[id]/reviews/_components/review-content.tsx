@@ -28,14 +28,18 @@ export function SnapshotContent({
   snapshot,
   categories,
   html,
+  bodyFirst = false,
 }: {
   snapshot: ProposalSnapshot;
   categories: ReviewCategory[];
   html?: string;
+  bodyFirst?: boolean;
 }) {
   return (
-    <div className="min-w-0 space-y-4">
-      <dl className="space-y-3 text-sm">
+    <div className="flex min-w-0 flex-col gap-4">
+      <dl
+        className={`${bodyFirst ? "order-1 border-t pt-4" : ""} space-y-3 text-sm`}
+      >
         {METADATA_FIELDS.map((field) => (
           <div key={field}>
             <dt className="font-medium">{FIELD_LABELS[field]}</dt>

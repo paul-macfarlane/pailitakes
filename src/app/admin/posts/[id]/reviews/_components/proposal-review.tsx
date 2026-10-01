@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useController, useForm } from "react-hook-form";
 import { applyProposal, rejectProposal } from "@/actions/posts/proposals";
 import { startReview } from "@/actions/posts/reviews";
@@ -63,6 +63,14 @@ export function ProposalReview({
   publishAt: Date | null;
   categories: ReviewCategory[];
 }) {
+  const [showResult, setShowResult] = useState(false);
+  const viewSwitcher = useRef<HTMLDivElement>(null);
+  function switchView(resultVisible: boolean) {
+    setShowResult(resultVisible);
+    requestAnimationFrame(() => {
+      viewSwitcher.current?.scrollIntoView({ block: "start" });
+    });
+  }
   const [status, setStatus] = useState(proposal.status);
   const [stale, setStale] = useState(initiallyStale);
   // Opt in to each suggestion. Closed reviews show the recorded decision.
@@ -306,170 +314,229 @@ export function ProposalReview({
         </details>
       )}
 
-      <section aria-labelledby="changes-heading" className="space-y-4">
-        <h2 id="changes-heading" className="text-xl font-semibold">
-          Suggested changes
-        </h2>
-        <p className="text-sm text-muted-foreground">
-          Select changes to keep. Applying closes this review and records
-          unselected changes as rejected.
-        </p>
-        {proposal.diff.wholeBodyReplacement && (
-          <p className="text-sm">
-            This is a large rewrite. The body is offered as one complete
-            replacement.
+      <div
+        ref={viewSwitcher}
+        className="sticky top-14 z-10 flex scroll-mt-14 gap-2 border-b bg-background py-2 lg:hidden"
+        aria-label="Review view"
+      >
+        <Button
+          variant={showResult ? "outline" : "default"}
+          aria-pressed={!showResult}
+          aria-controls="suggested-changes"
+          onClick={() => switchView(false)}
+        >
+          Suggestions
+        </Button>
+        <Button
+          variant={showResult ? "default" : "outline"}
+          aria-pressed={showResult}
+          aria-controls="selected-result"
+          onClick={() => switchView(true)}
+        >
+          Selected result ({selected.length})
+        </Button>
+      </div>
+      <div className="grid min-w-0 items-start gap-6 lg:grid-cols-2">
+        <section
+          id="suggested-changes"
+          aria-labelledby="changes-heading"
+          className={`${showResult ? "hidden" : "block"} min-w-0 space-y-4 lg:block`}
+        >
+          <h2 id="changes-heading" className="text-xl font-semibold">
+            Suggested changes
+          </h2>
+          <p className="text-sm text-muted-foreground">
+            Select changes to keep. Applying closes this review and records
+            unselected changes as rejected.
           </p>
-        )}
-        {proposal.diff.changes.length === 0 ? (
-          <p>
-            This review contains notes only, with no content changes to apply.
-          </p>
-        ) : (
-          <>
-            {open && (
-              <div className="flex flex-wrap gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  disabled={!editable}
-                  onClick={() => choose(proposal.diff.changes.map((c) => c.id))}
-                >
-                  Select all
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  disabled={!editable}
-                  onClick={() => choose([])}
-                >
-                  Clear selection
-                </Button>
-              </div>
-            )}
-            {/* Details first (Paul, September 28), then body changes in
-                text order. Display order only: change IDs are unchanged. */}
-            {[
-              ...proposal.diff.changes.filter(
-                (change) => change.kind === ChangeKind.Metadata,
-              ),
-              ...proposal.diff.changes.filter(
-                (change) => change.kind === ChangeKind.Body,
-              ),
-            ].map((change, index) => {
-              const explanation = explanations.get(change.id);
-              const title =
-                change.kind === ChangeKind.Body
-                  ? `Body change ${bodyNumber.get(change.id)}`
-                  : FIELD_LABELS[change.field];
-              return (
-                <div
-                  key={change.id}
-                  className="min-w-0 space-y-3 rounded-lg border p-4"
-                >
-                  <label className="flex min-h-11 items-center gap-3 font-medium">
-                    <input
-                      type="checkbox"
-                      name={selection.name}
-                      ref={index === 0 ? selection.ref : undefined}
-                      onBlur={selection.onBlur}
-                      className="size-5 accent-primary"
-                      checked={selected.includes(change.id)}
-                      disabled={!editable}
-                      onChange={(event) =>
-                        choose(
-                          event.target.checked
-                            ? [...selected, change.id]
-                            : selected.filter((id) => id !== change.id),
-                        )
-                      }
-                    />
-                    {title}
-                    {!open && (
-                      <span className="text-sm font-normal text-muted-foreground">
-                        {selected.includes(change.id)
-                          ? "Applied"
-                          : "Not applied"}
-                      </span>
-                    )}
-                  </label>
-                  {change.kind === ChangeKind.Body && (
-                    <p className="text-xs text-muted-foreground">
-                      At line{" "}
-                      {
-                        proposal.base.bodyMd.slice(0, change.start).split("\n")
-                          .length
-                      }{" "}
-                      of the reviewed snapshot
-                    </p>
-                  )}
-                  <div className="grid min-w-0 gap-4 md:grid-cols-2">
-                    <div className="min-w-0">
-                      <h3 className="mb-2 text-sm font-medium">Before</h3>
-                      <ExactText
-                        text={
-                          change.kind === ChangeKind.Body
-                            ? change.before
-                            : displayField(
-                                change.field,
-                                change.before,
-                                categories,
-                              )
-                        }
-                      />
-                    </div>
-                    <div className="min-w-0">
-                      <h3 className="mb-2 text-sm font-medium">Suggested</h3>
-                      <ExactText
-                        text={
-                          change.kind === ChangeKind.Body
-                            ? change.after
-                            : displayField(
-                                change.field,
-                                change.after,
-                                categories,
-                              )
-                        }
-                      />
-                    </div>
-                  </div>
-                  <div className="space-y-2 border-t pt-3 text-sm">
-                    <h3 className="font-medium">Why this change</h3>
-                    <p className="whitespace-pre-wrap break-words [overflow-wrap:anywhere]">
-                      {explanation?.explanation ??
-                        "No explanation supplied for this change."}
-                    </p>
-                    {explanation && explanation.sources.length > 0 && (
-                      <ul
-                        aria-label="Sources for this change"
-                        className="space-y-1"
-                      >
-                        {explanation.sources.map((source, i) => (
-                          <li key={i}>
-                            <SourceLink href={source}>{source}</SourceLink>
-                          </li>
-                        ))}
-                      </ul>
-                    )}
-                  </div>
-                  <div className="border-t pt-3">
-                    <ReviewDiscussion
-                      proposalId={proposal.id}
-                      comments={comments}
-                      threads={topLevel.filter(
-                        (comment) => comment.changeId === change.id,
-                      )}
-                      changeId={change.id}
-                      canResolve={canResolve}
-                      newThreadLabel={`Comment on ${title.toLowerCase()}`}
-                      collapsed
-                    />
-                  </div>
+          {proposal.diff.wholeBodyReplacement && (
+            <p className="text-sm">
+              This is a large rewrite. The body is offered as one complete
+              replacement.
+            </p>
+          )}
+          {proposal.diff.changes.length === 0 ? (
+            <p>
+              This review contains notes only, with no content changes to apply.
+            </p>
+          ) : (
+            <>
+              {open && (
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={!editable}
+                    onClick={() =>
+                      choose(proposal.diff.changes.map((c) => c.id))
+                    }
+                  >
+                    Select all
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={!editable}
+                    onClick={() => choose([])}
+                  >
+                    Clear selection
+                  </Button>
                 </div>
-              );
-            })}
-          </>
-        )}
-      </section>
+              )}
+              {/* Details first (Paul, September 28), then body changes in
+                text order. Display order only: change IDs are unchanged. */}
+              {[
+                ...proposal.diff.changes.filter(
+                  (change) => change.kind === ChangeKind.Metadata,
+                ),
+                ...proposal.diff.changes.filter(
+                  (change) => change.kind === ChangeKind.Body,
+                ),
+              ].map((change, index) => {
+                const explanation = explanations.get(change.id);
+                const title =
+                  change.kind === ChangeKind.Body
+                    ? `Body change ${bodyNumber.get(change.id)}`
+                    : FIELD_LABELS[change.field];
+                return (
+                  <div
+                    key={change.id}
+                    className="min-w-0 space-y-3 rounded-lg border p-4"
+                  >
+                    <label className="flex min-h-11 items-center gap-3 font-medium">
+                      <input
+                        type="checkbox"
+                        name={selection.name}
+                        ref={index === 0 ? selection.ref : undefined}
+                        onBlur={selection.onBlur}
+                        className="size-5 accent-primary"
+                        checked={selected.includes(change.id)}
+                        disabled={!editable}
+                        onChange={(event) =>
+                          choose(
+                            event.target.checked
+                              ? [...selected, change.id]
+                              : selected.filter((id) => id !== change.id),
+                          )
+                        }
+                      />
+                      {title}
+                      {!open && (
+                        <span className="text-sm font-normal text-muted-foreground">
+                          {selected.includes(change.id)
+                            ? "Applied"
+                            : "Not applied"}
+                        </span>
+                      )}
+                    </label>
+                    {change.kind === ChangeKind.Body && (
+                      <p className="text-xs text-muted-foreground">
+                        At line{" "}
+                        {
+                          proposal.base.bodyMd
+                            .slice(0, change.start)
+                            .split("\n").length
+                        }{" "}
+                        of the reviewed snapshot
+                      </p>
+                    )}
+                    <div className="grid min-w-0 gap-4 md:grid-cols-2 lg:grid-cols-1">
+                      <div className="min-w-0">
+                        <h3 className="mb-2 text-sm font-medium">Before</h3>
+                        <ExactText
+                          text={
+                            change.kind === ChangeKind.Body
+                              ? change.before
+                              : displayField(
+                                  change.field,
+                                  change.before,
+                                  categories,
+                                )
+                          }
+                        />
+                      </div>
+                      <div className="min-w-0">
+                        <h3 className="mb-2 text-sm font-medium">Suggested</h3>
+                        <ExactText
+                          text={
+                            change.kind === ChangeKind.Body
+                              ? change.after
+                              : displayField(
+                                  change.field,
+                                  change.after,
+                                  categories,
+                                )
+                          }
+                        />
+                      </div>
+                    </div>
+                    <div className="space-y-2 border-t pt-3 text-sm">
+                      <h3 className="font-medium">Why this change</h3>
+                      <p className="whitespace-pre-wrap break-words [overflow-wrap:anywhere]">
+                        {explanation?.explanation ??
+                          "No explanation supplied for this change."}
+                      </p>
+                      {explanation && explanation.sources.length > 0 && (
+                        <ul
+                          aria-label="Sources for this change"
+                          className="space-y-1"
+                        >
+                          {explanation.sources.map((source, i) => (
+                            <li key={i}>
+                              <SourceLink href={source}>{source}</SourceLink>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </div>
+                    <div className="border-t pt-3">
+                      <ReviewDiscussion
+                        proposalId={proposal.id}
+                        comments={comments}
+                        threads={topLevel.filter(
+                          (comment) => comment.changeId === change.id,
+                        )}
+                        changeId={change.id}
+                        canResolve={canResolve}
+                        newThreadLabel={`Comment on ${title.toLowerCase()}`}
+                        collapsed
+                      />
+                    </div>
+                  </div>
+                );
+              })}
+            </>
+          )}
+        </section>
+
+        <section
+          id="selected-result"
+          className={`${showResult ? "block" : "hidden"} min-w-0 space-y-4 rounded-lg border p-4 lg:sticky lg:top-20 lg:block lg:max-h-[calc(100dvh-6rem)] lg:overflow-y-auto`}
+          aria-labelledby="selected-heading"
+        >
+          <h2 id="selected-heading" className="text-xl font-semibold">
+            {open ? "Your selected result" : "Recorded result"}
+          </h2>
+          <p className="text-sm text-muted-foreground">
+            {selected.length} of {proposal.diff.changes.length} changes
+            selected. Includes unchanged text and fields from the reviewed
+            snapshot.
+          </p>
+          <Button
+            variant="outline"
+            disabled={pending}
+            onClick={() => void previewSelection()}
+          >
+            Preview selected result
+          </Button>
+          <SnapshotContent
+            bodyFirst
+            snapshot={result}
+            categories={categories}
+            html={preview?.body === result.bodyMd ? preview.html : undefined}
+          />
+        </section>
+      </div>
 
       {topLevel.some((comment) => comment.anchor !== null) && (
         <section aria-labelledby="text-comments-heading" className="space-y-3">
@@ -521,27 +588,6 @@ export function ProposalReview({
         </div>
       </details>
 
-      <section className="space-y-4" aria-labelledby="selected-heading">
-        <h2 id="selected-heading" className="text-xl font-semibold">
-          {open ? "Your selected result" : "Recorded result"}
-        </h2>
-        <p className="text-sm text-muted-foreground">
-          {selected.length} of {proposal.diff.changes.length} changes selected.
-          Includes unchanged text and fields from the reviewed snapshot.
-        </p>
-        <Button
-          variant="outline"
-          disabled={pending}
-          onClick={() => void previewSelection()}
-        >
-          Preview selected result
-        </Button>
-        <SnapshotContent
-          snapshot={result}
-          categories={categories}
-          html={preview?.body === result.bodyMd ? preview.html : undefined}
-        />
-      </section>
       <div className="space-y-3 border-t pt-4">
         {error && (
           <p role="alert" className="text-sm text-destructive">
